@@ -1,23 +1,20 @@
-name: Java CI with Maven
+name: Build Lobby
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch: # Erlaubt es dir, den Build manuell zu starten
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    # DIESER TEIL IST WICHTIG:
     permissions:
       contents: write
 
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Empfohlen für saubere Git-Operationen
+        fetch-depth: 0
 
     - name: Set up JDK 21
       uses: actions/setup-java@v4
@@ -31,19 +28,22 @@ jobs:
 
     - name: Move JAR to root and Commit
       run: |
-        # Sucht die richtige Fastbuilder JAR (ohne shaded/sources/javadoc)
-        JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+        # Sucht die Lobby JAR, ignoriert shaded/sources/javadoc
+        JAR_PATH=$(find target/ -name "Lobby-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         
         if [ -z "$JAR_PATH" ]; then
-          echo "Fehler: Keine Fastbuilder JAR gefunden!"
+          echo "Fehler: Keine Lobby JAR gefunden!"
           exit 1
         fi
         
-        mv "$JAR_PATH" ./fastbuilder-latest.jar
+        echo "Gefundene Datei: $JAR_PATH"
+        mv "$JAR_PATH" ./lobby-latest.jar
         
+        # Git Bot konfigurieren
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-        git add -f fastbuilder-latest.jar
-        git commit -m "Update Fastbuilder JAR [skip ci]" || echo "No changes to commit"
+        # Datei mit Force (-f) hinzufügen, falls .gitignore sie blockiert
+        git add -f lobby-latest.jar
+        git commit -m "Update Lobby JAR [skip ci]" || echo "No changes to commit"
         git push
