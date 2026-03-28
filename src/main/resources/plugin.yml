@@ -1,20 +1,24 @@
 name: FastBuilder
 version: 1.0.0
-main: net.gravijet.FastBuilderPlugin
+main: net.gravijet.fastbuilder.Main
 api-version: 1.8
-author: FastBuilder Dev
-description: Bridging / FastBuilder Übungsserver Plugin
+author: GraviJet
+description: Bridging practice plugin – train your bridging skills.
 
 commands:
-  f:
-    description: FastBuilder Hauptbefehl
-    usage: /f <setspawn|spawn> <islandId>
+  fb:
+    description: FastBuilder main command
+    usage: /fb <help|spawn|reset|stats|setspawn|reload>
+    aliases: [fastbuilder]
     permission: fastbuilder.use
 
 permissions:
   fastbuilder.use:
-    description: Erlaubt grundlegende FastBuilder Befehle
+    description: Allows using FastBuilder commands
     default: true
   fastbuilder.admin:
-    description: Admin-Rechte (setspawn etc.)
+    description: Allows admin FastBuilder commands (setspawn, reload)
+    default: op
+  fastbuilder.stats.others:
+    description: Allows viewing other players' stats
     default: op

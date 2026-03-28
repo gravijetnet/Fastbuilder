@@ -1,0 +1,23 @@
+# FastBuilder Configuration
+
+# World where islands are generated
+world: world
+
+# Y-level of island platforms
+island-y: 64
+
+# Spacing between islands (in blocks)
+island-spacing: 300
+
+# Number of blocks in the start/target platform (width x depth)
+platform-width: 5
+platform-depth: 3
+
+# Gap between start platform and bridge area (in blocks)
+platform-gap: 5
+
+# Default block material for bridging (must match a BridgeMaterial name)
+default-material: COBBLESTONE
+
+# Default distance (must match a BridgeDistance name)
+default-distance: NORMAL

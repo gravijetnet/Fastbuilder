@@ -1,15 +1,19 @@
-package de.fastbuilder.manager;
+package net.gravijet.fastbuilder.manager;
 
-import de.fastbuilder.FastBuilderPlugin;
-import de.fastbuilder.gui.DistanceGui;
-import de.fastbuilder.model.BridgeDistance;
-import de.fastbuilder.model.Island;
-import de.fastbuilder.model.PlayerData;
-import de.fastbuilder.util.ActionBarUtil;
+import net.gravijet.fastbuilder.Main;
+import net.gravijet.fastbuilder.gui.DistanceGui;
+import net.gravijet.fastbuilder.gui.MaterialGui;
+import net.gravijet.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.model.BridgeMaterial;
+import net.gravijet.fastbuilder.model.Island;
+import net.gravijet.fastbuilder.model.PlayerData;
+import net.gravijet.fastbuilder.model.PlayerStats;
+import net.gravijet.fastbuilder.util.ActionBarUtil;
+import net.gravijet.fastbuilder.util.CC;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -17,331 +21,335 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Zentraler Koordinator des FastBuilder-Plugins.
- *
- * Verantwortlichkeiten:
- *  - Spieler beim Joinen/Verlassen verwalten
- *  - Spielablauf steuern (Start, Versuch, Reset, Erfolg)
- *  - Sub-Manager koordinieren (Island, Hologram, NPC)
- *  - Timer-Ticker verwalten
- */
 public class GameManager {
 
-    private final FastBuilderPlugin plugin;
+    private final Main plugin;
 
-    // Sub-Manager
-    private final IslandManager  islandManager;
-    private final HologramManager hologramManager;
-    private final NpcManager      npcManager;
+    private final IslandManager    islandManager;
+    private final HologramManager  hologramManager;
+    private final NpcManager       npcManager;
+    private final ScoreboardManager scoreboardManager;
+    private final StatsManager     statsManager;
+    private final DistanceGui      distanceGui;
+    private final MaterialGui      materialGui;
 
-    // GUI-Instanz (zustandslos, eine Instanz reicht)
-    private final DistanceGui distanceGui;
-
-    // Spieler-Statistiken (UUID → PlayerData)
-    private final Map<UUID, PlayerData> playerDataMap = new HashMap<>();
-
-    // Laufende Timer-Tasks (UUID → BukkitTask) für die ActionBar
+    private final Map<UUID, PlayerData> playerData = new HashMap<>();
     private final Map<UUID, BukkitTask> timerTasks = new HashMap<>();
 
-    public GameManager(FastBuilderPlugin plugin) {
-        this.plugin          = plugin;
-        this.islandManager   = new IslandManager(plugin.getConfig().getString("world", "world"));
-        this.hologramManager = new HologramManager();
-        this.npcManager      = new NpcManager();
-        this.distanceGui     = new DistanceGui();
+    private final BridgeDistance defaultDistance;
+    private final BridgeMaterial defaultMaterial;
+
+    public GameManager(Main plugin) {
+        this.plugin = plugin;
+
+        String world   = plugin.getConfig().getString("world", "world");
+        int    y       = plugin.getConfig().getInt("island-y", 64);
+        int    spacing = plugin.getConfig().getInt("island-spacing", 300);
+
+        this.islandManager     = new IslandManager(world, y, spacing);
+        this.hologramManager   = new HologramManager();
+        this.npcManager        = new NpcManager();
+        this.scoreboardManager = new ScoreboardManager();
+        this.statsManager      = new StatsManager(plugin);
+        this.distanceGui       = new DistanceGui();
+        this.materialGui       = new MaterialGui();
+
+        String defDist = plugin.getConfig().getString("default-distance", "NORMAL");
+        String defMat  = plugin.getConfig().getString("default-material", "COBBLESTONE");
+
+        BridgeDistance bd;
+        try { bd = BridgeDistance.valueOf(defDist); }
+        catch (IllegalArgumentException e) { bd = BridgeDistance.NORMAL; }
+
+        BridgeMaterial bm;
+        try { bm = BridgeMaterial.valueOf(defMat); }
+        catch (IllegalArgumentException e) { bm = BridgeMaterial.COBBLESTONE; }
+
+        this.defaultDistance = bd;
+        this.defaultMaterial = bm;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  SPIELER JOIN / LEAVE
-    // ─────────────────────────────────────────────────────────────
+    // ── Join / Leave ──────────────────────────────────────────────
 
-    /**
-     * Wird aufgerufen wenn ein Spieler jointed.
-     * Erstellt Insel, PlayerData, Hologramm, NPC.
-     */
     public void onPlayerJoin(Player player) {
         UUID uuid = player.getUniqueId();
 
-        // PlayerData anlegen
-        playerDataMap.put(uuid, new PlayerData(uuid));
+        PlayerStats stats = statsManager.load(uuid);
+        PlayerData  data  = new PlayerData(uuid, defaultDistance, defaultMaterial);
+        playerData.put(uuid, data);
 
-        // Insel erstellen und Startplattform generieren
         Island island = islandManager.createIsland(uuid);
+        island.generateTargetPlatform(defaultDistance);
 
-        // NPC spawnen
         npcManager.spawnNpc(island);
+        hologramManager.createHologram(island, stats, defaultDistance);
 
-        // Hologramm spawnen
-        PlayerData data = playerDataMap.get(uuid);
-        hologramManager.createHologram(island, data);
-
-        // Spieler auf die Insel teleportieren
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            scoreboardManager.createBoard(player, data, stats);
             player.teleport(island.getSpawnLocation());
-            giveDefaultItems(player);
-            player.sendMessage(ChatColor.GOLD + "[FastBuilder] " + ChatColor.YELLOW
-                    + "Willkommen! Rechtsklicke den NPC um eine Distanz zu wählen.");
-        }, 5L); // kurze Verzögerung nach Join
+            giveHotbarItems(player);
+            player.setFoodLevel(20);
+            player.setSaturation(20f);
+            player.sendMessage(CC.PREFIX + "Welcome! &7Right-click the NPC to select a distance.");
+        }, 5L);
     }
 
-    /**
-     * Wird aufgerufen wenn ein Spieler die Verbindung trennt.
-     * Räumt Ressourcen auf.
-     */
     public void onPlayerLeave(Player player) {
         UUID uuid = player.getUniqueId();
         stopTimerTask(uuid);
+        statsManager.saveAndUnload(uuid);
         npcManager.removeNpc(uuid);
         hologramManager.removeHologram(uuid);
+        scoreboardManager.removeBoard(player);
         islandManager.removeIsland(uuid);
-        playerDataMap.remove(uuid);
+        playerData.remove(uuid);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  SPIELABLAUF
-    // ─────────────────────────────────────────────────────────────
+    // ── Game Logic ────────────────────────────────────────────────
 
-    /**
-     * Wird aufgerufen wenn der Spieler seinen ersten Block platziert.
-     * Startet den Timer und markiert den Versuch als begonnen.
-     */
     public void onFirstBlockPlaced(Player player) {
-        PlayerData data = playerDataMap.get(player.getUniqueId());
+        PlayerData data = playerData.get(player.getUniqueId());
         if (data == null || data.isTimerRunning()) return;
-
         data.startTimer();
         startTimerTask(player);
-        player.sendMessage(ChatColor.YELLOW + "▶ Timer gestartet!");
     }
 
-    /**
-     * Wird aufgerufen wenn der Spieler in den Void fällt.
-     * Zählt den Versuch als fehlgeschlagen.
-     */
     public void onVoidFall(Player player) {
         UUID uuid = player.getUniqueId();
-        PlayerData data = playerDataMap.get(uuid);
-        Island island    = islandManager.getIsland(uuid);
+        PlayerData  data   = playerData.get(uuid);
+        PlayerStats stats  = statsManager.get(uuid);
+        Island      island = islandManager.getIsland(uuid);
         if (data == null || island == null) return;
 
-        // Nur zählen wenn Versuch begonnen (Block gesetzt)
         if (data.isAttemptStarted()) {
-            data.incrementAttempts();
-            hologramManager.updateHologram(uuid, data);
+            stats.recordAttempt(data.getSelectedDistance());
         }
 
-        // Timer stoppen und UI leeren
         stopTimerTask(uuid);
         data.resetTimer();
-
-        // Blöcke aufräumen
         island.clearPlacedBlocks();
 
-        // Spieler wiederbeleben und zurückteleportieren
         player.setHealth(player.getMaxHealth());
         player.teleport(island.getSpawnLocation());
-        giveDefaultItems(player);
+        giveHotbarItems(player);
+        player.setFoodLevel(20);
 
-        ActionBarUtil.sendActionBar(player, ChatColor.RED + "✗ Void! Neuer Versuch.");
+        ActionBarUtil.send(player, CC.c("&c✗ &7Void! Try again."));
         player.playSound(player.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.8f);
+
+        hologramManager.updateHologram(uuid, stats, data.getSelectedDistance());
+        scoreboardManager.updateBoard(player, data, stats, null);
     }
 
-    /**
-     * Wird aufgerufen wenn der Spieler die Druckplatte betritt.
-     * Zählt den Versuch als erfolgreich und stoppt den Timer.
-     */
     public void onPressurePlate(Player player) {
         UUID uuid = player.getUniqueId();
-        PlayerData data = playerDataMap.get(uuid);
-        Island island    = islandManager.getIsland(uuid);
-        if (data == null || island == null) return;
-        if (!data.isAttemptStarted()) return; // Kein aktiver Versuch
+        PlayerData  data   = playerData.get(uuid);
+        PlayerStats stats  = statsManager.get(uuid);
+        Island      island = islandManager.getIsland(uuid);
+        if (data == null || island == null || !data.isAttemptStarted()) return;
 
-        // Timer stoppen
         stopTimerTask(uuid);
         long elapsed = data.stopTimer();
 
-        // Statistiken aktualisieren
-        data.incrementAttempts();
-        data.recordSuccess(elapsed);
-        hologramManager.updateHologram(uuid, data);
+        stats.recordAttempt(data.getSelectedDistance());
+        stats.recordSuccess(data.getSelectedDistance(), elapsed);
 
-        // Neue Bestzeit?
-        boolean newRecord = data.getBestTimeMillis() == elapsed;
-        String timeStr = String.format("%.2fs", elapsed / 1000.0);
+        boolean newRecord = stats.getStats(data.getSelectedDistance()).bestTimeMillis == elapsed;
+        String  timeStr   = String.format("%.2fs", elapsed / 1000.0);
 
-        // Feedback
-        String msg = ChatColor.GREEN + "✔ Geschafft in " + ChatColor.GOLD + timeStr;
-        if (newRecord) msg += ChatColor.AQUA + " ★ Neue Bestzeit!";
-        player.sendMessage(ChatColor.GOLD + "[FastBuilder] " + msg);
-        ActionBarUtil.sendActionBar(player, msg);
+        String msg = CC.c("&a✔ &7Finished in &e" + timeStr
+                + (newRecord ? " &6&l★ New Best!" : ""));
+        player.sendMessage(CC.PREFIX + CC.c("&7Finished in &e" + timeStr
+                + (newRecord ? " &6&l★ New Best!" : "")));
+        ActionBarUtil.send(player, msg);
         player.playSound(player.getLocation(), Sound.LEVEL_UP, 1f, 1f);
 
-        // Blöcke aufräumen und zurückteleportieren
+        hologramManager.updateHologram(uuid, stats, data.getSelectedDistance());
+        scoreboardManager.updateBoard(player, data, stats, null);
+
         island.clearPlacedBlocks();
         data.resetTimer();
-        Player p = player; // für Lambda
+
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            p.teleport(island.getSpawnLocation());
-            giveDefaultItems(p);
-        }, 20L); // 1 Sekunde Verzögerung damit der Spieler Feedback sieht
+            if (player.isOnline()) {
+                player.teleport(island.getSpawnLocation());
+                giveHotbarItems(player);
+                player.setFoodLevel(20);
+            }
+        }, 20L);
     }
 
-    /**
-     * Wird aufgerufen wenn der Spieler den NPC rechtsklickt.
-     * Öffnet das Distanz-Auswahl-GUI.
-     */
     public void onNpcRightClick(Player player) {
-        distanceGui.open(player);
+        PlayerData data = playerData.get(player.getUniqueId());
+        if (data == null) return;
+        distanceGui.open(player, data.getSelectedDistance());
     }
 
-    /**
-     * Wird aufgerufen wenn der Spieler eine Distanz im GUI auswählt.
-     * Generiert die Zielplattform neu.
-     */
     public void onDistanceSelected(Player player, BridgeDistance distance) {
         UUID uuid = player.getUniqueId();
-        Island island = islandManager.getIsland(uuid);
-        if (island == null) return;
+        PlayerData  data   = playerData.get(uuid);
+        PlayerStats stats  = statsManager.get(uuid);
+        Island      island = islandManager.getIsland(uuid);
+        if (data == null || island == null) return;
 
-        // Laufenden Versuch abbrechen
-        if (playerDataMap.containsKey(uuid)) {
-            PlayerData data = playerDataMap.get(uuid);
-            if (data.isAttemptStarted()) {
-                stopTimerTask(uuid);
-                data.resetTimer();
-                island.clearPlacedBlocks();
-            }
+        if (data.isAttemptStarted()) {
+            stopTimerTask(uuid);
+            data.resetTimer();
+            island.clearPlacedBlocks();
         }
 
-        // Neue Zielplattform generieren
+        data.setSelectedDistance(distance);
         island.generateTargetPlatform(distance);
-
         player.closeInventory();
-        player.sendMessage(ChatColor.GOLD + "[FastBuilder] " + ChatColor.YELLOW
-                + "Distanz geändert: " + distance.getColor() + distance.getDisplayName()
-                + ChatColor.YELLOW + " (" + distance.getDistance() + " Blöcke)");
+
+        hologramManager.updateHologram(uuid, stats, distance);
+        scoreboardManager.updateBoard(player, data, stats, null);
+
+        player.sendMessage(CC.PREFIX + CC.c("&7Distance changed to "
+                + distance.getColorCode() + distance.getDisplayName()
+                + "&7 (&f" + distance.getDistance() + " blocks&7)."));
         player.playSound(player.getLocation(), Sound.NOTE_PLING, 1f, 1.5f);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  SPAWN-BEFEHLE
-    // ─────────────────────────────────────────────────────────────
+    public void onMaterialSelected(Player player, BridgeMaterial material) {
+        PlayerData data = playerData.get(player.getUniqueId());
+        if (data == null) return;
 
-    /**
-     * Setzt den Spawnpunkt der eigenen Insel auf die aktuelle Spieler-Position.
-     */
+        data.setSelectedMaterial(material);
+        player.closeInventory();
+        giveHotbarItems(player);
+
+        player.sendMessage(CC.PREFIX + CC.c("&7Material changed to &f"
+                + material.getDisplayName() + "&7."));
+        player.playSound(player.getLocation(), Sound.NOTE_PLING, 1f, 1.5f);
+    }
+
+    public void openMaterialGui(Player player) {
+        PlayerData data = playerData.get(player.getUniqueId());
+        if (data == null) return;
+        materialGui.open(player, data.getSelectedMaterial());
+    }
+
+    public void resetAttempt(Player player) {
+        UUID uuid = player.getUniqueId();
+        PlayerData data   = playerData.get(uuid);
+        Island     island = islandManager.getIsland(uuid);
+        if (data == null || island == null) return;
+
+        stopTimerTask(uuid);
+        data.resetTimer();
+        island.clearPlacedBlocks();
+
+        player.teleport(island.getSpawnLocation());
+        giveHotbarItems(player);
+        player.setFoodLevel(20);
+
+        ActionBarUtil.send(player, CC.c("&7Reset!"));
+        scoreboardManager.updateBoard(player, data, statsManager.get(uuid), null);
+    }
+
+    // ── Spawn Commands ────────────────────────────────────────────
+
     public void setSpawn(Player player) {
         Island island = islandManager.getIsland(player.getUniqueId());
         if (island == null) {
-            player.sendMessage(ChatColor.RED + "Keine Insel gefunden!");
+            player.sendMessage(CC.ERROR + "No island found.");
             return;
         }
         island.setSpawnLocation(player.getLocation());
-        player.sendMessage(ChatColor.GREEN + "Spawnpunkt gesetzt!");
+        player.sendMessage(CC.SUCCESS + "Spawn point updated.");
     }
 
-    /**
-     * Teleportiert den Spieler zu seinem Insel-Spawnpunkt.
-     */
     public void teleportToSpawn(Player player) {
         Island island = islandManager.getIsland(player.getUniqueId());
         if (island == null) {
-            player.sendMessage(ChatColor.RED + "Keine Insel gefunden!");
+            player.sendMessage(CC.ERROR + "No island found.");
             return;
         }
         player.teleport(island.getSpawnLocation());
-        player.sendMessage(ChatColor.GREEN + "Zum Spawn teleportiert!");
+        player.sendMessage(CC.SUCCESS + "Teleported to spawn.");
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  TIMER
-    // ─────────────────────────────────────────────────────────────
+    // ── Timer ─────────────────────────────────────────────────────
 
-    /**
-     * Startet den ActionBar-Timer-Ticker für einen Spieler.
-     * Läuft jede Tick (50ms) und aktualisiert die ActionBar-Anzeige.
-     */
     private void startTimerTask(Player player) {
         UUID uuid = player.getUniqueId();
-        stopTimerTask(uuid); // Sicherstellen, dass kein alter Task läuft
+        stopTimerTask(uuid);
 
         BukkitTask task = new BukkitRunnable() {
             @Override
             public void run() {
-                // Spieler noch online?
                 Player p = Bukkit.getPlayer(uuid);
-                if (p == null || !p.isOnline()) {
-                    cancel();
-                    return;
-                }
-                PlayerData data = playerDataMap.get(uuid);
-                if (data == null || !data.isTimerRunning()) {
-                    cancel();
-                    return;
-                }
-                // ActionBar aktualisieren
-                String timeStr = data.getFormattedCurrentTime();
-                ActionBarUtil.sendActionBar(p,
-                        ChatColor.YELLOW + "⏱ " + ChatColor.WHITE + timeStr);
+                if (p == null || !p.isOnline()) { cancel(); return; }
+                PlayerData d = playerData.get(uuid);
+                if (d == null || !d.isTimerRunning()) { cancel(); return; }
+
+                String timeStr = d.getFormattedElapsed();
+                ActionBarUtil.send(p, CC.c("&e⏱ &f" + timeStr));
+                scoreboardManager.updateBoard(p, d, statsManager.get(uuid), timeStr);
             }
-        }.runTaskTimer(plugin, 0L, 1L); // Jede 1 Tick (~50ms)
+        }.runTaskTimer(plugin, 0L, 1L);
 
         timerTasks.put(uuid, task);
     }
 
-    /**
-     * Stoppt den ActionBar-Timer-Ticker eines Spielers.
-     */
     private void stopTimerTask(UUID uuid) {
         BukkitTask task = timerTasks.remove(uuid);
-        if (task != null) {
-            task.cancel();
-        }
+        if (task != null) task.cancel();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  HILFSMETHODEN
-    // ─────────────────────────────────────────────────────────────
+    // ── Hotbar Items ──────────────────────────────────────────────
 
-    /**
-     * Gibt dem Spieler die Standard-Items (Cobblestone zum Bridgen).
-     */
-    private void giveDefaultItems(Player player) {
+    public void giveHotbarItems(Player player) {
+        PlayerData data = playerData.get(player.getUniqueId());
+        if (data == null) return;
+
         player.getInventory().clear();
-        // Stack Cobblestone für die Brücke
-        player.getInventory().setItem(0,
-                new org.bukkit.inventory.ItemStack(org.bukkit.Material.COBBLESTONE, 64));
-        player.getInventory().setItem(1,
-                new org.bukkit.inventory.ItemStack(org.bukkit.Material.COBBLESTONE, 64));
-        player.getInventory().setItem(2,
-                new org.bukkit.inventory.ItemStack(org.bukkit.Material.COBBLESTONE, 64));
+
+        // Slots 0-2: bridging material
+        ItemStack blockStack = data.getSelectedMaterial().toHotbarStack();
+        player.getInventory().setItem(0, blockStack);
+        player.getInventory().setItem(1, blockStack.clone());
+        player.getInventory().setItem(2, blockStack.clone());
+
+        // Slot 4: compass → select distance
+        player.getInventory().setItem(4,
+                new net.gravijet.fastbuilder.util.ItemBuilder(org.bukkit.Material.COMPASS)
+                        .name("&c&lSelect Distance")
+                        .lore("&7Right-click to choose a distance")
+                        .build());
+
+        // Slot 6: book → select material
+        player.getInventory().setItem(6,
+                new net.gravijet.fastbuilder.util.ItemBuilder(org.bukkit.Material.BOOK)
+                        .name("&c&lSelect Material")
+                        .lore("&7Right-click to choose a block material")
+                        .build());
+
+        // Slot 8: barrier → reset
+        player.getInventory().setItem(8,
+                new net.gravijet.fastbuilder.util.ItemBuilder(org.bukkit.Material.BARRIER)
+                        .name("&c&lReset")
+                        .lore("&7Right-click to reset your current attempt")
+                        .build());
+
         player.getInventory().setHeldItemSlot(0);
     }
 
-    /**
-     * Räumt beim Plugin-Stop alle Ressourcen auf.
-     */
-    public void cleanup() {
-        // Alle Timer stoppen
-        for (BukkitTask task : timerTasks.values()) {
-            task.cancel();
-        }
-        timerTasks.clear();
+    // ── Cleanup ───────────────────────────────────────────────────
 
-        // NPCs und Holograms entfernen
+    public void cleanup() {
+        timerTasks.values().forEach(BukkitTask::cancel);
+        timerTasks.clear();
         npcManager.removeAll();
         hologramManager.removeAll();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  GETTER
-    // ─────────────────────────────────────────────────────────────
+    // ── Getters ───────────────────────────────────────────────────
 
-    public IslandManager   getIslandManager()   { return islandManager; }
-    public HologramManager getHologramManager() { return hologramManager; }
-    public NpcManager      getNpcManager()      { return npcManager; }
-    public PlayerData      getPlayerData(UUID uuid) { return playerDataMap.get(uuid); }
-    public DistanceGui     getDistanceGui()     { return distanceGui; }
+    public IslandManager    getIslandManager()    { return islandManager;    }
+    public StatsManager     getStatsManager()     { return statsManager;     }
+    public NpcManager       getNpcManager()       { return npcManager;       }
+    public ScoreboardManager getScoreboardManager(){ return scoreboardManager; }
+    public PlayerData       getPlayerData(UUID id){ return playerData.get(id); }
 }

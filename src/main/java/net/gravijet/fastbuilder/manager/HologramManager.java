@@ -1,8 +1,9 @@
-package de.fastbuilder.manager;
+package net.gravijet.fastbuilder.manager;
 
-import de.fastbuilder.model.Island;
-import de.fastbuilder.model.PlayerData;
-import org.bukkit.ChatColor;
+import net.gravijet.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.model.Island;
+import net.gravijet.fastbuilder.model.PlayerStats;
+import net.gravijet.fastbuilder.util.CC;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
@@ -13,116 +14,69 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Verwaltet Hologramme pro Spieler-Insel.
- *
- * Hologramme bestehen aus unsichtbaren ArmorStands mit CustomName.
- * Jede Insel hat 3 Hologramm-Zeilen:
- *   Zeile 1: Versuche
- *   Zeile 2: Erfolgreich
- *   Zeile 3: Bestzeit
- *
- * Abstand zwischen Zeilen: 0.3 Blöcke (Standard-Hologramm-Abstand)
- */
 public class HologramManager {
 
-    /** Zeilenabstand der Hologramm-Zeilen */
-    private static final double LINE_SPACING = 0.30;
+    private static final double LINE_SPACING = 0.28;
 
-    /** Mapping: UUID → Liste der ArmorStands (von oben nach unten) */
-    private final Map<UUID, List<ArmorStand>> hologramMap = new HashMap<>();
+    private final Map<UUID, List<ArmorStand>> holograms = new HashMap<>();
 
-    /**
-     * Erstellt ein Hologramm für die gegebene Insel mit initial-Daten.
-     */
-    public void createHologram(Island island, PlayerData data) {
+    public void createHologram(Island island, PlayerStats stats, BridgeDistance distance) {
         UUID uuid = island.getPlayerUuid();
-
-        // Altes Hologramm entfernen falls vorhanden
         removeHologram(uuid);
 
-        Location base = island.getHologramBaseLocation();
+        Location base = island.getHologramLocation();
+        String[] lines = buildLines(stats, distance);
         List<ArmorStand> stands = new ArrayList<>();
 
-        // Zeilen von oben nach unten spawnen
-        String[] lines = buildLines(data);
         for (int i = 0; i < lines.length; i++) {
-            Location lineLoc = base.clone().subtract(0, i * LINE_SPACING, 0);
-            ArmorStand stand = spawnLine(lineLoc, lines[i]);
+            Location loc = base.clone().subtract(0, i * LINE_SPACING, 0);
+            ArmorStand stand = spawnStand(loc, lines[i]);
             stands.add(stand);
         }
-
-        hologramMap.put(uuid, stands);
+        holograms.put(uuid, stands);
     }
 
-    /**
-     * Aktualisiert die Texte aller Hologramm-Zeilen mit neuen Statistiken.
-     */
-    public void updateHologram(UUID playerUuid, PlayerData data) {
-        List<ArmorStand> stands = hologramMap.get(playerUuid);
-        if (stands == null || stands.isEmpty()) return;
-
-        String[] lines = buildLines(data);
+    public void updateHologram(UUID uuid, PlayerStats stats, BridgeDistance distance) {
+        List<ArmorStand> stands = holograms.get(uuid);
+        if (stands == null) return;
+        String[] lines = buildLines(stats, distance);
         for (int i = 0; i < Math.min(lines.length, stands.size()); i++) {
-            ArmorStand stand = stands.get(i);
-            if (stand != null && !stand.isDead()) {
-                stand.setCustomName(lines[i]);
-            }
+            ArmorStand s = stands.get(i);
+            if (s != null && !s.isDead()) s.setCustomName(lines[i]);
         }
     }
 
-    /**
-     * Entfernt das Hologramm eines Spielers (ArmorStands werden despawned).
-     */
-    public void removeHologram(UUID playerUuid) {
-        List<ArmorStand> stands = hologramMap.remove(playerUuid);
-        if (stands != null) {
-            for (ArmorStand stand : stands) {
-                if (stand != null && !stand.isDead()) {
-                    stand.remove();
-                }
-            }
-        }
+    public void removeHologram(UUID uuid) {
+        List<ArmorStand> stands = holograms.remove(uuid);
+        if (stands != null) stands.forEach(s -> { if (s != null && !s.isDead()) s.remove(); });
     }
 
-    /**
-     * Entfernt alle Hologramme (beim Plugin-Stop).
-     */
     public void removeAll() {
-        for (UUID uuid : new ArrayList<>(hologramMap.keySet())) {
-            removeHologram(uuid);
-        }
+        new ArrayList<>(holograms.keySet()).forEach(this::removeHologram);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  PRIVATE HELFER
-    // ─────────────────────────────────────────────────────────────
+    private String[] buildLines(PlayerStats stats, BridgeDistance distance) {
+        PlayerStats.DistanceStats ds = stats.getStats(distance);
+        String rate = ds.getSuccessRate();
+        return new String[]{
+            CC.c("&c&l✦ FastBuilder ✦"),
+            CC.c("&8" + "—".repeat(16)),
+            CC.c("&7Distance: " + distance.getColorCode() + distance.getDisplayName()),
+            CC.c("&7Attempts: &f" + ds.attempts + " &8| &7Success: &a" + ds.successes),
+            CC.c("&7Rate: &f" + rate + " &8| &7Best: &e" + ds.getFormattedBestTime()),
+        };
+    }
 
-    /** Spawnt einen einzelnen ArmorStand als Hologramm-Zeile */
-    private ArmorStand spawnLine(Location location, String text) {
-        ArmorStand stand = (ArmorStand) location.getWorld()
-                .spawnEntity(location, EntityType.ARMOR_STAND);
-        stand.setVisible(false);           // Unsichtbar (kein Körper)
-        stand.setGravity(false);           // Schwebt
+    private ArmorStand spawnStand(Location loc, String text) {
+        ArmorStand stand = (ArmorStand) loc.getWorld().spawnEntity(loc, EntityType.ARMOR_STAND);
+        stand.setVisible(false);
+        stand.setGravity(false);
         stand.setCanPickupItems(false);
-        stand.setSmall(true);              // Kleiner Stand, nähere Zeilen
-        stand.setCustomName(text);
-        stand.setCustomNameVisible(true);
+        stand.setSmall(true);
         stand.setBasePlate(false);
         stand.setArms(false);
+        stand.setCustomName(text);
+        stand.setCustomNameVisible(true);
         return stand;
-    }
-
-    /** Erstellt die Hologramm-Text-Zeilen basierend auf PlayerData */
-    private String[] buildLines(PlayerData data) {
-        return new String[]{
-            // Zeile 1 (oben): Titel
-            ChatColor.GOLD + "" + ChatColor.BOLD + "✦ FastBuilder ✦",
-            // Zeile 2: Versuche
-            ChatColor.GRAY + "Versuche: " + ChatColor.WHITE + data.getTotalAttempts()
-                    + ChatColor.GRAY + "  ✔ " + ChatColor.GREEN + data.getSuccessfulAttempts(),
-            // Zeile 3: Bestzeit
-            ChatColor.GRAY + "Bestzeit: " + ChatColor.AQUA + data.getFormattedBestTime()
-        };
     }
 }

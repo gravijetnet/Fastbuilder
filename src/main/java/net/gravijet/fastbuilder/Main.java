@@ -1,17 +1,39 @@
 package net.gravijet.fastbuilder;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-public class Main {
-    public static void main(String[] args) {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.printf("Hello and welcome!");
+import net.gravijet.fastbuilder.command.FastBuilderCommand;
+import net.gravijet.fastbuilder.listener.GuiListener;
+import net.gravijet.fastbuilder.listener.PlayerListener;
+import net.gravijet.fastbuilder.manager.GameManager;
+import org.bukkit.plugin.java.JavaPlugin;
 
-        for (int i = 1; i <= 5; i++) {
-            //TIP Press <shortcut actionId="Debug"/> to start debugging your code. We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-            // for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.
-            System.out.println("i = " + i);
-        }
+public final class Main extends JavaPlugin {
+
+    private static Main instance;
+    private GameManager gameManager;
+
+    @Override
+    public void onEnable() {
+        instance = this;
+
+        saveDefaultConfig();
+
+        gameManager = new GameManager(this);
+
+        FastBuilderCommand cmd = new FastBuilderCommand(gameManager);
+        getCommand("fb").setExecutor(cmd);
+
+        getServer().getPluginManager().registerEvents(new PlayerListener(gameManager), this);
+        getServer().getPluginManager().registerEvents(new GuiListener(gameManager), this);
+
+        getLogger().info("FastBuilder enabled.");
     }
+
+    @Override
+    public void onDisable() {
+        if (gameManager != null) gameManager.cleanup();
+        getLogger().info("FastBuilder disabled.");
+    }
+
+    public static Main getInstance() { return instance; }
+    public GameManager getGameManager() { return gameManager; }
 }

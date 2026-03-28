@@ -1,19 +1,16 @@
-package de.fastbuilder.listener;
+package net.gravijet.fastbuilder.listener;
 
-import de.fastbuilder.gui.DistanceGui;
-import de.fastbuilder.manager.GameManager;
-import de.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.gui.DistanceGui;
+import net.gravijet.fastbuilder.gui.MaterialGui;
+import net.gravijet.fastbuilder.manager.GameManager;
+import net.gravijet.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.model.BridgeMaterial;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 
-/**
- * Listener für Klicks im Distanz-Auswahl-GUI.
- *
- * Erkennt das GUI anhand des Inventar-Titels und leitet
- * die Auswahl an den GameManager weiter.
- */
 public class GuiListener implements Listener {
 
     private final GameManager gameManager;
@@ -24,26 +21,25 @@ public class GuiListener implements Listener {
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        // Sicherstellen, dass es sich um ein Spieler-Inventar handelt
         if (!(event.getWhoClicked() instanceof Player)) return;
+        Player player = (Player) event.getWhoClicked();
+        String title  = event.getView().getTitle();
 
-        // GUI anhand des Titels erkennen
-        String title = event.getView().getTitle();
-        if (!title.equals(DistanceGui.GUI_TITLE)) return;
-
-        // Immer canceln um Item-Nehmen zu verhindern
+        // Always cancel clicks inside our GUIs
+        if (!title.equals(DistanceGui.TITLE) && !title.equals(MaterialGui.TITLE)) return;
         event.setCancelled(true);
 
-        // Kein Item angeklickt?
-        if (event.getCurrentItem() == null) return;
-        if (event.getCurrentItem().getType() == org.bukkit.Material.AIR) return;
+        if (event.getCurrentItem() == null
+                || event.getCurrentItem().getType() == Material.AIR
+                || event.getCurrentItem().getType() == Material.STAINED_GLASS_PANE) return;
 
-        // Distanz aus dem angeklickten Slot bestimmen
-        BridgeDistance distance = DistanceGui.getDistanceForSlot(event.getRawSlot());
-        if (distance == null) return;
+        if (title.equals(DistanceGui.TITLE)) {
+            BridgeDistance distance = DistanceGui.getDistanceForSlot(event.getRawSlot());
+            if (distance != null) gameManager.onDistanceSelected(player, distance);
 
-        // Auswahl verarbeiten
-        Player player = (Player) event.getWhoClicked();
-        gameManager.onDistanceSelected(player, distance);
+        } else {
+            BridgeMaterial material = MaterialGui.getMaterialForSlot(event.getRawSlot());
+            if (material != null) gameManager.onMaterialSelected(player, material);
+        }
     }
 }

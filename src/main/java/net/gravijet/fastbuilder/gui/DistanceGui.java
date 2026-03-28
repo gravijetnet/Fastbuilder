@@ -1,52 +1,50 @@
-package de.fastbuilder.gui;
+package net.gravijet.fastbuilder.gui;
 
-import de.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.model.BridgeDistance;
+import net.gravijet.fastbuilder.util.CC;
+import net.gravijet.fastbuilder.util.ItemBuilder;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 
-/**
- * GUI für die Distanz-Auswahl.
- *
- * Öffnet ein 3x9 Inventar mit einem Icon für jede Distanz-Stufe.
- * Das Klick-Event wird in GuiListener abgefangen.
- */
 public class DistanceGui {
 
-    /** Titel des GUIs (wird auch zur Erkennung im GuiListener genutzt) */
-    public static final String GUI_TITLE = ChatColor.DARK_AQUA + "» Distanz wählen «";
+    public static final String TITLE = CC.c("&c&lFastBuilder &8- &7Select Distance");
 
-    /** Slots der Distanz-Items im 9er-Inventar */
-    private static final int SLOT_EXTRA_SHORT = 2;
-    private static final int SLOT_SHORT        = 4;
-    private static final int SLOT_LONG         = 6;
+    private static final ItemStack FILLER = new ItemBuilder(Material.STAINED_GLASS_PANE)
+            .name("&r").build();
 
     /**
-     * Öffnet das Distanz-Auswahl-GUI für den Spieler.
+     * Distance slots in a 27-slot GUI (3 rows).
+     * Row 0: all glass
+     * Row 1: glass | E | N | M | H | Ex | I | G | glass
+     * Row 2: all glass
      */
-    public void open(Player player) {
-        // Ein-Zeilen-Inventar (9 Slots, genug für 3 Optionen)
-        Inventory inv = Bukkit.createInventory(null, 9, GUI_TITLE);
+    private static final int[] DISTANCE_SLOTS = {10, 11, 12, 13, 14, 15, 16};
 
-        // Items an feste Slots setzen
-        inv.setItem(SLOT_EXTRA_SHORT, BridgeDistance.EXTRA_SHORT.toGuiItem());
-        inv.setItem(SLOT_SHORT,       BridgeDistance.SHORT.toGuiItem());
-        inv.setItem(SLOT_LONG,        BridgeDistance.LONG.toGuiItem());
+    public void open(Player player, BridgeDistance selected) {
+        Inventory inv = Bukkit.createInventory(null, 27, TITLE);
+
+        // Fill all with glass
+        for (int i = 0; i < 27; i++) inv.setItem(i, FILLER);
+
+        BridgeDistance[] values = BridgeDistance.values();
+        for (int i = 0; i < values.length && i < DISTANCE_SLOTS.length; i++) {
+            inv.setItem(DISTANCE_SLOTS[i], values[i].toGuiItem(values[i] == selected));
+        }
 
         player.openInventory(inv);
     }
 
-    /**
-     * Gibt die BridgeDistance zurück, die dem angeklickten Slot entspricht.
-     * Gibt null zurück, wenn kein gültiger Slot angeklickt wurde.
-     */
-    public static BridgeDistance getDistanceForSlot(int slot) {
-        switch (slot) {
-            case SLOT_EXTRA_SHORT: return BridgeDistance.EXTRA_SHORT;
-            case SLOT_SHORT:       return BridgeDistance.SHORT;
-            case SLOT_LONG:        return BridgeDistance.LONG;
-            default:               return null;
+    public static BridgeDistance getDistanceForSlot(int rawSlot) {
+        for (int i = 0; i < DISTANCE_SLOTS.length; i++) {
+            if (DISTANCE_SLOTS[i] == rawSlot) {
+                BridgeDistance[] values = BridgeDistance.values();
+                return i < values.length ? values[i] : null;
+            }
         }
+        return null;
     }
 }
