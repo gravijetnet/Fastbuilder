@@ -29,37 +29,31 @@ jobs:
 
     - name: Prepare JAR
       run: |
-        # Find the JAR, excluding shaded/sources/javadoc
         JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+        if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
         
-        if [ -z "$JAR_PATH" ]; then 
-          echo "Error: Fastbuilder JAR not found"; 
-          exit 1; 
-        fi
-        
-        # Create a unique filename for the permanent archive
         cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
-        # Create a static filename for the 'latest' link
         cp "$JAR_PATH" ./fastbuilder-latest.jar
 
-    # Step 1: Create a PERMANENT archive release
+    # Step 1: Permanent Archive (Unique Tag)
     - name: Create Archive Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: build-${{ github.run_number }}
         name: "Fastbuilder Build #${{ github.run_number }}"
-        body: "Permanent archive of Fastbuilder Build #${{ github.run_number }}"
+        body: "Archive of Build #${{ github.run_number }}. Includes source at this state."
         files: fastbuilder-build-${{ github.run_number }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step 2: Update the LATEST release (replaces the file)
+    # Step 2: Update Latest Release (Points the 'latest' tag to NEWEST source)
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: latest
         name: "Fastbuilder Latest Build"
-        body: "This is the most recent successful build (#${{ github.run_number }})."
+        body: "This release always contains the NEWEST JAR and NEWEST Source Code."
+        # This moves the 'latest' marker to the current commit
         make_latest: true
         files: fastbuilder-latest.jar
       env:
