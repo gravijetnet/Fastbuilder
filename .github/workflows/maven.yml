@@ -1,9 +1,9 @@
-name: Build Lobby
+name: Build and Permanent Release Fastbuilder
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Erlaubt es dir, den Build manuell zu starten
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -12,7 +12,8 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout Source
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -26,24 +27,40 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
-    - name: Move JAR to root and Commit
+    - name: Prepare JAR
       run: |
-        # Sucht die Lobby JAR, ignoriert shaded/sources/javadoc
-        JAR_PATH=$(find target/ -name "Lobby-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+        # Find the JAR, excluding shaded/sources/javadoc
+        JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         
-        if [ -z "$JAR_PATH" ]; then
-          echo "Fehler: Keine Lobby JAR gefunden!"
-          exit 1
+        if [ -z "$JAR_PATH" ]; then 
+          echo "Error: Fastbuilder JAR not found"; 
+          exit 1; 
         fi
         
-        echo "Gefundene Datei: $JAR_PATH"
-        mv "$JAR_PATH" ./lobby-latest.jar
-        
-        # Git Bot konfigurieren
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
-        # Datei mit Force (-f) hinzufügen, falls .gitignore sie blockiert
-        git add -f lobby-latest.jar
-        git commit -m "Update Lobby JAR [skip ci]" || echo "No changes to commit"
-        git push
+        # Create a unique filename for the permanent archive
+        cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
+        # Create a static filename for the 'latest' link
+        cp "$JAR_PATH" ./fastbuilder-latest.jar
+
+    # Step 1: Create a PERMANENT archive release
+    - name: Create Archive Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: build-${{ github.run_number }}
+        name: "Fastbuilder Build #${{ github.run_number }}"
+        body: "Permanent archive of Fastbuilder Build #${{ github.run_number }}"
+        files: fastbuilder-build-${{ github.run_number }}.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Step 2: Update the LATEST release (replaces the file)
+    - name: Update Latest Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "Fastbuilder Latest Build"
+        body: "This is the most recent successful build (#${{ github.run_number }})."
+        make_latest: true
+        files: fastbuilder-latest.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
