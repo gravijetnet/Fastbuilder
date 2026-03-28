@@ -1,6 +1,6 @@
-package de.fastbuilder.manager;
+package net.gravijet.fastbuilder.manager;
 
-import de.fastbuilder.model.Island;
+import net.gravijet.fastbuilder.model.Island;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -10,93 +10,46 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Verwaltet die Positionen und das Erstellen von Spieler-Inseln.
- *
- * Inseln werden in einer Reihe generiert:
- *   Insel 0: X=0,   Z=0
- *   Insel 1: X=250, Z=0
- *   Insel 2: X=500, Z=0
- *   ...
- *
- * Die Basis-Y-Ebene ist konfigurierbar (Standard: 64).
- */
 public class IslandManager {
 
-    /** Abstand zwischen zwei Inseln in Blöcken */
-    private static final int ISLAND_SPACING = 250;
+    private final String  worldName;
+    private final int     islandY;
+    private final int     spacing;
 
-    /** Y-Koordinate der Plattformen */
-    private static final int ISLAND_Y = 64;
+    private final AtomicInteger        nextIndex = new AtomicInteger(0);
+    private final Map<UUID, Island>    islands   = new HashMap<>();
+    /** Frees island indices when players leave, so slots are reused. */
+    private final java.util.Deque<Integer> freeIndices = new java.util.ArrayDeque<>();
 
-    /** Name der Welt, in der Inseln generiert werden */
-    private final String worldName;
-
-    /** Zähler für die nächste freie Insel-Position */
-    private final AtomicInteger nextIslandIndex = new AtomicInteger(0);
-
-    /** Mapping: UUID → Island-Objekt */
-    private final Map<UUID, Island> islandMap = new HashMap<>();
-
-    public IslandManager(String worldName) {
+    public IslandManager(String worldName, int islandY, int spacing) {
         this.worldName = worldName;
+        this.islandY   = islandY;
+        this.spacing   = spacing;
     }
 
-    /**
-     * Erstellt eine neue Insel für den Spieler, generiert die Startplattform
-     * und gibt das Island-Objekt zurück.
-     */
-    public Island createIsland(UUID playerUuid) {
-        // Nächste freie Position bestimmen
-        int index = nextIslandIndex.getAndIncrement();
-        Location base = calculateBaseLocation(index);
-
-        // Island-Objekt erstellen und Startplattform generieren
-        Island island = new Island(playerUuid, base);
+    public Island createIsland(UUID uuid) {
+        int index = freeIndices.isEmpty() ? nextIndex.getAndIncrement() : freeIndices.poll();
+        Location base = new Location(getWorld(), (long) index * spacing, islandY, 0);
+        Island island = new Island(uuid, base);
         island.generateStartPlatform();
-
-        islandMap.put(playerUuid, island);
+        islands.put(uuid, island);
         return island;
     }
 
-    /**
-     * Gibt die Insel eines Spielers zurück (oder null wenn keine vorhanden).
-     */
-    public Island getIsland(UUID playerUuid) {
-        return islandMap.get(playerUuid);
+    public Island getIsland(UUID uuid) {
+        return islands.get(uuid);
     }
 
-    /**
-     * Entfernt die Insel des Spielers aus dem Manager.
-     * (Blöcke werden NICHT entfernt – Inseln bleiben in der Welt)
-     */
-    public void removeIsland(UUID playerUuid) {
-        islandMap.remove(playerUuid);
+    public void removeIsland(UUID uuid) {
+        islands.remove(uuid);
     }
 
-    /**
-     * Gibt die Welt zurück, in der Inseln generiert werden.
-     */
+    public Map<UUID, Island> getAll() {
+        return islands;
+    }
+
     public World getWorld() {
-        World world = Bukkit.getWorld(worldName);
-        if (world == null) {
-            // Fallback: erste geladene Welt
-            world = Bukkit.getWorlds().get(0);
-        }
-        return world;
-    }
-
-    /**
-     * Berechnet den Basis-Standort für den n-ten Insel-Index.
-     */
-    private Location calculateBaseLocation(int index) {
-        World world = getWorld();
-        int x = index * ISLAND_SPACING;
-        return new Location(world, x, ISLAND_Y, 0);
-    }
-
-    /** Gibt alle gespeicherten Inseln zurück */
-    public Map<UUID, Island> getIslandMap() {
-        return islandMap;
+        World w = Bukkit.getWorld(worldName);
+        return w != null ? w : Bukkit.getWorlds().get(0);
     }
 }
