@@ -32,12 +32,19 @@ jobs:
 
     - name: Move JAR to root and Commit
       run: |
-        # Sucht die Lobby-JAR und benennt sie um
-        mv target/Lobby-*.jar ./lobby-latest.jar
+        # Sucht die richtige Fastbuilder JAR (ohne shaded/sources/javadoc)
+        JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+        
+        if [ -z "$JAR_PATH" ]; then
+          echo "Fehler: Keine Fastbuilder JAR gefunden!"
+          exit 1
+        fi
+        
+        mv "$JAR_PATH" ./fastbuilder-latest.jar
         
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-        git add -f lobby-latest.jar
-        git commit -m "Update Lobby JAR [skip ci]" || echo "No changes to commit"
+        git add -f fastbuilder-latest.jar
+        git commit -m "Update Fastbuilder JAR [skip ci]" || echo "No changes to commit"
         git push
