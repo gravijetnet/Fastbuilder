@@ -1,10 +1,8 @@
 package net.gravijet.fastbuilder.manager;
 
 import net.gravijet.fastbuilder.model.Island;
-import net.minecraft.server.v1_8_R3.PathfinderGoalSelector;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.craftbukkit.v1_8_R3.entity.CraftVillager;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Villager;
 
@@ -17,7 +15,7 @@ import java.util.UUID;
 public class NpcManager {
 
     /** npcUUID → ownerUUID */
-    private final Map<UUID, UUID> npcToOwner  = new HashMap<>();
+    private final Map<UUID, UUID> npcToOwner = new HashMap<>();
     /** ownerUUID → Villager */
     private final Map<UUID, Villager> ownerToNpc = new HashMap<>();
 
@@ -64,20 +62,40 @@ public class NpcManager {
 
     private void disableAI(Villager villager) {
         try {
-            net.minecraft.server.v1_8_R3.EntityVillager nms =
-                    ((CraftVillager) villager).getHandle();
-            clearSelector(nms.goalSelector);
-            clearSelector(nms.targetSelector);
+            String version = villager.getClass().getPackage().getName().split("\\.")[3];
+            Class<?> craftVillagerClass = Class.forName("org.bukkit.craftbukkit." + version + ".entity.CraftVillager");
+            Object nmsVillager = craftVillagerClass.getMethod("getHandle").invoke(craftVillagerClass.cast(villager));
+
+            Field goalField   = findField(nmsVillager.getClass(), "goalSelector");
+            Field targetField = findField(nmsVillager.getClass(), "targetSelector");
+
+            if (goalField != null)   clearSelector(goalField.get(nmsVillager));
+            if (targetField != null) clearSelector(targetField.get(nmsVillager));
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void clearSelector(PathfinderGoalSelector selector) throws Exception {
+    private static Field findField(Class<?> clazz, String name) {
+        while (clazz != null) {
+            try {
+                Field f = clazz.getDeclaredField(name);
+                f.setAccessible(true);
+                return f;
+            } catch (NoSuchFieldException e) {
+                clazz = clazz.getSuperclass();
+            }
+        }
+        return null;
+    }
+
+    private static void clearSelector(Object selector) throws Exception {
         for (String fieldName : new String[]{"a", "b"}) {
-            Field f = PathfinderGoalSelector.class.getDeclaredField(fieldName);
-            f.setAccessible(true);
-            ((java.util.Set<?>) f.get(selector)).clear();
+            try {
+                Field f = selector.getClass().getDeclaredField(fieldName);
+                f.setAccessible(true);
+                ((java.util.Set<?>) f.get(selector)).clear();
+            } catch (NoSuchFieldException ignored) {}
         }
     }
 }
