@@ -1,0 +1,72 @@
+# FastBuilder Messages
+
+# Action bar timer display (empty string = disabled)
+# Placeholders: %timer%
+action-bar: "&c&lTimer: &f%timer%"
+
+# Completion messages
+# Placeholders: %time%, %pb%, %difference%
+end-messages:
+  time:
+    - "&8----------------------------------"
+    - "&7You have finished the course!"
+    - ""
+    - "&cTime: &f&l%time%"
+    - "&cPB: &f&l%pb% &8| &f&l%difference%"
+    - "&8----------------------------------"
+  personal-best:
+    - "&8----------------------------------"
+    - "&c&lNEW PERSONAL BEST!"
+    - ""
+    - "&7You have finished the course!"
+    - ""
+    - "&cTime: &f&l%time%"
+    - "&cPB: &f&l%pb% &8| &c&l%difference%"
+    - "&8----------------------------------"
+
+# General messages
+# Placeholders: %prefix%, %map%, %island_player%, %island_number%, %command%, %player%
+messages:
+  joined-mode: "%prefix%&fYou joined &c%map%&f."
+  island-already-occupied: "%prefix%&cIsland is already occupied by &f%island_player%&c."
+  island-joined: "%prefix%&fYou joined island &c#%island_number%&f."
+  no-permission: "%prefix%&cYou do not have permission to do this."
+  usage: "%prefix%&cUsage: &f%command%"
+  player-not-found: "%prefix%&cPlayer &f%player% &cnot found."
+  map-not-found: "%prefix%&cMap &f%map% &cnot found."
+  map-disabled: "%prefix%&cMap &f%map% &cis currently disabled."
+  no-free-islands: "%prefix%&cNo free islands available on this map."
+  cannot-build-here: "%prefix%&cYou can only build on your own island."
+  teleported-default: "%prefix%&fYou have been sent to the default map."
+
+# Completion title
+# Placeholders: %time%, %coins%
+title: "&cTime: &f%time%"
+subtitle: "+&f%coins% &7coins"
+
+# Admin messages
+admin:
+  setup-started: "%prefix%&fSetup started. Use the &cBlaze Rod &fto select the island area."
+  setup-pos1: "%prefix%&fPosition 1 set at &c%x% %y% %z%&f."
+  setup-pos2: "%prefix%&fPosition 2 set at &c%x% %y% %z%&f."
+  setup-select-both: "%prefix%&fBoth positions set. Type &c/map setup continue &fto proceed."
+  setup-set-spawn: "%prefix%&fRight-click the &cBlaze Rod &fat your desired spawn point."
+  setup-spawn-saved: "%prefix%&fSpawn point saved. Type &c/map setup continue &fto proceed."
+  setup-select-finish: "%prefix%&fSelect the finish zone with the &cBlaze Rod&f. Must contain pressure plates."
+  setup-finish-pos1: "%prefix%&fFinish zone pos1 set at &c%x% %y% %z%&f."
+  setup-finish-pos2: "%prefix%&fFinish zone pos2 set at &c%x% %y% %z%&f."
+  setup-finish-ready: "%prefix%&fFinish zone set. Type &c/map setup finish &fto save."
+  setup-saved: "%prefix%&fMap template saved. Type &c/map setup name <name> &fto finish."
+  setup-complete: "%prefix%&fMap &c%map% &fcreated successfully (disabled)."
+  setup-no-session: "%prefix%&cYou do not have an active setup session."
+  setup-not-ready: "%prefix%&cComplete the current step before continuing."
+  map-enabled: "%prefix%&fMap &c%map% &fenabled."
+  map-disabled: "%prefix%&fMap &c%map% &fdisabled."
+  map-renamed: "%prefix%&fMap renamed from &c%old% &fto &c%new%&f."
+  map-icon-set: "%prefix%&fIcon for &c%map% &fset to &c%icon%&f."
+  map-scale-set: "%prefix%&fScale for &c%map% &fset to &c%scale%&f."
+  map-distance-set: "%prefix%&fDistance for &c%map% &fset to &c%distance% &fblocks."
+  map-autoscale-set: "%prefix%&fAutoscale for &c%map% &fset to &c%value%&f."
+  map-already-exists: "%prefix%&cA map with that name already exists."
+  distance-too-small: "%prefix%&cDistance must be at least &f%min% &cblocks (island width + 1)."
+  scale-updating: "%prefix%&fUpdating island count for &c%map%&f... This may take a moment."

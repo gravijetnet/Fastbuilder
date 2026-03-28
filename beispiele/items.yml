@@ -1,0 +1,36 @@
+# Leave Fastbuilder item's name
+leave-item: "&cLeave &7(Right-Click to use)"
+
+leave-item-material: EYE_OF_ENDER:0
+
+# Replay item's name
+replay-item: "&5Replay View &7(Right-Click to use)"
+
+replay-item-material: BOOK:0
+
+# Island Selector item's name
+islandselector-item: "&6Island Selector &7(Right-Click to use)"
+
+islandselector-item-material: NETHER_STAR:0
+
+# Settings item's name
+settings-item: "&2Settings &7(Right-Click to use)"
+
+settings-item-material: EMERALD:0
+
+# Ender Eye Item to go to lobby (only supports bungee)
+leave-item-toggled: false
+backend-server: lobby
+
+# Change Page item
+change-page:
+  next-page:
+    material: ARROW:0
+    name: "&aNext Page"
+    lore:
+      - ""
+  previous-page:
+    material: ARROW:0
+    name: "&cPrevious Page"
+    lore:
+      - ""

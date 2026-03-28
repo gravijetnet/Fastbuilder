@@ -1,16 +1,67 @@
 # FastBuilder Configuration
 
-# World where islands are generated
-world: world
+# Plugin prefix for messages (include trailing space)
+prefix: "&c&lFastBuilder &7>> "
 
-# Y-level of island platforms
-island-y: 64
+# Default map for new players (leave empty for none)
+default-map: ""
 
-# Spacing between player island slots (in blocks)
-island-spacing: 300
+# Economy
+reset-stats-cost: 100
+coins-per-second: 0.5
+coins-per-completion: 10
 
-# Default block material (must match a BridgeMaterial enum name)
-default-material: COBBLESTONE
+# Maximum distance from island edge before teleport to spawn (blocks)
+max-distance: 4
 
-# Default distance for quick-practice mode (must match a BridgeDistance enum name)
-default-distance: NORMAL
+# Holograms (requires DecentHolograms)
+# Placeholders: %player%, %pb%, %successful_attempts%, %total_attempts%
+holograms:
+  enabled: true
+  lines:
+    - "&c%player%'s Stats"
+    - "&fPersonal Best: &c%pb%"
+    - "&fSuccessful Runs: &c%successful_attempts%"
+    - "&fTotal Attempts: &c%total_attempts%"
+
+# NPCs (requires Citizens)
+npcs:
+  enabled: true
+  name: "&cMap Selector"
+
+# Scoreboard
+# Placeholders: %time%, %pb%, %top_1%, %top_2%, %top_3%, %coins%, %blocks%
+scoreboard:
+  title: "&c&lFastBuilder"
+  lines:
+    15: "&8&l|"
+    14: "&8&l| &c&lPersonal Best:"
+    13: "&8&l| &f%pb%"
+    12: "&8&l|"
+    11: "&8&l| &c&lSession Top:"
+    10: "&8&l| &7%top_1%"
+    9: "&8&l| &7%top_2%"
+    8: "&8&l| &7%top_3%"
+    7: "&8&l|"
+    6: "&8&l| &c&lCoins:"
+    5: "&8&l| &f%coins%"
+    4: "&8&l|"
+    3: "&8&l| &c&lTimer:"
+    2: "&8&l| &f%time%"
+    1: "&8&l|   &7&oplay.example.net"
+
+# Autoscale defaults
+autoscale:
+  min-islands: 15
+  scale-threshold: 80
+
+# Map spacing (blocks between different map types)
+map-spacing: 2000
+
+# Default Y level for new map origins
+default-y: 64
+
+# BungeeCord
+bungee:
+  enabled: true
+  lobby-server: "Lobby-1"

@@ -1,55 +1,96 @@
 package net.gravijet.fastbuilder.util;
 
 import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
-public final class ItemBuilder {
+public class ItemBuilder {
 
-    private final ItemStack item;
-    private final ItemMeta  meta;
+    private Material material;
+    private byte data;
+    private int amount = 1;
+    private String name;
+    private List<String> lore;
 
     public ItemBuilder(Material material) {
-        this(material, 1);
+        this.material = material;
+        this.data = 0;
     }
 
-    public ItemBuilder(Material material, int amount) {
-        this.item = new ItemStack(material, amount);
-        this.meta = item.getItemMeta();
+    public ItemBuilder(Material material, byte data) {
+        this.material = material;
+        this.data = data;
+    }
+
+    /**
+     * Parse a "MATERIAL:DATA" string into an ItemBuilder.
+     */
+    public static ItemBuilder fromString(String materialString) {
+        String[] parts = materialString.split(":");
+        Material mat = Material.matchMaterial(parts[0]);
+        if (mat == null) mat = Material.STONE;
+        byte d = 0;
+        if (parts.length > 1) {
+            try {
+                d = Byte.parseByte(parts[1]);
+            } catch (NumberFormatException ignored) {}
+        }
+        return new ItemBuilder(mat, d);
+    }
+
+    public ItemBuilder material(Material material) {
+        this.material = material;
+        return this;
+    }
+
+    public ItemBuilder data(byte data) {
+        this.data = data;
+        return this;
+    }
+
+    public ItemBuilder amount(int amount) {
+        this.amount = amount;
+        return this;
     }
 
     public ItemBuilder name(String name) {
-        meta.setDisplayName(CC.c(name));
+        this.name = ColorUtil.translate(name);
         return this;
     }
 
     public ItemBuilder lore(String... lines) {
-        List<String> lore = Arrays.stream(lines)
-                .map(CC::c)
-                .collect(Collectors.toList());
-        meta.setLore(lore);
+        this.lore = new ArrayList<>();
+        for (String line : lines) {
+            this.lore.add(ColorUtil.translate(line));
+        }
         return this;
     }
 
-    public ItemBuilder glow() {
-        meta.addEnchant(Enchantment.DURABILITY, 1, true);
-        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+    public ItemBuilder lore(List<String> lines) {
+        this.lore = new ArrayList<>();
+        for (String line : lines) {
+            this.lore.add(ColorUtil.translate(line));
+        }
         return this;
     }
 
-    public ItemBuilder hideFlags() {
-        meta.addItemFlags(ItemFlag.values());
-        return this;
-    }
-
+    @SuppressWarnings("deprecation")
     public ItemStack build() {
-        item.setItemMeta(meta);
+        ItemStack item = new ItemStack(material, amount, (short) data);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            if (name != null) {
+                meta.setDisplayName(name);
+            }
+            if (lore != null) {
+                meta.setLore(lore);
+            }
+            item.setItemMeta(meta);
+        }
         return item;
     }
 }
