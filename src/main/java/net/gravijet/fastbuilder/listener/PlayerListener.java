@@ -7,8 +7,8 @@ import net.gravijet.fastbuilder.model.PlayerData;
 import net.gravijet.fastbuilder.util.CC;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -16,6 +16,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -56,22 +57,19 @@ public class PlayerListener implements Listener {
         Island island = gameManager.getIslandManager().getIsland(uuid);
         if (island == null) return;
 
-        // Only allow blocks on this island
         if (!island.isOnThisIsland(block.getLocation())) {
             event.setCancelled(true);
             return;
         }
 
-        // Only allow blocks in the bridge area
         if (!island.isInBridgeArea(block.getLocation())) {
             event.setCancelled(true);
             return;
         }
 
-        // Must be using the selected material
         PlayerData data = gameManager.getPlayerData(uuid);
-        if (data != null && block.getType() != data.getSelectedMaterial().getMaterial()) {
-            // Player placed a different material (shouldn't happen with controlled hotbar)
+        if (data != null && !island.isTemplateMode()
+                && block.getType() != data.getSelectedMaterial().getMaterial()) {
             event.setCancelled(true);
             return;
         }
@@ -96,11 +94,10 @@ public class PlayerListener implements Listener {
         }
     }
 
-    // ── Movement: Void + Pressure Plate ──────────────────────────
+    // ── Movement: Void + Target ───────────────────────────────────
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onMove(PlayerMoveEvent event) {
-        // Skip if only look direction changed
         if (event.getFrom().getBlockX() == event.getTo().getBlockX()
                 && event.getFrom().getBlockY() == event.getTo().getBlockY()
                 && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
@@ -110,18 +107,16 @@ public class PlayerListener implements Listener {
         Island island = gameManager.getIslandManager().getIsland(uuid);
         if (island == null) return;
 
-        // Void check
         if (island.isInVoid(event.getTo())) {
             gameManager.onVoidFall(player);
             return;
         }
 
-        // Pressure plate check
         PlayerData data = gameManager.getPlayerData(uuid);
         if (data != null && data.isAttemptStarted()) {
             org.bukkit.Location feet = event.getTo().clone();
             feet.setY(Math.floor(feet.getY()));
-            if (island.isPressurePlate(feet)) {
+            if (island.isOnTarget(feet)) {
                 gameManager.onPressurePlate(player);
             }
         }
@@ -138,13 +133,15 @@ public class PlayerListener implements Listener {
 
         if (held == Material.COMPASS) {
             event.setCancelled(true);
-            gameManager.onNpcRightClick(player);
+            // Open distance GUI (quick-practice only)
+            PlayerData data = gameManager.getPlayerData(player.getUniqueId());
+            if (data != null) gameManager.onNpcRightClick(player);
         } else if (held == Material.BOOK) {
             event.setCancelled(true);
             gameManager.openMaterialGui(player);
-        } else if (held == Material.BARRIER) {
+        } else if (held == Material.SKULL_ITEM) {
             event.setCancelled(true);
-            gameManager.resetAttempt(player);
+            gameManager.openIslandSelector(player);
         }
     }
 
@@ -152,17 +149,17 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onEntityInteract(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Villager)) return;
-        UUID npcUuid = event.getRightClicked().getUniqueId();
-        if (!gameManager.getNpcManager().isNpc(npcUuid)) return;
+        Entity clicked = event.getRightClicked();
+        UUID   npcUuid = clicked.getUniqueId();
 
+        if (!gameManager.getNpcManager().isNpc(npcUuid)) return;
         event.setCancelled(true);
 
         UUID ownerUuid = gameManager.getNpcManager().getOwner(npcUuid);
         Player player  = event.getPlayer();
 
         if (ownerUuid == null || !player.getUniqueId().equals(ownerUuid)) {
-            player.sendMessage(CC.ERROR + "This NPC doesn't belong to you.");
+            player.sendMessage(CC.ERROR + "Dieser NPC gehört dir nicht.");
             return;
         }
 
@@ -179,11 +176,6 @@ public class PlayerListener implements Listener {
                 if (event.getCause() != EntityDamageEvent.DamageCause.VOID) {
                     event.setCancelled(true);
                 }
-            }
-        }
-        if (event.getEntity() instanceof Villager) {
-            if (gameManager.getNpcManager().isNpc(event.getEntity().getUniqueId())) {
-                event.setCancelled(true);
             }
         }
     }

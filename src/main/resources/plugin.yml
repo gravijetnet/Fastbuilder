@@ -1,14 +1,14 @@
 name: FastBuilder
-version: 1.0.0
+version: 2.0.0
 main: net.gravijet.fastbuilder.Main
 api-version: 1.8
 author: GraviJet
-description: Bridging practice plugin – train your bridging skills.
+description: Bridging practice plugin – custom maps, player NPC, paginated block selector.
 
 commands:
   fb:
     description: FastBuilder main command
-    usage: /fb <help|spawn|reset|stats|setspawn|reload>
+    usage: /fb <help|spawn|reset|stats|map|setspawn|reload>
     aliases: [fastbuilder]
     permission: fastbuilder.use
 
@@ -17,8 +17,8 @@ permissions:
     description: Allows using FastBuilder commands
     default: true
   fastbuilder.admin:
-    description: Allows admin FastBuilder commands (setspawn, reload)
+    description: Admin commands (map management, setspawn, reload)
     default: op
   fastbuilder.stats.others:
-    description: Allows viewing other players' stats
+    description: View other players' stats
     default: op

@@ -5,6 +5,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -16,10 +18,10 @@ public class IslandManager {
     private final int     islandY;
     private final int     spacing;
 
-    private final AtomicInteger        nextIndex = new AtomicInteger(0);
-    private final Map<UUID, Island>    islands   = new HashMap<>();
-    /** Frees island indices when players leave, so slots are reused. */
-    private final java.util.Deque<Integer> freeIndices = new java.util.ArrayDeque<>();
+    private final AtomicInteger          nextIndex   = new AtomicInteger(0);
+    private final Map<UUID, Island>      islands     = new HashMap<>();
+    private final Map<UUID, Integer>     islandIndex = new HashMap<>();
+    private final Deque<Integer>         freeIndices = new ArrayDeque<>();
 
     public IslandManager(String worldName, int islandY, int spacing) {
         this.worldName = worldName;
@@ -33,20 +35,33 @@ public class IslandManager {
         Island island = new Island(uuid, base);
         island.generateStartPlatform();
         islands.put(uuid, island);
+        islandIndex.put(uuid, index);
         return island;
     }
 
-    public Island getIsland(UUID uuid) {
-        return islands.get(uuid);
+    /** Clears the current island content and resets it (keeps the same grid slot). */
+    public Island resetIsland(UUID uuid) {
+        Island old = islands.get(uuid);
+        if (old == null) return createIsland(uuid);
+        old.clearPlacedBlocks();
+        old.clearTemplate();
+        old.generateStartPlatform();
+        return old;
     }
+
+    public Island getIsland(UUID uuid)  { return islands.get(uuid); }
 
     public void removeIsland(UUID uuid) {
-        islands.remove(uuid);
+        Island island = islands.remove(uuid);
+        if (island != null) {
+            island.clearPlacedBlocks();
+            island.clearTemplate();
+        }
+        Integer idx = islandIndex.remove(uuid);
+        if (idx != null) freeIndices.add(idx);
     }
 
-    public Map<UUID, Island> getAll() {
-        return islands;
-    }
+    public Map<UUID, Island> getAll() { return islands; }
 
     public World getWorld() {
         World w = Bukkit.getWorld(worldName);

@@ -1,5 +1,6 @@
 package net.gravijet.fastbuilder.model;
 
+import net.gravijet.fastbuilder.manager.SchematicManager;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -12,43 +13,91 @@ import java.util.UUID;
 /**
  * Represents one player's practice island.
  *
- * Layout (top-down, X increases to the right = bridge direction):
+ * Supports two modes:
+ *   - Template mode  : a {@link MapTemplate} schematic is pasted at the base location.
+ *   - Procedural mode: classic stone start/target platforms (no template).
  *
- *   [START 5×3]  [GAP 5]  [BRIDGE]  [TARGET 5×3]
- *
- *   NPC is placed 2 blocks in front of (negative Z) the start platform center.
- *   Hologram floats 4.5 blocks above the start platform center.
+ * Bridge direction is along the positive X-axis.
  */
 public class Island {
 
-    public static final int PLATFORM_WIDTH   = 5;
-    public static final int PLATFORM_DEPTH   = 3;
-    public static final int PLATFORM_GAP     = 5;
-    public static final int VOID_DEPTH       = 5;
-    public static final Material PLATFORM_MAT     = Material.STONE;
-    public static final Material PRESSURE_PLATE   = Material.STONE_PLATE;
+    // ── Procedural constants ──────────────────────────────────────
+    public static final int      PLATFORM_WIDTH  = 5;
+    public static final int      PLATFORM_DEPTH  = 3;
+    public static final int      PLATFORM_GAP    = 5;
+    public static final int      VOID_DEPTH      = 5;
+    public static final Material PLATFORM_MAT    = Material.STONE;
+    public static final Material PRESSURE_PLATE  = Material.STONE_PLATE;
 
     private final UUID     playerUuid;
     private final World    world;
-    private final Location base;      // NW corner of start platform, at Y=islandY
+    private final Location base;
 
-    private Location       spawnLocation;
-    private BridgeDistance currentDistance;
-    private BridgeDistance lastBuiltDistance;
+    private Location            spawnLocation;
+    private BridgeDistance      currentDistance;
+    private BridgeDistance      lastBuiltDistance;
 
+    /** Blocks placed by the player during bridging (cleared on reset/success/void). */
     private final List<Location> placedBlocks = new ArrayList<>();
 
-    public Island(UUID playerUuid, Location base) {
-        this.playerUuid = playerUuid;
-        this.world      = base.getWorld();
-        this.base       = base.clone();
+    // ── Template state ────────────────────────────────────────────
+    private MapTemplate         activeTemplate;
+    /** Block locations that were pasted from the template (cleared when switching maps). */
+    private final List<Location> templateBlocks = new ArrayList<>();
+    /** Absolute target locations resolved from the active template. */
+    private final List<Location> targetLocations = new ArrayList<>();
 
+    public Island(UUID playerUuid, Location base) {
+        this.playerUuid    = playerUuid;
+        this.world         = base.getWorld();
+        this.base          = base.clone();
         this.spawnLocation = base.clone()
                 .add(PLATFORM_WIDTH / 2.0, 1.0, PLATFORM_DEPTH / 2.0);
-        this.spawnLocation.setYaw(90f); // face east (positive X = bridge direction)
+        this.spawnLocation.setYaw(90f);
     }
 
-    // ── Generation ────────────────────────────────────────────────
+    // ── Template mode ─────────────────────────────────────────────
+
+    public void applyTemplate(MapTemplate template, SchematicManager schematicManager) {
+        clearTemplate();
+        activeTemplate = template;
+        targetLocations.clear();
+
+        List<Location> pasted = schematicManager.paste(template, base);
+        templateBlocks.addAll(pasted);
+
+        // Resolve spawn
+        spawnLocation = base.clone().add(
+                template.getSpawnRelX() + 0.5,
+                template.getSpawnRelY(),
+                template.getSpawnRelZ() + 0.5);
+        spawnLocation.setYaw(template.getSpawnYaw());
+        spawnLocation.setPitch(template.getSpawnPitch());
+
+        // Resolve targets
+        for (int[] off : template.getTargetOffsets()) {
+            targetLocations.add(base.clone().add(off[0], off[1], off[2]));
+        }
+    }
+
+    public void clearTemplate() {
+        if (!templateBlocks.isEmpty()) {
+            for (Location loc : templateBlocks) {
+                world.getBlockAt(loc).setType(Material.AIR);
+            }
+            templateBlocks.clear();
+        }
+        targetLocations.clear();
+        activeTemplate = null;
+    }
+
+    public boolean isTemplateMode() {
+        return activeTemplate != null;
+    }
+
+    public MapTemplate getActiveTemplate() { return activeTemplate; }
+
+    // ── Procedural generation ─────────────────────────────────────
 
     public void generateStartPlatform() {
         int bx = base.getBlockX();
@@ -64,7 +113,7 @@ public class Island {
 
     public void generateTargetPlatform(BridgeDistance distance) {
         if (lastBuiltDistance != null) clearTargetPlatform(lastBuiltDistance);
-        this.currentDistance  = distance;
+        this.currentDistance   = distance;
         this.lastBuiltDistance = distance;
 
         int tx = targetStartX(distance);
@@ -77,9 +126,13 @@ public class Island {
                 world.getBlockAt(tx + x, by + 1, bz + z).setType(Material.AIR);
             }
         }
-        // Pressure plate in the center of the target platform
         world.getBlockAt(tx + PLATFORM_WIDTH / 2, by + 1, bz + PLATFORM_DEPTH / 2)
              .setType(PRESSURE_PLATE);
+
+        // Keep targetLocations in sync for procedural mode too
+        targetLocations.clear();
+        targetLocations.add(new Location(world,
+                tx + PLATFORM_WIDTH / 2, by + 1, bz + PLATFORM_DEPTH / 2));
     }
 
     private void clearTargetPlatform(BridgeDistance distance) {
@@ -106,24 +159,28 @@ public class Island {
 
     public void clearPlacedBlocks() {
         for (Location loc : placedBlocks) {
-            if (!isFixedStructure(loc)) {
+            if (!isTemplateBlock(loc) && !isProceduralStructure(loc)) {
                 world.getBlockAt(loc).setType(Material.AIR);
             }
         }
         placedBlocks.clear();
     }
 
-    private boolean isFixedStructure(Location loc) {
+    private boolean isTemplateBlock(Location loc) {
+        return templateBlocks.contains(loc);
+    }
+
+    private boolean isProceduralStructure(Location loc) {
         int bx = base.getBlockX();
         int by = base.getBlockY();
         int bz = base.getBlockZ();
 
-        // Start platform
+        // Start platform floor
         if (loc.getBlockY() == by
                 && loc.getBlockX() >= bx && loc.getBlockX() < bx + PLATFORM_WIDTH
                 && loc.getBlockZ() >= bz && loc.getBlockZ() < bz + PLATFORM_DEPTH) return true;
 
-        // Target platform
+        // Target platform floor
         if (currentDistance != null) {
             int tx = targetStartX(currentDistance);
             if (loc.getBlockY() == by
@@ -137,15 +194,16 @@ public class Island {
 
     public boolean isInBridgeArea(Location loc) {
         if (!loc.getWorld().equals(world)) return false;
+        if (isTemplateMode()) {
+            return isOnThisIsland(loc);
+        }
         int bx = base.getBlockX();
         int by = base.getBlockY();
         int bz = base.getBlockZ();
-
         int bridgeStart = bx + PLATFORM_WIDTH;
         int bridgeEnd   = currentDistance == null
                 ? bx + 300
                 : targetStartX(currentDistance) - 1;
-
         return loc.getBlockX() >= bridgeStart && loc.getBlockX() <= bridgeEnd
                 && loc.getBlockZ() >= bz - 3   && loc.getBlockZ() <= bz + PLATFORM_DEPTH + 2
                 && loc.getBlockY() >= by - 3    && loc.getBlockY() <= by + 5;
@@ -153,6 +211,17 @@ public class Island {
 
     public boolean isOnThisIsland(Location loc) {
         if (!loc.getWorld().equals(world)) return false;
+        if (isTemplateMode()) {
+            int w = Math.max(activeTemplate.getWidth(),  64);
+            int h = Math.max(activeTemplate.getHeight(), 32);
+            int d = Math.max(activeTemplate.getDepth(),  64);
+            return loc.getBlockX() >= base.getBlockX() - 10
+                    && loc.getBlockX() <= base.getBlockX() + w + 10
+                    && loc.getBlockY() >= base.getBlockY() - 5
+                    && loc.getBlockY() <= base.getBlockY() + h + 10
+                    && loc.getBlockZ() >= base.getBlockZ() - 10
+                    && loc.getBlockZ() <= base.getBlockZ() + d + 10;
+        }
         int bx = base.getBlockX();
         int bz = base.getBlockZ();
         int maxX = bx + PLATFORM_WIDTH + PLATFORM_GAP
@@ -167,23 +236,29 @@ public class Island {
                 && loc.getY() < (base.getBlockY() - VOID_DEPTH);
     }
 
+    /** Returns true if the player is standing on any target block. */
+    public boolean isOnTarget(Location loc) {
+        for (Location t : targetLocations) {
+            if (loc.getBlockX() == t.getBlockX()
+                    && loc.getBlockY() == t.getBlockY()
+                    && loc.getBlockZ() == t.getBlockZ()) return true;
+        }
+        return false;
+    }
+
+    /** Legacy pressure-plate check for procedural mode (delegates to isOnTarget). */
     public boolean isPressurePlate(Location loc) {
-        if (currentDistance == null || !loc.getWorld().equals(world)) return false;
-        int tx = targetStartX(currentDistance);
-        int ppX = tx + PLATFORM_WIDTH / 2;
-        int ppZ = base.getBlockZ() + PLATFORM_DEPTH / 2;
-        int ppY = base.getBlockY() + 1;
-        return loc.getBlockX() == ppX && loc.getBlockZ() == ppZ && loc.getBlockY() == ppY;
+        return isOnTarget(loc);
     }
 
     // ── Positions for NPC / Hologram ──────────────────────────────
 
     public Location getNpcLocation() {
-        return base.clone().add(PLATFORM_WIDTH / 2.0, 1.0, -2.0);
+        return spawnLocation.clone().add(-1.0, 0, -2.0);
     }
 
     public Location getHologramLocation() {
-        return base.clone().add(PLATFORM_WIDTH / 2.0, 5.0, PLATFORM_DEPTH / 2.0);
+        return spawnLocation.clone().add(0.0, 4.0, 0.0);
     }
 
     // ── Getters / Setters ─────────────────────────────────────────

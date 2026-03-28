@@ -6,18 +6,11 @@ world: world
 # Y-level of island platforms
 island-y: 64
 
-# Spacing between islands (in blocks)
+# Spacing between player island slots (in blocks)
 island-spacing: 300
 
-# Number of blocks in the start/target platform (width x depth)
-platform-width: 5
-platform-depth: 3
-
-# Gap between start platform and bridge area (in blocks)
-platform-gap: 5
-
-# Default block material for bridging (must match a BridgeMaterial name)
+# Default block material (must match a BridgeMaterial enum name)
 default-material: COBBLESTONE
 
-# Default distance (must match a BridgeDistance name)
+# Default distance for quick-practice mode (must match a BridgeDistance enum name)
 default-distance: NORMAL

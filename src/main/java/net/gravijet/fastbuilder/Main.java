@@ -25,15 +25,15 @@ public final class Main extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerListener(gameManager), this);
         getServer().getPluginManager().registerEvents(new GuiListener(gameManager), this);
 
-        getLogger().info("FastBuilder enabled.");
+        getLogger().info("FastBuilder aktiviert.");
     }
 
     @Override
     public void onDisable() {
         if (gameManager != null) gameManager.cleanup();
-        getLogger().info("FastBuilder disabled.");
+        getLogger().info("FastBuilder deaktiviert.");
     }
 
-    public static Main getInstance() { return instance; }
-    public GameManager getGameManager() { return gameManager; }
+    public static Main getInstance()        { return instance;     }
+    public GameManager getGameManager()     { return gameManager;  }
 }
