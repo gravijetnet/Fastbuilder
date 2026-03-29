@@ -31,30 +31,40 @@ jobs:
       run: |
         JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
-        
         cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
         cp "$JAR_PATH" ./fastbuilder-latest.jar
 
-    # Step 1: Permanent Archive (Unique Tag)
+    # Schritt 1: Archiv-Release (für die Historie)
     - name: Create Archive Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: build-${{ github.run_number }}
         name: "Fastbuilder Build #${{ github.run_number }}"
-        body: "Archive of Build #${{ github.run_number }}. Includes source at this state."
+        body: "Archive of Build #${{ github.run_number }}."
         files: fastbuilder-build-${{ github.run_number }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step 2: Update Latest Release (Points the 'latest' tag to NEWEST source)
+    # SCHRITT 2: Den alten 'latest' Tag löschen (Zwingt GitHub den Source Code zu aktualisieren)
+    - name: Delete Old Latest Tag
+      run: |
+        git tag -d latest || true
+        git push origin :refs/tags/latest || true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # SCHRITT 3: Latest Release neu erstellen (Wird dadurch immer ganz oben angezeigt)
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: latest
-        name: "Fastbuilder Latest Build"
-        body: "This release always contains the NEWEST JAR and NEWEST Source Code."
-        # This moves the 'latest' marker to the current commit
-        make_latest: true
+        name: "Fastbuilder LATEST Build"
+        body: |
+          **Status:** Aktuellster Build vom ${{ github.event.head_commit.timestamp }}
+          Dieser Release enthält immer den **neuesten Source Code** und das aktuellste JAR.
         files: fastbuilder-latest.jar
+        # 'prerelease: false' und 'make_latest: true' sorgen für die Sortierung ganz oben
+        prerelease: false
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
