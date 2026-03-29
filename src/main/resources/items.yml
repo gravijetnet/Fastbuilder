@@ -1,0 +1,32 @@
+# FastBuilder Hotbar Items
+
+# Leave item (BungeeCord transfer)
+leave-item: "&cLeave &7(Right-Click to use)"
+leave-item-material: EYE_OF_ENDER:0
+leave-item-toggled: false
+backend-server: lobby
+
+# Replay viewer item
+replay-item: "&5Replay View &7(Right-Click to use)"
+replay-item-material: BOOK:0
+
+# Island selector item
+islandselector-item: "&6Island Selector &7(Right-Click to use)"
+islandselector-item-material: NETHER_STAR:0
+
+# Settings item
+settings-item: "&2Settings &7(Right-Click to use)"
+settings-item-material: EMERALD:0
+
+# Page navigation items
+change-page:
+  next-page:
+    material: ARROW:0
+    name: "&aNext Page"
+    lore:
+      - ""
+  previous-page:
+    material: ARROW:0
+    name: "&cPrevious Page"
+    lore:
+      - ""

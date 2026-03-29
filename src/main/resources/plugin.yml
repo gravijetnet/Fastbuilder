@@ -1,24 +1,28 @@
 name: FastBuilder
-version: 1.0.0
-main: net.gravijet.fastbuilder.Main
-api-version: 1.8
-author: GraviJet
-description: Bridging practice plugin – train your bridging skills.
-
+version: 2.0.0
+main: net.gravijet.fastbuilder.FastBuilder
+author: gravijet
+description: FastBuilder - Competitive bridging plugin
+softdepend: [WorldEdit, FastAsyncWorldEdit, Citizens, DecentHolograms]
 commands:
+  map:
+    description: Map administration commands
+    usage: /<command> <subcommand>
+    permission: fastbuilder.admin
+  stats:
+    description: View player statistics
+    usage: /<command> [player] [map]
   fb:
-    description: FastBuilder main command
-    usage: /fb <help|spawn|reset|stats|setspawn|reload>
+    description: FastBuilder player commands
+    usage: /<command> <subcommand>
     aliases: [fastbuilder]
-    permission: fastbuilder.use
-
 permissions:
-  fastbuilder.use:
-    description: Allows using FastBuilder commands
-    default: true
   fastbuilder.admin:
-    description: Allows admin FastBuilder commands (setspawn, reload)
+    description: Access to all admin commands
     default: op
-  fastbuilder.stats.others:
-    description: Allows viewing other players' stats
-    default: op
+  fastbuilder.play:
+    description: Permission to play FastBuilder
+    default: true
+  fastbuilder.blocks.*:
+    description: Access to all building blocks
+    default: false
