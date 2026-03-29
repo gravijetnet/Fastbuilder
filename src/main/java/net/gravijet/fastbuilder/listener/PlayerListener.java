@@ -14,7 +14,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
- * Handles player join (route to map) and quit (save + free island).
+ * Handles player join (route to map, setup hotbar/scoreboard/NPC/gameplay) and quit (save + cleanup).
  */
 public class PlayerListener implements Listener {
 
@@ -55,6 +55,9 @@ public class PlayerListener implements Listener {
                         player.sendMessage(ColorUtil.translate(raw));
                     }
 
+                    // Setup gameplay session
+                    setupPlayerOnIsland(player, map, island);
+
                     // Check autoscale
                     mm.checkAutoscale(map);
                     return;
@@ -64,16 +67,74 @@ public class PlayerListener implements Listener {
 
         // No valid map found, relocate to any available
         mm.relocatePlayer(player, "");
+
+        // Try to setup on the relocated map
+        data = pm.getCachedData(player.getUniqueId());
+        if (data != null && data.getLastMap() != null) {
+            MapData map = mm.getMap(data.getLastMap());
+            if (map != null) {
+                int island = mm.getPlayerIsland(map.getName(), player.getUniqueId());
+                if (island >= 0) {
+                    setupPlayerOnIsland(player, map, island);
+                }
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
+        // Stop any active replay
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+            plugin.getReplayManager().stopPlayback(player.getUniqueId());
+        }
+
+        // Remove gameplay session
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        }
+
+        // Despawn NPC
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+
+        // Remove scoreboard
+        plugin.getScoreboardManager().removeScoreboard(player);
+
         // Free all islands held by this player
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         // Save and unload player data
         plugin.getPlayerManager().unload(player.getUniqueId());
+    }
+
+    /**
+     * Setup all gameplay systems for a player on an island.
+     */
+    private void setupPlayerOnIsland(Player player, MapData map, int island) {
+        // Create gameplay session
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+        }
+
+        // Give hotbar items
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().giveItems(player);
+        }
+
+        // Setup scoreboard
+        plugin.getScoreboardManager().createScoreboard(player);
+
+        // Spawn NPC on the island
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().spawnNpc(player, map.getIslandSpawn(island));
+        }
+
+        // Update hologram
+        if (plugin.getHologramManager() != null) {
+            plugin.getHologramManager().updateHologram(map.getName(), island, player);
+        }
     }
 }

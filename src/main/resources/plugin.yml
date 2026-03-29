@@ -12,6 +12,10 @@ commands:
   stats:
     description: View player statistics
     usage: /<command> [player] [map]
+  fb:
+    description: FastBuilder player commands
+    usage: /<command> <subcommand>
+    aliases: [fastbuilder]
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands

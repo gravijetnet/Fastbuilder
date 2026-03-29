@@ -70,3 +70,7 @@ admin:
   map-already-exists: "%prefix%&cA map with that name already exists."
   distance-too-small: "%prefix%&cDistance must be at least &f%min% &cblocks (island width + 1)."
   scale-updating: "%prefix%&fUpdating island count for &c%map%&f... This may take a moment."
+  island-reset: "%prefix%&fYour island has been reset."
+  left-game: "%prefix%&fYou left the game."
+  not-on-island: "%prefix%&cYou are not on any island."
+  config-reloaded: "%prefix%&fConfiguration reloaded."

@@ -1,11 +1,15 @@
 package net.gravijet.fastbuilder;
 
+import net.gravijet.fastbuilder.command.FastBuilderCommand;
 import net.gravijet.fastbuilder.command.MapCommand;
 import net.gravijet.fastbuilder.command.StatsCommand;
 import net.gravijet.fastbuilder.config.ConfigManager;
 import net.gravijet.fastbuilder.economy.CoinManager;
+import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gui.GuiManager;
 import net.gravijet.fastbuilder.hologram.HologramManager;
+import net.gravijet.fastbuilder.hotbar.HotbarManager;
+import net.gravijet.fastbuilder.listener.GameplayListener;
 import net.gravijet.fastbuilder.listener.PlayerListener;
 import net.gravijet.fastbuilder.listener.ProtectionListener;
 import net.gravijet.fastbuilder.listener.SetupListener;
@@ -13,6 +17,7 @@ import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.npc.NpcManager;
 import net.gravijet.fastbuilder.paste.FawePaster;
 import net.gravijet.fastbuilder.player.PlayerManager;
+import net.gravijet.fastbuilder.replay.ReplayManager;
 import net.gravijet.fastbuilder.scoreboard.FastScoreboard;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -30,6 +35,9 @@ public class FastBuilder extends JavaPlugin {
     private HologramManager hologramManager;
     private NpcManager npcManager;
     private FastScoreboard scoreboardManager;
+    private GameplayManager gameplayManager;
+    private ReplayManager replayManager;
+    private HotbarManager hotbarManager;
 
     @Override
     public void onEnable() {
@@ -55,6 +63,9 @@ public class FastBuilder extends JavaPlugin {
         coinManager = new CoinManager(this);
         guiManager = new GuiManager(this);
         scoreboardManager = new FastScoreboard(this);
+        gameplayManager = new GameplayManager(this);
+        replayManager = new ReplayManager(this);
+        hotbarManager = new HotbarManager(this);
 
         // Optional integrations
         if (Bukkit.getPluginManager().getPlugin("DecentHolograms") != null
@@ -77,10 +88,15 @@ public class FastBuilder extends JavaPlugin {
         getCommand("stats").setExecutor(statsCommand);
         getCommand("stats").setTabCompleter(statsCommand);
 
+        FastBuilderCommand fbCommand = new FastBuilderCommand(this);
+        getCommand("fb").setExecutor(fbCommand);
+        getCommand("fb").setTabCompleter(fbCommand);
+
         // Register listeners
         Bukkit.getPluginManager().registerEvents(new SetupListener(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new GameplayListener(this), this);
 
         // BungeeCord channel
         if (configManager.isBungeeEnabled()) {
@@ -95,6 +111,12 @@ public class FastBuilder extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Shutdown managers with tasks
+        if (gameplayManager != null) gameplayManager.shutdown();
+        if (replayManager != null) replayManager.shutdown();
+        if (coinManager != null) coinManager.shutdown();
+        if (scoreboardManager != null) scoreboardManager.shutdown();
+
         // Save all data
         if (mapManager != null) mapManager.saveAll();
         if (playerManager != null) playerManager.saveAll();
@@ -121,4 +143,7 @@ public class FastBuilder extends JavaPlugin {
     public HologramManager getHologramManager() { return hologramManager; }
     public NpcManager getNpcManager() { return npcManager; }
     public FastScoreboard getScoreboardManager() { return scoreboardManager; }
+    public GameplayManager getGameplayManager() { return gameplayManager; }
+    public ReplayManager getReplayManager() { return replayManager; }
+    public HotbarManager getHotbarManager() { return hotbarManager; }
 }

@@ -2,7 +2,9 @@ package net.gravijet.fastbuilder.economy;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.player.PlayerData;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.UUID;
 
@@ -13,9 +15,11 @@ import java.util.UUID;
 public class CoinManager {
 
     private final FastBuilder plugin;
+    private int playtimeTaskId = -1;
 
     public CoinManager(FastBuilder plugin) {
         this.plugin = plugin;
+        startPlaytimeTask();
     }
 
     public int getCoins(UUID uuid) {
@@ -54,5 +58,42 @@ public class CoinManager {
 
         addCoins(player.getUniqueId(), coins);
         return coins;
+    }
+
+    /**
+     * Start the playtime coin reward task.
+     * Awards coins-per-second to all online players with an active gameplay session.
+     */
+    private void startPlaytimeTask() {
+        double coinsPerSecond = plugin.getConfigManager().getCoinsPerSecond();
+        if (coinsPerSecond <= 0) return;
+
+        // Run every 20 ticks (1 second)
+        playtimeTaskId = new BukkitRunnable() {
+            private double accumulator = 0;
+
+            @Override
+            public void run() {
+                accumulator += coinsPerSecond;
+                if (accumulator >= 1.0) {
+                    int coinsToAdd = (int) accumulator;
+                    accumulator -= coinsToAdd;
+
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        // Only award if the player has a gameplay session
+                        if (plugin.getGameplayManager() != null
+                                && plugin.getGameplayManager().getSession(player.getUniqueId()) != null) {
+                            addCoins(player.getUniqueId(), coinsToAdd);
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 20L, 20L).getTaskId();
+    }
+
+    public void shutdown() {
+        if (playtimeTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(playtimeTaskId);
+        }
     }
 }
