@@ -1,0 +1,79 @@
+# The plugin prefix, called in the commands. Leave a space after the last char. (Use not &)
+prefix: ""
+
+# You can make it 0 to disable it.
+reset-stats-cost: 100
+
+# Available #1, #2, #3... for WRs. This is shown by doing /stats #1, /stats #2, /stats #3...
+wrs:
+  short:
+    # #1 player
+    - none
+    # #2 player
+    - none
+    # #3 player
+    - none
+
+# Jump Plate like the Bridger Land one.
+jump-plate: false
+jump-plate-modes:
+  - short
+
+# LuckPerms support with the scoreboard.
+luckperms-support: false
+
+# The distance from the spawn that teleports back the player to the spawn
+max-distance: 4
+
+# Toggles Holograms
+holos: true
+
+# Toggles NPCs
+npcs: true
+
+# Holo Lines
+# Placeholders:
+# %player% - Player's name;
+# %pb% - Player's personal best;
+# %successful_attempts% - Player's successful attempts;
+# %total_attempts% - Player's total attempts.
+holo:
+  - "&b%player%'s stats:"
+  - "Personal Best: &e%pb%"
+  - "Successful Attempts: &e%successful_attempts%"
+  - "Total Attempts: &e%total_attempts%"
+
+# Mode Changer NPC's name
+npc-name: "&eMode Changer"
+
+# Scoreboard Lines.
+# Placeholders:
+# %time% - Current time;
+# %pb% - Personal Best;
+# %top_1 - Session top 1;
+# %top_2 - Session top 2;
+# %top_3 - Session top 3;
+# %coins% - The current coins of the player;
+# %blocks% - The blocks placed by the player.
+scoreboard:
+  title: "&b&lFastBuilder"
+  lines:
+    15: "&a&8&l|"
+    14: "&a&8&l| &b&lPersonal Best:"
+    13: "&a&8&l| &e%pb%"
+    12: "&a&8&l|"
+    11: "&a&8&l| &e&lSession-Top:"
+    10: "&a&8&l| &7%top_1%"
+    9: "&a&8&l| &7%top_2%"
+    8: "&a&8&l| &7%top_3%"
+    7: "&a&8&l|"
+    6: "&a&8&l| &e&lCoins:"
+    5: "&a&8&l| &e%coins%"
+    4: "&a&8&l|"
+    3: "&a&8&l| &a&lTime:"
+    2: "&a&8&l| &e%time%"
+    1: "&a&8&l|   &7&oexample.net"
+
+# Go get it via https://discord.gg/CnQGtfEdjj by opening a ticket and typing the Tebex transaction ID sent to your email
+user: none
+license: none

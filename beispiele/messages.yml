@@ -1,0 +1,43 @@
+# Time in action bar (leave "" to show nothing in action bar)
+# Placeholders:
+# %timer% - Current time in the course;
+action-bar: ""
+
+# Placeholders:
+# %time% - Time of the course;
+# %pb% - Personal Best;
+# %difference% - Difference between the time and the pb.
+end-messages:
+  time:
+    - "&8----------------------------------"
+    - "&7You've finished the course!"
+    - ""
+    - "&aTime: &e&l%time%"
+    - "&aPB: &e&l%pb% &8| &e&l%difference%"
+    - "&8----------------------------------"
+  personal-best:
+    - "&8----------------------------------"
+    - "&b&lNEW PERSONAL BEST!"
+    - ""
+    - "&7You've finished the course!"
+    - ""
+    - "&aTime: &e&l%time%"
+    - "&aPB: &e&l%pb% &8| &b&l%difference%"
+    - "&8----------------------------------"
+
+# Placeholders:
+# %prefix% - The plugin prefix (in config.yml)
+# %island_player% - The player that occupies the requested island
+# %island_number% - The island joined / occupied
+# %command% - The command with the args
+messages:
+  joined-mode: ""
+  island-already-occupied: "%prefix%&cIsland is already occupied by %island_player%."
+  usage: "%prefix%&cUsage: %command%"
+
+# Score Title.
+# Placeholders:
+# %time% - Current time;
+# %coins% - The coins gained of the player.
+title: "&aTime: &e%time%"
+subtitle: "+&e%coins% coins!"

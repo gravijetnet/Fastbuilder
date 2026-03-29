@@ -1,0 +1,703 @@
+# FastBuilder GUI Configuration
+
+# Block Selector GUI
+# Placeholder: %page% - Current page number
+block-selector:
+  name: "Block Selector - %page%/3"
+  max-slots: 45
+
+# Mode Changer GUI
+mode-changer:
+  name: "Mode Changer - %page%/1"
+  max-slots: 45
+
+# Settings GUI
+settings:
+  name: "Settings"
+  max-slots: 27
+
+# Confirm Reset Stats GUI
+confirm-stats-reset: "Confirm"
+
+# Island Selector GUI
+island-selector: "Island Selector"
+
+# Replays GUI
+# Placeholders: %page%, %max_page%
+replays: "Replays - Page %page%/%max_page%"
+
+# Block status messages
+block-status:
+  purchased: "&aYou already own this block!"
+  not-purchased: "&cYou don't own this block yet!"
+
+# Settings GUI slot layout
+# Available GUIs: block_selector, mode_changer, island_selector, reset_stats, practice_mode
+# Placeholders: %practice_mode_enabled%, %price%
+settings-gui-slots:
+  12:
+    name: "&eBlock Selector"
+    material: SANDSTONE:0
+    gui: "block_selector"
+    lore:
+      - ""
+  14:
+    name: "&cReset Stats"
+    material: DIAMOND_PICKAXE:0
+    gui: "reset_stats"
+    lore:
+      - "&7Reset Stats on all modes!"
+      - "&ePrice: %price%"
+  16:
+    name: "&aPractice Mode"
+    material: STAINED_CLAY:0
+    gui: "practice_mode"
+    lore:
+      - "%practice_mode_enabled%"
+
+# Mode Changer GUI slot layout
+mode-changer-slots:
+  1:
+    1:
+      name: "Short"
+      material: SANDSTONE:0
+      mode: "short"
+      lore:
+        - ""
+
+# Block Selector GUI slot layout
+# Placeholders: %price% (0 = free), %block_status%
+block-selector-slots:
+  1:
+    1:
+      name: "Sandstone"
+      material: SANDSTONE:0
+      price: 0
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    2:
+      name: "Red Sandstone"
+      material: RED_SANDSTONE:0
+      price: 0
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    3:
+      name: "White Wool"
+      material: WOOL:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    4:
+      name: "Orange Wool"
+      material: WOOL:1
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    5:
+      name: "Magenta Wool"
+      material: WOOL:2
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    6:
+      name: "Light Blue Wool"
+      material: WOOL:3
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    7:
+      name: "Yellow Wool"
+      material: WOOL:4
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    8:
+      name: "Lime Wool"
+      material: WOOL:5
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    9:
+      name: "Pink Wool"
+      material: WOOL:6
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    10:
+      name: "Gray Wool"
+      material: WOOL:7
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    11:
+      name: "Light Gray Wool"
+      material: WOOL:8
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    12:
+      name: "Cyan Wool"
+      material: WOOL:9
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    13:
+      name: "Purple Wool"
+      material: WOOL:10
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    14:
+      name: "Blue Wool"
+      material: WOOL:11
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    15:
+      name: "Brown Wool"
+      material: WOOL:12
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    16:
+      name: "Green Wool"
+      material: WOOL:13
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    17:
+      name: "Red Wool"
+      material: WOOL:14
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    18:
+      name: "Black Wool"
+      material: WOOL:15
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    19:
+      name: "Stone"
+      material: STONE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    20:
+      name: "Granite"
+      material: STONE:1
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    21:
+      name: "Polished Granite"
+      material: STONE:2
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    22:
+      name: "Diorite"
+      material: STONE:3
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    23:
+      name: "Polished Diorite"
+      material: STONE:4
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    24:
+      name: "Andesite"
+      material: STONE:5
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    25:
+      name: "Polished Andesite"
+      material: STONE:6
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    26:
+      name: "Cobblestone"
+      material: COBBLESTONE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    27:
+      name: "Oak Planks"
+      material: WOOD:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    28:
+      name: "Spruce Planks"
+      material: WOOD:1
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    29:
+      name: "Birch Planks"
+      material: WOOD:2
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    30:
+      name: "Jungle Planks"
+      material: WOOD:3
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    31:
+      name: "Acacia Planks"
+      material: WOOD:4
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    32:
+      name: "Dark Oak Planks"
+      material: WOOD:5
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    33:
+      name: "Quartz Block"
+      material: QUARTZ_BLOCK:0
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    34:
+      name: "Chiseled Quartz"
+      material: QUARTZ_BLOCK:1
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    35:
+      name: "Quartz Pillar"
+      material: QUARTZ_BLOCK:2
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    36:
+      name: "Clay"
+      material: CLAY:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+  2:
+    1:
+      name: "White Stained Clay"
+      material: STAINED_CLAY:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    2:
+      name: "Orange Stained Clay"
+      material: STAINED_CLAY:1
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    3:
+      name: "Magenta Stained Clay"
+      material: STAINED_CLAY:2
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    4:
+      name: "Light Blue Stained Clay"
+      material: STAINED_CLAY:3
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    5:
+      name: "Yellow Stained Clay"
+      material: STAINED_CLAY:4
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    6:
+      name: "Lime Stained Clay"
+      material: STAINED_CLAY:5
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    7:
+      name: "Pink Stained Clay"
+      material: STAINED_CLAY:6
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    8:
+      name: "Gray Stained Clay"
+      material: STAINED_CLAY:7
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    9:
+      name: "Light Gray Stained Clay"
+      material: STAINED_CLAY:8
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    10:
+      name: "Cyan Stained Clay"
+      material: STAINED_CLAY:9
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    11:
+      name: "Purple Stained Clay"
+      material: STAINED_CLAY:10
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    12:
+      name: "Blue Stained Clay"
+      material: STAINED_CLAY:11
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    13:
+      name: "Brown Stained Clay"
+      material: STAINED_CLAY:12
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    14:
+      name: "Green Stained Clay"
+      material: STAINED_CLAY:13
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    15:
+      name: "Red Stained Clay"
+      material: STAINED_CLAY:14
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    16:
+      name: "Black Stained Clay"
+      material: STAINED_CLAY:15
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    17:
+      name: "Coal Block"
+      material: COAL_BLOCK:0
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    18:
+      name: "Snow Block"
+      material: SNOW:0
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    19:
+      name: "Iron Block"
+      material: IRON_BLOCK:0
+      price: 600
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    20:
+      name: "Hay Block"
+      material: HAY_BLOCK:0
+      price: 700
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    21:
+      name: "End Stone"
+      material: ENDER_STONE:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    22:
+      name: "Nether Brick"
+      material: NETHER_BRICK:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    23:
+      name: "Oak Leaves"
+      material: LEAVES:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    24:
+      name: "Spruce Leaves"
+      material: LEAVES:1
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    25:
+      name: "Birch Leaves"
+      material: LEAVES:2
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    26:
+      name: "Jungle Leaves"
+      material: LEAVES:3
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    27:
+      name: "Acacia Leaves"
+      material: LEAVES_2:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    28:
+      name: "Dark Oak Leaves"
+      material: LEAVES_2:1
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    29:
+      name: "Melon Block"
+      material: MELON_BLOCK:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    30:
+      name: "Prismarine"
+      material: PRISMARINE:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    31:
+      name: "Prismarine Bricks"
+      material: PRISMARINE:1
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    32:
+      name: "Dark Prismarine"
+      material: PRISMARINE:2
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+  3:
+    1:
+      name: "White Stained Glass"
+      material: STAINED_GLASS:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    2:
+      name: "Orange Stained Glass"
+      material: STAINED_GLASS:1
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    3:
+      name: "Magenta Stained Glass"
+      material: STAINED_GLASS:2
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    4:
+      name: "Light Blue Stained Glass"
+      material: STAINED_GLASS:3
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    5:
+      name: "Yellow Stained Glass"
+      material: STAINED_GLASS:4
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    6:
+      name: "Lime Stained Glass"
+      material: STAINED_GLASS:5
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    7:
+      name: "Pink Stained Glass"
+      material: STAINED_GLASS:6
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    8:
+      name: "Gray Stained Glass"
+      material: STAINED_GLASS:7
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    9:
+      name: "Light Gray Stained Glass"
+      material: STAINED_GLASS:8
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    10:
+      name: "Cyan Stained Glass"
+      material: STAINED_GLASS:9
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    11:
+      name: "Purple Stained Glass"
+      material: STAINED_GLASS:10
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    12:
+      name: "Blue Stained Glass"
+      material: STAINED_GLASS:11
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    13:
+      name: "Brown Stained Glass"
+      material: STAINED_GLASS:12
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    14:
+      name: "Green Stained Glass"
+      material: STAINED_GLASS:13
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    15:
+      name: "Red Stained Glass"
+      material: STAINED_GLASS:14
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    16:
+      name: "Black Stained Glass"
+      material: STAINED_GLASS:15
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    17:
+      name: "Redstone Block"
+      material: REDSTONE_BLOCK:0
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    18:
+      name: "Obsidian"
+      material: OBSIDIAN:0
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    19:
+      name: "Emerald Block"
+      material: EMERALD_BLOCK:0
+      price: 1000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    20:
+      name: "Gold Block"
+      material: GOLD_BLOCK:0
+      price: 1000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    21:
+      name: "Gold Ore"
+      material: GOLD_ORE:0
+      price: 1000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    22:
+      name: "Barrier"
+      material: BARRIER:0
+      price: 5000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
