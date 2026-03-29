@@ -4,7 +4,7 @@
 prefix: "&c&lFastBuilder &7>> "
 
 # Default map for new players (leave empty for none)
-default-map: ""
+default-map: "Hell"
 
 # Economy
 reset-stats-cost: 100
