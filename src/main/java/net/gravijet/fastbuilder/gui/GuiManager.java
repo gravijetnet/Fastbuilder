@@ -329,7 +329,7 @@ public class GuiManager implements Listener {
 
     private void openReplayPage(Player player, List<ReplayData> replays, int page) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
-        int itemsPerPage = 36; // 4 rows of items, bottom row for navigation
+        int itemsPerPage = 28; // 4 rows of 7 content slots (bordered)
         int maxPage = Math.max(1, (int) Math.ceil(replays.size() / (double) itemsPerPage));
 
         String titleTemplate = guis.getString("replays", "Replays - Page %page%/%max_page%");
@@ -337,14 +337,32 @@ public class GuiManager implements Listener {
                 .replace("%page%", String.valueOf(page))
                 .replace("%max_page%", String.valueOf(maxPage)));
 
-        Inventory inv = Bukkit.createInventory(null, 45, title);
+        Inventory inv = Bukkit.createInventory(null, 54, title);
+
+        // Fill border with gray glass panes
+        ItemStack border = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < 9; i++) inv.setItem(i, border);       // top row
+        for (int i = 45; i < 54; i++) inv.setItem(i, border);     // bottom row
+        for (int row = 1; row <= 4; row++) {                       // left/right columns
+            inv.setItem(row * 9, border);
+            inv.setItem(row * 9 + 8, border);
+        }
+
+        // Content slots: columns 1-7 (indices 1-7) in rows 1-4
+        int[] contentSlots = new int[28];
+        int ci = 0;
+        for (int row = 1; row <= 4; row++) {
+            for (int col = 1; col <= 7; col++) {
+                contentSlots[ci++] = row * 9 + col;
+            }
+        }
 
         int startIndex = (page - 1) * itemsPerPage;
         int endIndex = Math.min(startIndex + itemsPerPage, replays.size());
 
         for (int i = startIndex; i < endIndex; i++) {
             ReplayData replay = replays.get(i);
-            int slot = i - startIndex;
+            int slot = contentSlots[i - startIndex];
 
             Material icon = replay.isSuccessful() ? Material.EMERALD : Material.REDSTONE;
             String status = replay.isSuccessful() ? "&aSuccessful" : "&cFailed";
@@ -365,20 +383,15 @@ public class GuiManager implements Listener {
             inv.setItem(slot, item);
         }
 
-        // Navigation
-        FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
-
+        // Navigation in bottom border
         if (page > 1) {
-            String prevMat = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
-            String prevName = itemsConfig.getString("change-page.previous-page.name", "&cPrevious Page");
-            inv.setItem(36, ItemBuilder.fromString(prevMat).name(prevName).build());
+            inv.setItem(45, new ItemBuilder(Material.ARROW).name("&c<< Previous Page").build());
         }
-
         if (page < maxPage) {
-            String nextMat = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
-            String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page");
-            inv.setItem(44, ItemBuilder.fromString(nextMat).name(nextName).build());
+            inv.setItem(53, new ItemBuilder(Material.ARROW).name("&a>> Next Page").build());
         }
+        inv.setItem(49, new ItemBuilder(Material.PAPER)
+                .name("&7Page &f" + page + " &7/ &f" + maxPage).build());
 
         replayPages.put(player.getUniqueId(), page);
         displayedReplays.put(player.getUniqueId(), replays);
@@ -711,29 +724,47 @@ public class GuiManager implements Listener {
         List<ReplayData> replays = displayedReplays.get(player.getUniqueId());
         if (replays == null) return;
 
+        int itemsPerPage = 28;
+        int maxPage = Math.max(1, (int) Math.ceil(replays.size() / (double) itemsPerPage));
+
         // Navigation
-        if (slot == 36 && currentPage > 1) {
+        if (slot == 45 && currentPage > 1) {
             openReplayPage(player, replays, currentPage - 1);
             return;
         }
-        int maxPage = Math.max(1, (int) Math.ceil(replays.size() / 36.0));
-        if (slot == 44 && currentPage < maxPage) {
+        if (slot == 53 && currentPage < maxPage) {
             openReplayPage(player, replays, currentPage + 1);
             return;
         }
 
-        // Replay click
-        int replayIndex = (currentPage - 1) * 36 + slot;
+        // Map slot to content index
+        int[] contentSlots = new int[28];
+        int ci = 0;
+        for (int row = 1; row <= 4; row++) {
+            for (int col = 1; col <= 7; col++) {
+                contentSlots[ci++] = row * 9 + col;
+            }
+        }
+
+        int contentIndex = -1;
+        for (int i = 0; i < contentSlots.length; i++) {
+            if (contentSlots[i] == slot) {
+                contentIndex = i;
+                break;
+            }
+        }
+        if (contentIndex < 0) return;
+
+        int replayIndex = (currentPage - 1) * itemsPerPage + contentIndex;
         if (replayIndex < 0 || replayIndex >= replays.size()) return;
 
         ReplayData replay = replays.get(replayIndex);
-
         player.closeInventory();
 
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().startPlayback(player, replay);
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                    + "&fStarting replay playback..."));
+                    + "&fStarting replay..."));
         }
     }
 }

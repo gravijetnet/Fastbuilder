@@ -30,16 +30,22 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (args.length < 1) {
-            String raw = plugin.getConfigManager().getMessage("usage");
-            raw = raw.replace("%command%", "/stats <player> [map]");
-            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-            sender.sendMessage(ColorUtil.translate(raw));
-            return true;
-        }
-
-        String targetName = args[0];
+        String targetName;
         String mapFilter = args.length >= 2 ? args[1] : null;
+
+        if (args.length < 1) {
+            // Show own stats if sender is a player
+            if (!(sender instanceof Player)) {
+                String raw = plugin.getConfigManager().getMessage("usage");
+                raw = raw.replace("%command%", "/stats <player> [map]");
+                raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+                sender.sendMessage(ColorUtil.translate(raw));
+                return true;
+            }
+            targetName = sender.getName();
+        } else {
+            targetName = args[0];
+        }
 
         // Try online player first
         Player target = Bukkit.getPlayerExact(targetName);
@@ -67,14 +73,15 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
         }
 
         // Display stats
-        sender.sendMessage(ColorUtil.translate("&c&lFastBuilder &7- &fStats for &c" + data.getName()));
-        sender.sendMessage(ColorUtil.translate("&8----------------------------------"));
-        sender.sendMessage(ColorUtil.translate("&fCoins: &c" + data.getCoins()));
-        sender.sendMessage("");
+        String prefix = plugin.getConfigManager().getPrefix();
+        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
+        sender.sendMessage(ColorUtil.translate("  &c&lFastbuilder &7| &fStats: &c" + data.getName()));
+        sender.sendMessage(ColorUtil.translate("  &7Coins: &f" + data.getCoins()));
+        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
 
         Map<String, PlayerData.MapStats> allStats = data.getAllStats();
         if (allStats.isEmpty()) {
-            sender.sendMessage(ColorUtil.translate("&7No statistics recorded yet."));
+            sender.sendMessage(ColorUtil.translate("  &7No statistics recorded yet."));
         } else {
             for (Map.Entry<String, PlayerData.MapStats> entry : allStats.entrySet()) {
                 String mapName = entry.getKey();
@@ -83,17 +90,20 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
                 PlayerData.MapStats stats = entry.getValue();
                 String bestTime = stats.hasBestTime()
                         ? TimeUtil.formatTime(stats.bestTime)
-                        : "&7None";
+                        : "N/A";
+                int successRate = stats.totalAttempts > 0
+                        ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100)
+                        : 0;
 
-                sender.sendMessage(ColorUtil.translate("&c&l" + mapName));
-                sender.sendMessage(ColorUtil.translate("  &fBest Time: &c" + bestTime));
-                sender.sendMessage(ColorUtil.translate("  &fTotal Attempts: &c" + stats.totalAttempts));
-                sender.sendMessage(ColorUtil.translate("  &fSuccessful Runs: &c" + stats.successfulAttempts));
+                sender.sendMessage(ColorUtil.translate("  &c" + mapName));
+                sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime));
+                sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts
+                        + " &7/ &f" + stats.totalAttempts + " &7(" + successRate + "%)"));
                 sender.sendMessage("");
             }
         }
 
-        sender.sendMessage(ColorUtil.translate("&8----------------------------------"));
+        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
         return true;
     }
 

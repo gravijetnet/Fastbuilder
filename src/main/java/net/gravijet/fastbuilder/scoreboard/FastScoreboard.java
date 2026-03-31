@@ -68,18 +68,51 @@ public class FastScoreboard {
             @Override
             public void run() {
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    // Only update for players with active sessions
-                    if (plugin.getGameplayManager() != null
-                            && plugin.getGameplayManager().getSession(player.getUniqueId()) != null) {
+                    if (plugin.getGameplayManager() != null) {
                         updateScoreboard(player);
                     }
                 }
             }
-        }.runTaskTimer(plugin, 10L, 10L).getTaskId();
+        }.runTaskTimer(plugin, 20L, 20L).getTaskId();
     }
 
     private String replacePlaceholders(String line, Player player) {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        net.gravijet.fastbuilder.gameplay.RunSession session = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+
+        // Map name
+        String mapName = (session != null) ? session.getMapName() : "None";
+        line = line.replace("%map%", mapName);
+
+        // Personal best time
+        String pb = "N/A";
+        if (data != null && session != null) {
+            PlayerData.MapStats stats = data.getAllStats().get(session.getMapName().toLowerCase());
+            if (stats == null) stats = data.getAllStats().get(session.getMapName());
+            if (stats != null && stats.hasBestTime()) {
+                pb = TimeUtil.formatTime(stats.bestTime);
+            }
+        }
+        line = line.replace("%pb%", pb);
+
+        // Current run time
+        String currentTime = "0.000";
+        if (session != null && session.isRunning()) {
+            currentTime = TimeUtil.formatTime(session.getElapsed());
+        }
+        line = line.replace("%current_time%", currentTime);
+
+        // Session top 3
+        java.util.List<Long> bests = session != null ? session.getSessionBests() : java.util.Collections.emptyList();
+        for (int i = 1; i <= 3; i++) {
+            String key = "%top" + i + "%";
+            if (i <= bests.size()) {
+                line = line.replace(key, TimeUtil.formatTime(bests.get(i - 1)));
+            } else {
+                line = line.replace(key, "&8-");
+            }
+        }
 
         // Rank (PlaceholderAPI: %phoenix_player_real_rank%)
         line = line.replace("%rank%", resolvePlaceholder(player, "%phoenix_player_real_rank%", "N/A"));

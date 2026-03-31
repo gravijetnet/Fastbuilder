@@ -172,6 +172,12 @@ public class GameplayManager {
             }
         }
 
+        if (session.isPracticeMode()) {
+            // Show time as title but don't save stats
+            String practiceTitle = "&6&lPractice: &f" + TimeUtil.formatTime(time);
+            player.sendTitle(ColorUtil.translate(practiceTitle), ColorUtil.translate("&7Time not saved"));
+        }
+
         // Play success sound + launch firework
         player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
         launchFirework(player.getLocation());
@@ -272,6 +278,11 @@ public class GameplayManager {
 
         // Teleport to spawn
         player.teleport(map.getIslandSpawn(session.getIslandIndex()));
+
+        // Restore hotbar items after reset
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().giveItems(player);
+        }
 
         // Update scoreboard
         plugin.getScoreboardManager().updateScoreboard(player);

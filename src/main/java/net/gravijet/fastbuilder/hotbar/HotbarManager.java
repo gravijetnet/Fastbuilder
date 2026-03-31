@@ -52,10 +52,21 @@ public class HotbarManager implements Listener {
 
         // 2 stacks of building blocks (slots 0-1)
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        if (data != null) {
+        // Check if in practice mode
+        net.gravijet.fastbuilder.gameplay.RunSession runSession = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        boolean inPractice = runSession != null && runSession.isPracticeMode();
+        if (inPractice) {
+            // Practice mode: give stained hardened clay (lime = STAINED_CLAY:5)
+            ItemStack clay1 = new ItemBuilder(Material.STAINED_CLAY, (byte) 5).amount(64)
+                    .name("&r&aPractice Blocks").build();
+            ItemStack clay2 = new ItemBuilder(Material.STAINED_CLAY, (byte) 5).amount(64)
+                    .name("&r&aPractice Blocks").build();
+            player.getInventory().setItem(SLOT_BLOCK_1, clay1);
+            player.getInventory().setItem(SLOT_BLOCK_2, clay2);
+        } else if (data != null) {
             String block = data.getSelectedBlock();
             if (block != null && !block.isEmpty()) {
-                // Use §r before color to prevent italic on renamed items
                 ItemStack blockItem1 = ItemBuilder.fromString(block).amount(64).build();
                 ItemStack blockItem2 = ItemBuilder.fromString(block).amount(64).build();
                 player.getInventory().setItem(SLOT_BLOCK_1, blockItem1);
@@ -63,10 +74,15 @@ public class HotbarManager implements Listener {
             }
         }
 
-        // Diamond pickaxe (slot 2)
+        // Diamond pickaxe (slot 2) - unbreakable
         ItemStack pickaxe = new ItemBuilder(Material.DIAMOND_PICKAXE)
                 .name("&r&bPickaxe")
                 .build();
+        org.bukkit.inventory.meta.ItemMeta picMeta = pickaxe.getItemMeta();
+        if (picMeta != null) {
+            picMeta.spigot().setUnbreakable(true);
+            pickaxe.setItemMeta(picMeta);
+        }
         player.getInventory().setItem(SLOT_PICKAXE, pickaxe);
 
         // Replay item

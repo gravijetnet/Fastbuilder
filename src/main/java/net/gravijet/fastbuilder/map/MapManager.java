@@ -168,8 +168,8 @@ public class MapManager {
         data.setFinishMaxY(session.getFinishMaxY());
         data.setFinishMaxZ(session.getFinishMaxZ());
 
-        // Default distance = island length (Z extent) + 10 blocks gap
-        data.setDistance(data.getIslandLength() + 10);
+        // Default distance = island length (Z extent) + 3 blocks gap
+        data.setDistance(data.getIslandLength() + 3);
         data.setScale(1); // Start with the original island
         data.setEnabled(false);
         data.setTemplateFile(name.toLowerCase());

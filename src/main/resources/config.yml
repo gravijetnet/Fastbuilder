@@ -29,18 +29,22 @@ npcs:
   enabled: true
   name: "&cMap Selector"
 
-# Scoreboard - matches exact GraviJet spec
-# Placeholders: %rank%, %players%, %coins%, %level%, %playtime%
+# Scoreboard
+# Placeholders: %map%, %pb%, %current_time%, %top1%, %top2%, %top3%, %players%, %coins%
 scoreboard:
   title: "&c&lFastbuilder"
   lines:
-    9: "&7&m-------------------"
-    8: "&8>> &cRank: &6%rank%"
-    7: "&8>> &cPlayers: &6%players%"
-    6: "&8>> &cCoins: &6%coins%"
-    5: "&8>> &cLevel: &6%level%"
-    4: "&8>> &cPlaytime: &6%playtime%h"
-    3: "&f "
+    13: "&7&m-------------------"
+    12: "&8>> &cMap: &f%map%"
+    11: "&8>> &cBest: &f%pb%"
+    10: "&8>> &cTime: &a%current_time%"
+    9: "&f "
+    8: "&7Top Session:"
+    7: "&8#1 &f%top1%"
+    6: "&8#2 &f%top2%"
+    5: "&8#3 &f%top3%"
+    4: "&f  "
+    3: "&8>> &cPlayers: &f%players%"
     2: "&7&oexample.invalid"
     1: "&7&o&m-------------------"
 

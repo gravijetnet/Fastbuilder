@@ -47,25 +47,29 @@ block-status:
 # Available GUIs: block_selector, mode_changer, island_selector, reset_stats, practice_mode
 # Placeholders: %practice_mode_enabled%, %price%
 settings-gui-slots:
-  12:
+  11:
     name: "&eBlock Selector"
     material: SANDSTONE:0
     gui: "block_selector"
     lore:
       - ""
-  14:
+      - "&7Select your building blocks"
+  13:
     name: "&cReset Stats"
     material: DIAMOND_PICKAXE:0
     gui: "reset_stats"
     lore:
-      - "&7Reset Stats on all modes!"
-      - "&ePrice: %price%"
-  16:
+      - "&7Reset stats on all modes!"
+      - "&ePrice: &c%price% coins"
+  15:
     name: "&aPractice Mode"
     material: STAINED_CLAY:0
     gui: "practice_mode"
     lore:
-      - "%practice_mode_enabled%"
+      - "&7Status: %practice_mode_enabled%"
+      - ""
+      - "&7Blocks stay on fall"
+      - "&7Time is not recorded"
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
