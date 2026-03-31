@@ -33,8 +33,10 @@ public class HotbarManager implements Listener {
     private static final int SLOT_ISLAND_SELECTOR = 6;
     private static final int SLOT_REPLAY = 5;
 
-    // Block slot (for selected building block)
-    private static final int SLOT_BLOCK = 0;
+    // Block slots (2 stacks of blocks + 1 pickaxe)
+    private static final int SLOT_BLOCK_1 = 0;
+    private static final int SLOT_BLOCK_2 = 1;
+    private static final int SLOT_PICKAXE = 2;
 
     public HotbarManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -48,15 +50,24 @@ public class HotbarManager implements Listener {
         FileConfiguration items = plugin.getConfigManager().getItemsConfig();
         player.getInventory().clear();
 
-        // Building block (slot 0)
+        // 2 stacks of building blocks (slots 0-1)
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data != null) {
             String block = data.getSelectedBlock();
             if (block != null && !block.isEmpty()) {
-                ItemStack blockItem = ItemBuilder.fromString(block).amount(64).build();
-                player.getInventory().setItem(SLOT_BLOCK, blockItem);
+                // Use §r before color to prevent italic on renamed items
+                ItemStack blockItem1 = ItemBuilder.fromString(block).amount(64).build();
+                ItemStack blockItem2 = ItemBuilder.fromString(block).amount(64).build();
+                player.getInventory().setItem(SLOT_BLOCK_1, blockItem1);
+                player.getInventory().setItem(SLOT_BLOCK_2, blockItem2);
             }
         }
+
+        // Diamond pickaxe (slot 2)
+        ItemStack pickaxe = new ItemBuilder(Material.DIAMOND_PICKAXE)
+                .name("&r&bPickaxe")
+                .build();
+        player.getInventory().setItem(SLOT_PICKAXE, pickaxe);
 
         // Replay item
         String replayName = items.getString("replay-item", "&5Replay View &7(Right-Click to use)");
@@ -83,16 +94,36 @@ public class HotbarManager implements Listener {
     }
 
     /**
-     * Refresh only the building block slot.
+     * Refresh both building block slots.
      */
     public void updateBlockSlot(Player player) {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data != null) {
             String block = data.getSelectedBlock();
             if (block != null && !block.isEmpty()) {
-                ItemStack blockItem = ItemBuilder.fromString(block).amount(64).build();
-                player.getInventory().setItem(SLOT_BLOCK, blockItem);
+                ItemStack blockItem1 = ItemBuilder.fromString(block).amount(64).build();
+                ItemStack blockItem2 = ItemBuilder.fromString(block).amount(64).build();
+                player.getInventory().setItem(SLOT_BLOCK_1, blockItem1);
+                player.getInventory().setItem(SLOT_BLOCK_2, blockItem2);
             }
+        }
+    }
+
+    /**
+     * Refill block stacks to 64 if the player has the auto-refill perk.
+     */
+    public void checkAutoRefill(Player player) {
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null || !data.hasAutoRefill()) return;
+
+        ItemStack slot1 = player.getInventory().getItem(SLOT_BLOCK_1);
+        ItemStack slot2 = player.getInventory().getItem(SLOT_BLOCK_2);
+
+        if (slot1 != null && slot1.getType() != Material.AIR && slot1.getAmount() < 64) {
+            slot1.setAmount(64);
+        }
+        if (slot2 != null && slot2.getType() != Material.AIR && slot2.getAmount() < 64) {
+            slot2.setAmount(64);
         }
     }
 

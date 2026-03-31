@@ -141,10 +141,12 @@ public class MapManager {
      */
     public MapData createMap(SetupSession session, String name) {
         MapData data = new MapData(name);
-        data.setWorldName(session.getIslandMin().getWorld().getName());
-        data.setOriginX(session.getIslandMin().getBlockX());
-        data.setOriginY(session.getIslandMin().getBlockY());
-        data.setOriginZ(session.getIslandMin().getBlockZ());
+        // Origin is the actual grid position, not the setup build area
+        Location gridOrigin = getNextMapOrigin();
+        data.setWorldName(gridOrigin.getWorld().getName());
+        data.setOriginX(gridOrigin.getBlockX());
+        data.setOriginY(gridOrigin.getBlockY());
+        data.setOriginZ(gridOrigin.getBlockZ());
         data.setIslandWidth(session.getIslandWidth());
         data.setIslandHeight(session.getIslandHeight());
         data.setIslandLength(session.getIslandLength());
@@ -153,6 +155,12 @@ public class MapManager {
         data.setSpawnOffsetZ(session.getSpawnOffsetZ());
         data.setSpawnYaw(session.getSpawnPoint().getYaw());
         data.setSpawnPitch(session.getSpawnPoint().getPitch());
+        data.setNpcOffsetX(session.getNpcOffsetX());
+        data.setNpcOffsetY(session.getNpcOffsetY());
+        data.setNpcOffsetZ(session.getNpcOffsetZ());
+        if (session.getNpcPoint() != null) {
+            data.setNpcYaw(session.getNpcPoint().getYaw());
+        }
         data.setFinishMinX(session.getFinishMinX());
         data.setFinishMinY(session.getFinishMinY());
         data.setFinishMinZ(session.getFinishMinZ());
@@ -160,8 +168,8 @@ public class MapManager {
         data.setFinishMaxY(session.getFinishMaxY());
         data.setFinishMaxZ(session.getFinishMaxZ());
 
-        // Default distance = island width + 10 blocks gap
-        data.setDistance(data.getIslandWidth() + 10);
+        // Default distance = island length (Z extent) + 10 blocks gap
+        data.setDistance(data.getIslandLength() + 10);
         data.setScale(1); // Start with the original island
         data.setEnabled(false);
         data.setTemplateFile(name.toLowerCase());
@@ -436,12 +444,13 @@ public class MapManager {
 
     /**
      * Calculate the next map origin for a new map setup.
+     * Maps are placed along X-axis at 2000, 4000, 6000...
      */
     public Location getNextMapOrigin() {
         World world = Bukkit.getWorlds().get(0);
         int spacing = plugin.getConfigManager().getMapSpacing();
         int y = plugin.getConfigManager().getDefaultY();
-        int z = GridCalculator.getNextMapZ(maps.size(), spacing);
-        return new Location(world, 0, y, z);
+        int x = GridCalculator.getNextMapX(maps.size(), spacing);
+        return new Location(world, x, y, 0);
     }
 }

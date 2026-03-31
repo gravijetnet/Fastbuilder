@@ -19,6 +19,7 @@ public class SetupSession {
     public enum State {
         SELECTING_ISLAND,
         SELECTING_SPAWN,
+        SELECTING_NPC,
         SELECTING_FINISH,
         AWAITING_NAME
     }
@@ -35,6 +36,9 @@ public class SetupSession {
 
     // Spawn point (absolute world coordinates)
     private Location spawnPoint;
+
+    // NPC point (absolute world coordinates)
+    private Location npcPoint;
 
     // Finish zone (absolute world coordinates)
     private Location finishPos1;
@@ -60,12 +64,23 @@ public class SetupSession {
     }
 
     /**
-     * Attempt to advance from SELECTING_SPAWN to SELECTING_FINISH.
+     * Attempt to advance from SELECTING_SPAWN to SELECTING_NPC.
      * Requires spawn point to be set.
      */
-    public boolean advanceToFinish() {
+    public boolean advanceToNpc() {
         if (state != State.SELECTING_SPAWN) return false;
         if (spawnPoint == null) return false;
+        state = State.SELECTING_NPC;
+        return true;
+    }
+
+    /**
+     * Attempt to advance from SELECTING_NPC to SELECTING_FINISH.
+     * Requires NPC point to be set.
+     */
+    public boolean advanceToFinish() {
+        if (state != State.SELECTING_NPC) return false;
+        if (npcPoint == null) return false;
         state = State.SELECTING_FINISH;
         return true;
     }
@@ -90,6 +105,8 @@ public class SetupSession {
                 return islandPos1 != null && islandPos2 != null;
             case SELECTING_SPAWN:
                 return spawnPoint != null;
+            case SELECTING_NPC:
+                return npcPoint != null;
             default:
                 return false;
         }
@@ -204,6 +221,24 @@ public class SetupSession {
     public State getState() { return state; }
     public Location getSetupOrigin() { return setupOrigin; }
 
+    /**
+     * Get the NPC offset relative to the island min corner.
+     */
+    public double getNpcOffsetX() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getX() - getIslandMin().getBlockX();
+    }
+
+    public double getNpcOffsetY() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getY() - getIslandMin().getBlockY();
+    }
+
+    public double getNpcOffsetZ() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getZ() - getIslandMin().getBlockZ();
+    }
+
     public Location getIslandPos1() { return islandPos1; }
     public void setIslandPos1(Location pos) { this.islandPos1 = pos; }
 
@@ -212,6 +247,9 @@ public class SetupSession {
 
     public Location getSpawnPoint() { return spawnPoint; }
     public void setSpawnPoint(Location pos) { this.spawnPoint = pos; }
+
+    public Location getNpcPoint() { return npcPoint; }
+    public void setNpcPoint(Location pos) { this.npcPoint = pos; }
 
     public Location getFinishPos1() { return finishPos1; }
     public void setFinishPos1(Location pos) { this.finishPos1 = pos; }

@@ -26,6 +26,9 @@ public class PlayerData {
     // Purchased blocks
     private final java.util.Set<String> purchasedBlocks = new java.util.HashSet<>();
 
+    // Auto-refill perk (purchasable with coins)
+    private boolean autoRefill = false;
+
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
         this.name = name;
@@ -50,6 +53,7 @@ public class PlayerData {
         }
 
         config.set("purchased-blocks", new java.util.ArrayList<>(purchasedBlocks));
+        config.set("auto-refill", autoRefill);
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -75,6 +79,7 @@ public class PlayerData {
         if (config.isList("purchased-blocks")) {
             purchasedBlocks.addAll(config.getStringList("purchased-blocks"));
         }
+        autoRefill = config.getBoolean("auto-refill", false);
     }
 
     // --- Stats helpers ---
@@ -130,6 +135,9 @@ public class PlayerData {
 
     public String getSelectedBlock() { return selectedBlock; }
     public void setSelectedBlock(String selectedBlock) { this.selectedBlock = selectedBlock; }
+
+    public boolean hasAutoRefill() { return autoRefill; }
+    public void setAutoRefill(boolean autoRefill) { this.autoRefill = autoRefill; }
 
     /**
      * Per-map statistics container.

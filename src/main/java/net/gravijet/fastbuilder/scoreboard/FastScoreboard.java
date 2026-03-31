@@ -80,46 +80,47 @@ public class FastScoreboard {
 
     private String replacePlaceholders(String line, Player player) {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        RunSession run = plugin.getGameplayManager() != null
-                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
-        // Live timer
-        String timer = "00:00.000";
-        if (run != null && run.isRunning()) {
-            timer = TimeUtil.formatTime(run.getElapsed());
-        }
-        line = line.replace("%time%", timer);
+        // Rank (PlaceholderAPI: %phoenix_player_real_rank%)
+        line = line.replace("%rank%", resolvePlaceholder(player, "%phoenix_player_real_rank%", "N/A"));
 
-        // Personal best
-        line = line.replace("%pb%", data != null && data.getLastMap() != null
-                ? getPlayerBest(data, data.getLastMap())
-                : "N/A");
+        // Players (PlaceholderAPI: %phoenix_server_global_online%)
+        line = line.replace("%players%", resolvePlaceholder(player, "%phoenix_server_global_online%",
+                String.valueOf(Bukkit.getOnlinePlayers().size())));
 
-        // Coins
-        line = line.replace("%coins%", data != null ? String.valueOf(data.getCoins()) : "0");
+        // Coins (PlaceholderAPI: %pxcosmetics_player_coins%)
+        String fallbackCoins = data != null ? String.valueOf(data.getCoins()) : "0";
+        line = line.replace("%coins%", resolvePlaceholder(player, "%pxcosmetics_player_coins%", fallbackCoins));
 
-        // Blocks placed this session
-        line = line.replace("%blocks%", run != null ? String.valueOf(run.getPlacedBlocks().size()) : "0");
+        // Level (PlaceholderAPI: %phoenix_player_level_displayname%)
+        line = line.replace("%level%", resolvePlaceholder(player, "%phoenix_player_level_displayname%", "1"));
 
-        // Session top 3
-        if (run != null) {
-            List<Long> bests = run.getSessionBests();
-            line = line.replace("%top_1%", bests.size() >= 1 ? TimeUtil.formatTime(bests.get(0)) : "---");
-            line = line.replace("%top_2%", bests.size() >= 2 ? TimeUtil.formatTime(bests.get(1)) : "---");
-            line = line.replace("%top_3%", bests.size() >= 3 ? TimeUtil.formatTime(bests.get(2)) : "---");
-        } else {
-            line = line.replace("%top_1%", "---");
-            line = line.replace("%top_2%", "---");
-            line = line.replace("%top_3%", "---");
-        }
+        // Playtime (calculate from Bukkit statistic)
+        @SuppressWarnings("deprecation")
+        long ticksPlayed = player.getStatistic(org.bukkit.Statistic.PLAY_ONE_TICK);
+        long hours = ticksPlayed / 20 / 3600;
+        line = line.replace("%playtime%", String.valueOf(hours));
 
         return line;
     }
 
-    private String getPlayerBest(PlayerData data, String mapName) {
-        PlayerData.MapStats stats = data.getStats(mapName);
-        if (stats == null || !stats.hasBestTime()) return "N/A";
-        return TimeUtil.formatTime(stats.bestTime);
+    /**
+     * Try PlaceholderAPI first, fall back to provided default.
+     */
+    private String resolvePlaceholder(Player player, String placeholder, String fallback) {
+        try {
+            if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+                Class<?> papi = Class.forName("me.clip.placeholderapi.PlaceholderAPI");
+                java.lang.reflect.Method method = papi.getMethod("setPlaceholders",
+                        org.bukkit.OfflinePlayer.class, String.class);
+                String result = (String) method.invoke(null, player, placeholder);
+                // If PAPI didn't resolve it, it returns the placeholder unchanged
+                if (result != null && !result.equals(placeholder)) {
+                    return result;
+                }
+            }
+        } catch (Exception ignored) {}
+        return fallback;
     }
 
     public void shutdown() {

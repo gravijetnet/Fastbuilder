@@ -49,6 +49,9 @@ public class SetupListener implements Listener {
             case SELECTING_SPAWN:
                 handleSpawnSelection(player, session, action);
                 break;
+            case SELECTING_NPC:
+                handleNpcSelection(player, session, action);
+                break;
             case SELECTING_FINISH:
                 handleFinishSelection(player, session, action, clicked);
                 break;
@@ -91,6 +94,19 @@ public class SetupListener implements Listener {
             Location loc = player.getLocation();
             session.setSpawnPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-saved");
+            player.sendMessage(ColorUtil.translate(raw));
+        }
+    }
+
+    private void handleNpcSelection(Player player, SetupSession session, Action action) {
+        // Right-click sets NPC location at current player position
+        if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+            Location loc = player.getLocation();
+            session.setNpcPoint(loc);
+            String raw = plugin.getConfigManager().getAdminMessage("setup-npc-saved");
+            if (raw == null || raw.isEmpty()) {
+                raw = "&aNPC location saved at your position.";
+            }
             player.sendMessage(ColorUtil.translate(raw));
         }
     }

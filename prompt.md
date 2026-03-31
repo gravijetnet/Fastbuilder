@@ -48,7 +48,7 @@ Requires full tab-completion. Teleport to `-1000 20 -1000`, clear inventory, set
 - **Recording:** Log per-tick data: X, Y, Z, Yaw (Head Movement), Pitch, Sneaking state, and Block Place/Break events. It must capture exact head rotations and sneaking, not just XYZ.
 - **Replay GUI:** Centered, premium design. Separates Successful vs. Failed runs. Shows Date & Time.
 - **Permissions:** Add permission nodes to limit how many replays a player can save/view.
-- **Playback:** Fly mode for the spectator. A Citizens NPC mimics the recorded player perfectly. Hotbar items for playback control (Rewind, Fast-Forward, Speed, Exit).
+- **Playback:** Fly mode for the spectator. A Citizens NPC mimics the recorded player perfectly. Hotbar items for playback control (Rewind, Fast-Forward, Speed, Exit). Also the player is being teleported to an extra island far away where he bridged. (think logical and much)
 
 # 6. ECONOMY, STATS & VISUALS
 - **Scoreboard:** MUST be implemented and EXACTLY match this structure:

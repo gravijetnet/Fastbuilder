@@ -28,12 +28,16 @@ public class MapData {
     private double spawnOffsetX, spawnOffsetY, spawnOffsetZ;
     private float spawnYaw, spawnPitch;
 
+    // NPC offset relative to island min corner
+    private double npcOffsetX, npcOffsetY, npcOffsetZ;
+    private float npcYaw;
+
     // Finish zone bounds relative to island min corner
     private int finishMinX, finishMinY, finishMinZ;
     private int finishMaxX, finishMaxY, finishMaxZ;
 
     // Island placement
-    private int distance; // Block distance between island instance origins along X axis
+    private int distance; // Block distance between island instance origins along Z axis
     private int scale;    // Total number of island instances
     private boolean autoscale;
 
@@ -67,6 +71,10 @@ public class MapData {
         config.set("spawn.z", spawnOffsetZ);
         config.set("spawn.yaw", spawnYaw);
         config.set("spawn.pitch", spawnPitch);
+        config.set("npc.x", npcOffsetX);
+        config.set("npc.y", npcOffsetY);
+        config.set("npc.z", npcOffsetZ);
+        config.set("npc.yaw", npcYaw);
         config.set("finish.min.x", finishMinX);
         config.set("finish.min.y", finishMinY);
         config.set("finish.min.z", finishMinZ);
@@ -95,6 +103,10 @@ public class MapData {
         spawnOffsetZ = config.getDouble("spawn.z");
         spawnYaw = (float) config.getDouble("spawn.yaw");
         spawnPitch = (float) config.getDouble("spawn.pitch");
+        npcOffsetX = config.getDouble("npc.x");
+        npcOffsetY = config.getDouble("npc.y");
+        npcOffsetZ = config.getDouble("npc.z");
+        npcYaw = (float) config.getDouble("npc.yaw");
         finishMinX = config.getInt("finish.min.x");
         finishMinY = config.getInt("finish.min.y");
         finishMinZ = config.getInt("finish.min.z");
@@ -119,33 +131,48 @@ public class MapData {
 
     /**
      * Get the absolute spawn location for a specific island instance.
+     * Islands scale along the Z-axis.
      */
     public Location getIslandSpawn(int islandIndex) {
         Location origin = getOrigin();
-        origin.add(islandIndex * distance + spawnOffsetX, spawnOffsetY, spawnOffsetZ);
+        origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * distance + spawnOffsetZ);
         origin.setYaw(spawnYaw);
         origin.setPitch(spawnPitch);
         return origin;
     }
 
     /**
+     * Get the NPC location for a specific island instance.
+     * Islands scale along the Z-axis.
+     */
+    public Location getIslandNpcLocation(int islandIndex) {
+        Location origin = getOrigin();
+        origin.add(npcOffsetX, npcOffsetY, (long) islandIndex * distance + npcOffsetZ);
+        origin.setYaw(npcYaw);
+        origin.setPitch(0f);
+        return origin;
+    }
+
+    /**
      * Get the minimum corner of a specific island instance.
+     * Islands scale along the Z-axis.
      */
     public Location getIslandMin(int islandIndex) {
         return new Location(getWorld(),
-                originX + islandIndex * distance,
+                originX,
                 originY,
-                originZ);
+                originZ + (long) islandIndex * distance);
     }
 
     /**
      * Get the maximum corner of a specific island instance.
+     * Islands scale along the Z-axis.
      */
     public Location getIslandMax(int islandIndex) {
         return new Location(getWorld(),
-                originX + islandIndex * distance + islandWidth - 1,
+                originX + islandWidth - 1,
                 originY + islandHeight - 1,
-                originZ + islandLength - 1);
+                originZ + (long) islandIndex * distance + islandLength - 1);
     }
 
     // --- Getters/Setters ---
@@ -208,6 +235,15 @@ public class MapData {
     public void setFinishMaxY(int y) { this.finishMaxY = y; }
     public int getFinishMaxZ() { return finishMaxZ; }
     public void setFinishMaxZ(int z) { this.finishMaxZ = z; }
+
+    public double getNpcOffsetX() { return npcOffsetX; }
+    public void setNpcOffsetX(double x) { this.npcOffsetX = x; }
+    public double getNpcOffsetY() { return npcOffsetY; }
+    public void setNpcOffsetY(double y) { this.npcOffsetY = y; }
+    public double getNpcOffsetZ() { return npcOffsetZ; }
+    public void setNpcOffsetZ(double z) { this.npcOffsetZ = z; }
+    public float getNpcYaw() { return npcYaw; }
+    public void setNpcYaw(float yaw) { this.npcYaw = yaw; }
 
     public int getDistance() { return distance; }
     public void setDistance(int distance) { this.distance = distance; }

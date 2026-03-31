@@ -136,8 +136,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         // Cancel existing session
         mm.removeSetupSession(player.getUniqueId());
 
-        // Calculate next map origin
-        Location origin = mm.getNextMapOrigin();
+        // Setup area is at -1000, 20, -1000 (dedicated build area, not the grid)
+        Location origin = new Location(player.getWorld(), -1000, 20, -1000);
 
         // Start session
         mm.startSetupSession(player.getUniqueId(), origin);
@@ -181,6 +181,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 msgAdmin(player, "setup-set-spawn");
                 break;
             case SELECTING_SPAWN:
+                session.advanceToNpc();
+                String npcMsg = plugin.getConfigManager().getAdminMessage("setup-set-npc");
+                if (npcMsg == null || npcMsg.isEmpty()) {
+                    npcMsg = "&eStep 3: &fGo to the NPC location and &cright-click &fthe blaze rod.";
+                }
+                player.sendMessage(ColorUtil.translate(npcMsg));
+                break;
+            case SELECTING_NPC:
                 session.advanceToFinish();
                 msgAdmin(player, "setup-select-finish");
                 break;
@@ -248,10 +256,22 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             tempFile.renameTo(finalFile);
         }
 
-        // Create map
+        // Create map (origin is calculated from grid, not setup area)
         MapData map = mm.createMap(session, name);
         map.setTemplateFile(name.toLowerCase());
         mm.saveMap(map);
+
+        // Clear the setup build area (-1000, 20, -1000)
+        Location setupMin = session.getIslandMin();
+        Location setupMax = session.getIslandMax();
+        if (setupMin != null && setupMax != null) {
+            plugin.getFawePaster().clearRegion(
+                    setupMin.getWorld(),
+                    setupMin.getBlockX(), setupMin.getBlockY(), setupMin.getBlockZ(),
+                    setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
+                    null
+            );
+        }
 
         // Clean up session
         mm.removeSetupSession(player.getUniqueId());
@@ -436,7 +456,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        int minDist = GridCalculator.getMinimumDistance(map.getIslandWidth());
+        int minDist = GridCalculator.getMinimumDistance(map.getIslandLength());
         if (blocks < minDist) {
             String raw = plugin.getConfigManager().getAdminMessage("distance-too-small");
             raw = raw.replace("%min%", String.valueOf(minDist));

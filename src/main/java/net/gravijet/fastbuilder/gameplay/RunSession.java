@@ -23,6 +23,9 @@ public class RunSession {
     // Blocks placed during this run (for reset/replay)
     private final List<Location> placedBlocks = new ArrayList<>();
 
+    // Blocks placed while in practice mode (tracked separately for anti-exploit clearing)
+    private final List<Location> practiceBlocks = new ArrayList<>();
+
     // Session best times (for scoreboard top 3)
     private final List<Long> sessionBests = new ArrayList<>();
 
@@ -84,10 +87,24 @@ public class RunSession {
 
     public void addPlacedBlock(Location loc) {
         placedBlocks.add(loc.clone());
+        if (practiceMode) {
+            practiceBlocks.add(loc.clone());
+        }
     }
 
     public List<Location> getPlacedBlocks() {
         return placedBlocks;
+    }
+
+    public List<Location> getPracticeBlocks() {
+        return practiceBlocks;
+    }
+
+    /**
+     * Check if there are practice blocks that need clearing before a real run.
+     */
+    public boolean hasPracticeBlocks() {
+        return !practiceBlocks.isEmpty();
     }
 
     public void addSessionBest(long time) {

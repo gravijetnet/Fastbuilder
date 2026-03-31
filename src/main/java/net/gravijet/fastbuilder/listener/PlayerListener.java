@@ -6,6 +6,7 @@ import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.player.PlayerManager;
 import net.gravijet.fastbuilder.util.ColorUtil;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -114,6 +115,11 @@ public class PlayerListener implements Listener {
      * Setup all gameplay systems for a player on an island.
      */
     private void setupPlayerOnIsland(Player player, MapData map, int island) {
+        // Set Survival mode
+        player.setGameMode(GameMode.SURVIVAL);
+        player.setFoodLevel(20);
+        player.setHealth(player.getMaxHealth());
+
         // Create gameplay session
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
@@ -127,9 +133,9 @@ public class PlayerListener implements Listener {
         // Setup scoreboard
         plugin.getScoreboardManager().createScoreboard(player);
 
-        // Spawn NPC on the island
+        // Spawn NPC at the map's defined NPC location for this island
         if (plugin.getNpcManager() != null) {
-            plugin.getNpcManager().spawnNpc(player, map.getIslandSpawn(island));
+            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
         }
 
         // Update hologram
