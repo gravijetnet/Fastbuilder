@@ -19,6 +19,18 @@ settings:
 # Confirm Reset Stats GUI
 confirm-stats-reset: "Confirm"
 
+# Map Selector GUI
+map-selector:
+  name: "Map Selector"
+  max-slots: 54
+  # Filler items fill all empty slots
+  filler:
+    enabled: true
+    material: "STAINED_GLASS_PANE:7"
+    name: " "
+  # Map slot assignments (slot -> map name). Unassigned maps go in the first free slot.
+  slots: {}
+
 # Island Selector GUI
 island-selector: "Island Selector"
 

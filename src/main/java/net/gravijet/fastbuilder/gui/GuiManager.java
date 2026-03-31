@@ -19,6 +19,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,12 +72,18 @@ public class GuiManager implements Listener {
             ItemStack item;
 
             if (island.isOccupied()) {
-                item = new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
-                        .name("&c#" + (i + 1) + " &7- &f" + island.getOccupantName())
-                        .lore("&cOccupied")
-                        .build();
+                // Player skull with actual skin texture
+                item = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+                SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
+                skullMeta.setOwner(island.getOccupantName());
+                skullMeta.setDisplayName(ColorUtil.translate("&c#" + (i + 1) + " &7- &f" + island.getOccupantName()));
+                java.util.List<String> lore = new java.util.ArrayList<>();
+                lore.add(ColorUtil.translate("&cOccupied"));
+                skullMeta.setLore(lore);
+                item.setItemMeta(skullMeta);
             } else {
-                item = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
+                // Numbered head for empty island
+                item = new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
                         .name("&a#" + (i + 1))
                         .lore("&aClick to join")
                         .build();
@@ -92,28 +99,60 @@ public class GuiManager implements Listener {
 
     public void openMapSelector(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
-        String title = ColorUtil.translate(MAP_SELECTOR_PREFIX);
-
-        Collection<MapData> allMaps = plugin.getMapManager().getAllMaps();
-        int enabledCount = 0;
-        for (MapData m : allMaps) {
-            if (m.isEnabled()) enabledCount++;
-        }
-
-        int size = Math.min(54, ((enabledCount / 9) + 1) * 9);
-        if (size < 9) size = 9;
+        String title = ColorUtil.translate(guis.getString("map-selector.name", MAP_SELECTOR_PREFIX));
+        int size = guis.getInt("map-selector.max-slots", 54);
 
         Inventory inv = Bukkit.createInventory(null, size, title);
 
-        int slot = 0;
+        // Fill with filler items first
+        boolean fillerEnabled = guis.getBoolean("map-selector.filler.enabled", true);
+        if (fillerEnabled) {
+            String fillerMat = guis.getString("map-selector.filler.material", "STAINED_GLASS_PANE:7");
+            String fillerName = guis.getString("map-selector.filler.name", " ");
+            ItemStack filler = ItemBuilder.fromString(fillerMat).name(fillerName).build();
+            for (int i = 0; i < size; i++) {
+                inv.setItem(i, filler);
+            }
+        }
+
+        // Build map->slot assignments from config
+        ConfigurationSection slotsSection = guis.getConfigurationSection("map-selector.slots");
+        Map<String, Integer> configuredSlots = new HashMap<>();
+        if (slotsSection != null) {
+            for (String slotKey : slotsSection.getKeys(false)) {
+                try {
+                    int slotNum = Integer.parseInt(slotKey);
+                    String mapName = slotsSection.getString(slotKey);
+                    if (mapName != null) {
+                        configuredSlots.put(mapName, slotNum);
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Place maps: configured slots first, then fill remaining into first free slots
+        Collection<MapData> allMaps = plugin.getMapManager().getAllMaps();
+        java.util.Set<Integer> usedSlots = new java.util.HashSet<>(configuredSlots.values());
+
         for (MapData map : allMaps) {
             if (!map.isEnabled()) continue;
-            if (slot >= size) break;
+
+            int slot;
+            if (configuredSlots.containsKey(map.getName())) {
+                slot = configuredSlots.get(map.getName());
+            } else {
+                // Find next free slot
+                slot = 0;
+                while (slot < size && usedSlots.contains(slot)) {
+                    slot++;
+                }
+                if (slot >= size) break;
+            }
+            usedSlots.add(slot);
 
             int occupied = plugin.getMapManager().getOccupiedCount(map.getName());
             int total = plugin.getMapManager().getIslands(map.getName()).size();
 
-            // Use map icon or default
             String iconStr = map.getIcon();
             ItemBuilder builder = (iconStr != null && !iconStr.isEmpty())
                     ? ItemBuilder.fromString(iconStr)
@@ -129,7 +168,6 @@ public class GuiManager implements Listener {
                     .build();
 
             inv.setItem(slot, item);
-            slot++;
         }
 
         player.openInventory(inv);
@@ -403,6 +441,23 @@ public class GuiManager implements Listener {
             return;
         }
 
+        // Clear placed blocks on old island
+        net.gravijet.fastbuilder.gameplay.RunSession oldSession = plugin.getGameplayManager().getSession(player.getUniqueId());
+        if (oldSession != null) {
+            for (org.bukkit.Location loc : oldSession.getPlacedBlocks()) {
+                org.bukkit.block.Block block = loc.getBlock();
+                if (block != null) block.setType(org.bukkit.Material.AIR);
+            }
+        }
+
+        // Remove old NPC and hologram
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+        if (plugin.getHologramManager() != null) {
+            plugin.getHologramManager().removeHologram(map.getName(), data.getLastIsland());
+        }
+
         // Free current island, assign new one
         plugin.getMapManager().freeIsland(map.getName(), player.getUniqueId());
         plugin.getGameplayManager().removeSession(player.getUniqueId());
@@ -418,6 +473,14 @@ public class GuiManager implements Listener {
         // Give hotbar items
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
+        }
+
+        // Spawn new NPC and hologram at the new island
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(slot));
+        }
+        if (plugin.getHologramManager() != null) {
+            plugin.getHologramManager().updateHologram(map.getName(), slot, player);
         }
 
         String raw = plugin.getConfigManager().getMessage("island-joined");
@@ -525,10 +588,27 @@ public class GuiManager implements Listener {
                 net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
                 if (run != null) {
-                    run.setPracticeMode(!run.isPracticeMode());
-                    String state = run.isPracticeMode() ? "&aenabled" : "&cdisabled";
+                    boolean newState = !run.isPracticeMode();
+                    run.setPracticeMode(newState);
+
+                    // Anti-exploit: when disabling practice mode, clear ALL practice blocks
+                    if (!newState && run.hasPracticeBlocks()) {
+                        for (org.bukkit.Location loc : run.getPracticeBlocks()) {
+                            org.bukkit.block.Block block = loc.getBlock();
+                            if (block != null) {
+                                block.setType(org.bukkit.Material.AIR);
+                            }
+                        }
+                        // Also remove them from placed blocks list
+                        run.getPlacedBlocks().removeAll(run.getPracticeBlocks());
+                        run.getPracticeBlocks().clear();
+                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                + "&fAll practice blocks have been cleared."));
+                    }
+
+                    String stateStr = newState ? "&aenabled" : "&cdisabled";
                     player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&fPractice mode " + state + "&f."));
+                            + "&fPractice mode " + stateStr + "&f."));
                 }
                 // Refresh settings GUI
                 openSettings(player);
@@ -573,6 +653,9 @@ public class GuiManager implements Listener {
         if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
 
         String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+
+        // Ignore filler item clicks (blank name or single space)
+        if (displayName.trim().isEmpty()) return;
 
         // Find the map by name
         MapData map = plugin.getMapManager().getMap(displayName);

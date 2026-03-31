@@ -86,16 +86,17 @@ public class GameplayListener implements Listener {
 
     /**
      * Check if a location is within the finish zone of a specific island.
+     * Islands are offset along the Z-axis.
      */
     private boolean isInFinishZone(MapData map, int islandIndex, Location loc) {
-        int offsetX = islandIndex * map.getDistance();
+        int offsetZ = islandIndex * map.getDistance();
 
-        int fMinX = map.getOriginX() + offsetX + map.getFinishMinX();
+        int fMinX = map.getOriginX() + map.getFinishMinX();
         int fMinY = map.getOriginY() + map.getFinishMinY();
-        int fMinZ = map.getOriginZ() + map.getFinishMinZ();
-        int fMaxX = map.getOriginX() + offsetX + map.getFinishMaxX();
+        int fMinZ = map.getOriginZ() + offsetZ + map.getFinishMinZ();
+        int fMaxX = map.getOriginX() + map.getFinishMaxX();
         int fMaxY = map.getOriginY() + map.getFinishMaxY();
-        int fMaxZ = map.getOriginZ() + map.getFinishMaxZ();
+        int fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
 
         int bx = loc.getBlockX();
         int by = loc.getBlockY();

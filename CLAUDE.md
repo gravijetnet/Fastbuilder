@@ -31,7 +31,7 @@
 - **Practice Mode:** Blocks stay on death/fall. Time is NOT recorded. **Anti-Exploit:** ALL practice blocks MUST be cleared before a real run can start.
 
 ## 3. UI, SCOREBOARD & HOLOGRAMS
-- **Scoreboard (Exact Implementation):**
+- **Scoreboard (Example):**
   ```java
   objective.getScore("§7§m-------------------").setScore(score--);
   objective.getScore("§8» §cRank: §6" + getPlaceholder(p, "%phoenix_player_real_rank%")).setScore(score--);

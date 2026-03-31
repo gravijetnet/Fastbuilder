@@ -214,15 +214,15 @@ public class FawePaster {
                     return;
                 }
 
-                // Build combined block list for all islands
+                // Build combined block list for all islands (offset along Z-axis)
                 final List<BlockEntry> allBlocks = new ArrayList<>();
                 for (int i = startIndex; i < endIndex; i++) {
-                    int offsetX = i * distance;
+                    int offsetZ = i * distance;
                     for (BlockEntry entry : entries) {
                         allBlocks.add(new BlockEntry(
-                                (short) (entry.relX + offsetX),
+                                entry.relX,
                                 entry.relY,
-                                entry.relZ,
+                                (short) (entry.relZ + offsetZ),
                                 entry.blockId,
                                 entry.data
                         ));
@@ -255,10 +255,10 @@ public class FawePaster {
                               Runnable onComplete) {
         final List<int[]> positions = new ArrayList<>();
         for (int i = startIndex; i < endIndex; i++) {
-            int baseX = originX + i * distance;
-            for (int x = baseX; x < baseX + islandWidth; x++) {
+            int baseZ = originZ + i * distance;
+            for (int x = originX; x < originX + islandWidth; x++) {
                 for (int y = originY + islandHeight - 1; y >= originY; y--) {
-                    for (int z = originZ; z < originZ + islandLength; z++) {
+                    for (int z = baseZ; z < baseZ + islandLength; z++) {
                         positions.add(new int[]{x, y, z});
                     }
                 }

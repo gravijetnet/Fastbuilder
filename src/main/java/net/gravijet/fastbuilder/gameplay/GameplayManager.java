@@ -7,10 +7,15 @@ import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import net.gravijet.fastbuilder.util.TimeUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
+import org.bukkit.FireworkEffect;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
@@ -78,6 +83,11 @@ public class GameplayManager {
         }
 
         session.addPlacedBlock(block.getLocation());
+
+        // Auto-refill blocks if perk is active
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().checkAutoRefill(player);
+        }
 
         // Record block placement for replay
         if (plugin.getReplayManager() != null) {
@@ -162,8 +172,41 @@ public class GameplayManager {
             }
         }
 
+        // Play success sound + launch firework
+        player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
+        launchFirework(player.getLocation());
+
         // Update scoreboard
         plugin.getScoreboardManager().updateScoreboard(player);
+
+        // Wait 2 seconds, then reset and teleport to start
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (player.isOnline()) {
+                    resetRun(player);
+                }
+            }
+        }.runTaskLater(plugin, 40L); // 40 ticks = 2 seconds
+    }
+
+    /**
+     * Launch a celebration firework at the given location.
+     */
+    private void launchFirework(Location location) {
+        try {
+            Firework fw = location.getWorld().spawn(location, Firework.class);
+            FireworkMeta meta = fw.getFireworkMeta();
+            meta.addEffect(FireworkEffect.builder()
+                    .withColor(Color.RED, Color.ORANGE, Color.YELLOW)
+                    .withFade(Color.WHITE)
+                    .with(FireworkEffect.Type.BALL_LARGE)
+                    .flicker(true)
+                    .trail(true)
+                    .build());
+            meta.setPower(1);
+            fw.setFireworkMeta(meta);
+        } catch (Exception ignored) {}
     }
 
     /**
@@ -204,7 +247,11 @@ public class GameplayManager {
         if (map == null) return;
 
         // Remove placed blocks (set to air)
+        // In practice mode, keep practice blocks on the map
         for (Location loc : session.getPlacedBlocks()) {
+            if (session.isPracticeMode() && session.getPracticeBlocks().contains(loc)) {
+                continue; // Keep practice blocks
+            }
             Block block = loc.getBlock();
             if (block != null) {
                 block.setType(Material.AIR);
@@ -257,32 +304,12 @@ public class GameplayManager {
     }
 
     /**
-     * Periodic boundary check: teleport player back if too far from island.
+     * Boundary check is now handled by ProtectionListener.onMove().
+     * This task is kept as a safety net for edge cases (e.g. plugin reload).
      */
     private void startBoundaryCheckTask() {
-        int maxDist = plugin.getConfigManager().getMaxDistance();
-
-        boundaryTaskId = new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (Map.Entry<UUID, RunSession> entry : new HashMap<>(activeSessions).entrySet()) {
-                    Player player = Bukkit.getPlayer(entry.getKey());
-                    if (player == null || !player.isOnline()) continue;
-
-                    RunSession session = entry.getValue();
-                    MapData map = plugin.getMapManager().getMap(session.getMapName());
-                    if (map == null) continue;
-
-                    Location spawn = map.getIslandSpawn(session.getIslandIndex());
-                    Location min = map.getIslandMin(session.getIslandIndex());
-
-                    // Check if player fell below island
-                    if (player.getLocation().getY() < min.getBlockY() - maxDist) {
-                        onFall(player);
-                    }
-                }
-            }
-        }.runTaskTimer(plugin, 5L, 5L).getTaskId();
+        // No-op: boundary enforcement moved to ProtectionListener for per-tick accuracy
+        boundaryTaskId = -1;
     }
 
     @SuppressWarnings("deprecation")

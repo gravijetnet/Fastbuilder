@@ -29,10 +29,13 @@ public class NpcManager implements Listener {
     }
 
     /**
-     * Spawn a Map Selector NPC for a player at the given location.
+     * Spawn a Map Selector NPC for a player at the map's defined NPC location.
      * The NPC uses the player's skin.
+     *
+     * @param player      The player who owns this NPC
+     * @param npcLocation The exact NPC spawn location (from MapData.getIslandNpcLocation)
      */
-    public void spawnNpc(Player player, Location location) {
+    public void spawnNpc(Player player, Location npcLocation) {
         if (!plugin.getConfigManager().isNpcsEnabled()) return;
 
         // Remove existing NPC first
@@ -47,17 +50,12 @@ public class NpcManager implements Listener {
             npc.data().set("player-skin-uuid", player.getUniqueId().toString());
             npc.data().set("player-skin-name", player.getName());
 
-            // Spawn the NPC slightly in front of the player's spawn
-            Location spawnLoc = location.clone();
-            spawnLoc.add(spawnLoc.getDirection().normalize().multiply(2));
-            spawnLoc.setY(location.getY());
-
-            npc.spawn(spawnLoc);
+            npc.spawn(npcLocation);
             npc.setProtected(true);
 
             playerNpcs.put(player.getUniqueId(), npc.getId());
 
-            plugin.getLogger().fine("Spawned NPC for " + player.getName() + " at " + spawnLoc);
+            plugin.getLogger().fine("Spawned NPC for " + player.getName() + " at " + npcLocation);
         } catch (NoClassDefFoundError | Exception e) {
             plugin.getLogger().warning("Citizens API not available for NPC spawn: " + e.getMessage());
         }

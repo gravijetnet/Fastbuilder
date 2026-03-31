@@ -4,8 +4,8 @@ import org.bukkit.Location;
 
 /**
  * Static utility for all island grid math.
- * Islands are placed linearly along the X axis from the map origin.
- * Different map types are spaced along the Z axis.
+ * Maps are placed along the X-axis: Map 1 at 2000,20,0 | Map 2 at 4000,20,0 etc.
+ * Island instances for a map are placed along the positive Z-axis from the map origin.
  */
 public final class GridCalculator {
 
@@ -13,6 +13,7 @@ public final class GridCalculator {
 
     /**
      * Get the absolute world position of an island instance's min corner.
+     * Islands scale along the Z-axis from the map origin.
      *
      * @param map   The map data
      * @param index The 0-based island index
@@ -20,9 +21,9 @@ public final class GridCalculator {
      */
     public static Location getIslandOrigin(MapData map, int index) {
         return new Location(map.getWorld(),
-                map.getOriginX() + (long) index * map.getDistance(),
+                map.getOriginX(),
                 map.getOriginY(),
-                map.getOriginZ());
+                map.getOriginZ() + (long) index * map.getDistance());
     }
 
     /**
@@ -34,6 +35,7 @@ public final class GridCalculator {
 
     /**
      * Determine which island index a world location belongs to.
+     * Islands are spaced along Z-axis with the configured distance.
      *
      * @return The island index (0-based), or -1 if the location is not within any island
      */
@@ -47,21 +49,21 @@ public final class GridCalculator {
         // Check Y bounds
         if (relY < -1 || relY > map.getIslandHeight() + 1) return -1;
 
-        // Check Z bounds
-        if (relZ < -1 || relZ > map.getIslandLength()) return -1;
+        // Check X bounds (island width along X, the build direction)
+        if (relX < -1 || relX > map.getIslandWidth()) return -1;
 
-        // Check X bounds and determine island index
-        if (relX < 0) return -1;
+        // Check Z bounds and determine island index
+        if (relZ < 0) return -1;
 
         int distance = map.getDistance();
         if (distance <= 0) return -1;
 
-        int index = (int) (relX / distance);
+        int index = (int) (relZ / distance);
         if (index >= map.getScale()) return -1;
 
         // Check if within the island area (not in the gap between islands)
-        double posInSlot = relX - ((long) index * distance);
-        if (posInSlot >= map.getIslandWidth()) return -1;
+        double posInSlot = relZ - ((long) index * distance);
+        if (posInSlot >= map.getIslandLength()) return -1;
 
         return index;
     }
@@ -72,9 +74,9 @@ public final class GridCalculator {
     public static boolean isWithinIsland(MapData map, int index, Location loc) {
         if (!loc.getWorld().getName().equals(map.getWorldName())) return false;
 
-        long islandMinX = map.getOriginX() + (long) index * map.getDistance();
+        int islandMinX = map.getOriginX();
         int islandMinY = map.getOriginY();
-        int islandMinZ = map.getOriginZ();
+        long islandMinZ = map.getOriginZ() + (long) index * map.getDistance();
 
         double x = loc.getX();
         double y = loc.getY();
@@ -91,16 +93,16 @@ public final class GridCalculator {
     public static boolean isInFinishZone(MapData map, int index, Location loc) {
         if (!loc.getWorld().getName().equals(map.getWorldName())) return false;
 
-        long baseX = map.getOriginX() + (long) index * map.getDistance();
+        int baseX = map.getOriginX();
         int baseY = map.getOriginY();
-        int baseZ = map.getOriginZ();
+        long baseZ = map.getOriginZ() + (long) index * map.getDistance();
 
-        int fMinX = (int) baseX + map.getFinishMinX();
+        int fMinX = baseX + map.getFinishMinX();
         int fMinY = baseY + map.getFinishMinY();
-        int fMinZ = baseZ + map.getFinishMinZ();
-        int fMaxX = (int) baseX + map.getFinishMaxX();
+        int fMinZ = (int) baseZ + map.getFinishMinZ();
+        int fMaxX = baseX + map.getFinishMaxX();
         int fMaxY = baseY + map.getFinishMaxY();
-        int fMaxZ = baseZ + map.getFinishMaxZ();
+        int fMaxZ = (int) baseZ + map.getFinishMaxZ();
 
         int bx = loc.getBlockX();
         int by = loc.getBlockY();
@@ -115,9 +117,9 @@ public final class GridCalculator {
      * Get the bounding box of an island as [minX, minY, minZ, maxX, maxY, maxZ].
      */
     public static int[] getIslandBounds(MapData map, int index) {
-        int minX = map.getOriginX() + index * map.getDistance();
+        int minX = map.getOriginX();
         int minY = map.getOriginY();
-        int minZ = map.getOriginZ();
+        int minZ = map.getOriginZ() + index * map.getDistance();
         int maxX = minX + map.getIslandWidth() - 1;
         int maxY = minY + map.getIslandHeight() - 1;
         int maxZ = minZ + map.getIslandLength() - 1;
@@ -125,28 +127,30 @@ public final class GridCalculator {
     }
 
     /**
-     * Minimum distance required to prevent island overlap (island width + 1 block gap).
+     * Minimum distance required to prevent island overlap along the Z-axis.
+     * Based on island length (Z extent) + 1 block gap.
      */
-    public static int getMinimumDistance(int islandWidth) {
-        return islandWidth + 1;
+    public static int getMinimumDistance(int islandLength) {
+        return islandLength + 1;
     }
 
     /**
      * Check if the given distance would cause overlapping islands.
      */
-    public static boolean wouldOverlap(int distance, int islandWidth) {
-        return distance < islandWidth;
+    public static boolean wouldOverlap(int distance, int islandLength) {
+        return distance < islandLength;
     }
 
     /**
-     * Calculate the next map origin Z coordinate, given existing maps.
+     * Calculate the next map origin X coordinate.
+     * Maps are placed at 2000, 4000, 6000... along the X-axis.
      *
      * @param mapCount Current number of maps
      * @param spacing  Block spacing between map types (default 2000)
-     * @return The Z coordinate for the next map origin
+     * @return The X coordinate for the next map origin
      */
-    public static int getNextMapZ(int mapCount, int spacing) {
-        return mapCount * spacing;
+    public static int getNextMapX(int mapCount, int spacing) {
+        return (mapCount + 1) * spacing;
     }
 
     /**

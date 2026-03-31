@@ -1,7 +1,7 @@
 # FastBuilder Configuration
 
 # Plugin prefix for messages (include trailing space)
-prefix: "&c&lFastBuilder &7>> "
+prefix: "&c&lFastbuilder &7>> &f"
 
 # Default map for new players (leave empty for none)
 default-map: "Hell"
@@ -29,26 +29,20 @@ npcs:
   enabled: true
   name: "&cMap Selector"
 
-# Scoreboard
-# Placeholders: %time%, %pb%, %top_1%, %top_2%, %top_3%, %coins%, %blocks%
+# Scoreboard - matches exact GraviJet spec
+# Placeholders: %rank%, %players%, %coins%, %level%, %playtime%
 scoreboard:
-  title: "&c&lFastBuilder"
+  title: "&c&lFastbuilder"
   lines:
-    15: "&8&l|"
-    14: "&8&l| &c&lPersonal Best:"
-    13: "&8&l| &f%pb%"
-    12: "&8&l|"
-    11: "&8&l| &c&lSession Top:"
-    10: "&8&l| &7%top_1%"
-    9: "&8&l| &7%top_2%"
-    8: "&8&l| &7%top_3%"
-    7: "&8&l|"
-    6: "&8&l| &c&lCoins:"
-    5: "&8&l| &f%coins%"
-    4: "&8&l|"
-    3: "&8&l| &c&lTimer:"
-    2: "&8&l| &f%time%"
-    1: "&8&l|   &7&oplay.example.net"
+    9: "&7&m-------------------"
+    8: "&8>> &cRank: &6%rank%"
+    7: "&8>> &cPlayers: &6%players%"
+    6: "&8>> &cCoins: &6%coins%"
+    5: "&8>> &cLevel: &6%level%"
+    4: "&8>> &cPlaytime: &6%playtime%h"
+    3: "&f "
+    2: "&7&ogravijet.net"
+    1: "&7&o&m-------------------"
 
 # Autoscale defaults
 autoscale:
@@ -59,7 +53,10 @@ autoscale:
 map-spacing: 2000
 
 # Default Y level for new map origins
-default-y: 64
+default-y: 20
+
+# Auto-refill perk cost (coins)
+auto-refill-cost: 5000
 
 # BungeeCord
 bungee:
