@@ -17,6 +17,7 @@ public class RunSession {
     private final int islandIndex;
 
     private long startTime = -1;
+    private long finishTimeMs = -1;
     private boolean running = false;
     private boolean finished = false;
 
@@ -53,9 +54,10 @@ public class RunSession {
      */
     public long finish() {
         if (!running) return -1;
+        finishTimeMs = System.currentTimeMillis() - startTime;
         running = false;
         finished = true;
-        return getElapsed();
+        return finishTimeMs;
     }
 
     /**
@@ -73,16 +75,16 @@ public class RunSession {
      */
     public long getElapsed() {
         if (startTime < 0) return 0;
+        if (finished) return finishTimeMs;
         if (running) return System.currentTimeMillis() - startTime;
-        return System.currentTimeMillis() - startTime; // snapshot at finish
+        return 0;
     }
 
     /**
      * Get elapsed time at finish (frozen).
      */
     public long getFinishTime() {
-        if (startTime < 0) return 0;
-        return finished ? (System.currentTimeMillis() - startTime) : getElapsed();
+        return finishTimeMs > 0 ? finishTimeMs : getElapsed();
     }
 
     public void addPlacedBlock(Location loc) {

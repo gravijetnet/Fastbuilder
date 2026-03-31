@@ -29,6 +29,7 @@ public class ReplaySession {
     private int currentTick = 0;
     private double playbackSpeed = 1.0;
     private boolean paused = false;
+    private boolean ended = false;
     private int taskId = -1;
 
     // NPC for replay
@@ -70,6 +71,9 @@ public class ReplaySession {
         // Give control items
         giveControlItems(viewer);
 
+        // Teleport viewer to replay map location
+        teleportToReplayMap(viewer);
+
         // Spawn replay NPC
         spawnReplayNpc(viewer);
 
@@ -95,12 +99,44 @@ public class ReplaySession {
                     tickAccumulator -= 1.0;
                 }
 
-                // End of replay
-                if (currentTick >= replayData.getFrames().size()) {
-                    stop();
+                // End of replay - pause and show "Leave Replay" button
+                if (!ended && currentTick >= replayData.getFrames().size()) {
+                    ended = true;
+                    paused = true;
+                    Player p2 = Bukkit.getPlayer(viewerUuid);
+                    if (p2 != null) showReplayEndItems(p2);
                 }
             }
         }.runTaskTimer(plugin, 0L, 1L).getTaskId();
+    }
+
+    private void teleportToReplayMap(Player viewer) {
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map != null && map.getWorld() != null) {
+            Location islandSpawn = map.getIslandSpawn(replayData.getIslandIndex());
+            // Float viewer above and behind the island to watch
+            Location watchLoc = islandSpawn.clone();
+            watchLoc.add(0, 5, -10);
+            watchLoc.setYaw(0);
+            watchLoc.setPitch(-20);
+            viewer.teleport(watchLoc);
+        } else if (!replayData.getFrames().isEmpty()) {
+            ReplayFrame first = replayData.getFrames().get(0);
+            if (originalLocation != null) {
+                Location fallback = new Location(originalLocation.getWorld(),
+                        first.getX(), first.getY() + 5, first.getZ());
+                viewer.teleport(fallback);
+            }
+        }
+    }
+
+    private void showReplayEndItems(Player player) {
+        player.getInventory().clear();
+        // Place "Leave Replay" at SLOT_STOP (8) so existing hotbar controls handle it
+        player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
+                .name("&c&lLeave Replay").lore("&7Click to return to your island").build());
+        player.sendMessage(ColorUtil.translate(
+                "&c&lFastbuilder &7>> &fReplay finished. Click &cLeave Replay &fto return."));
     }
 
     /**
@@ -152,14 +188,25 @@ public class ReplaySession {
         // Despawn replay NPC
         despawnReplayNpc();
 
-        // Teleport viewer back
+        // Teleport viewer back to their island spawn
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer != null && viewer.isOnline()) {
             viewer.setFlying(false);
             viewer.setAllowFlight(false);
             viewer.getInventory().clear();
 
-            if (originalLocation != null) {
+            // Try to teleport to last island spawn
+            net.gravijet.fastbuilder.player.PlayerData pData =
+                    plugin.getPlayerManager().getCachedData(viewerUuid);
+            boolean teleported = false;
+            if (pData != null && pData.getLastMap() != null) {
+                MapData pMap = plugin.getMapManager().getMap(pData.getLastMap());
+                if (pMap != null) {
+                    viewer.teleport(pMap.getIslandSpawn(pData.getLastIsland()));
+                    teleported = true;
+                }
+            }
+            if (!teleported && originalLocation != null) {
                 viewer.teleport(originalLocation);
             }
 
@@ -174,7 +221,6 @@ public class ReplaySession {
      * Rewind by a number of ticks.
      */
     public void rewind(int ticks) {
-        // Undo blocks placed between new position and current
         int newTick = Math.max(0, currentTick - ticks);
 
         // Remove blocks placed after the new tick
@@ -193,6 +239,7 @@ public class ReplaySession {
         }
 
         currentTick = newTick;
+        ended = false;
 
         // Replay blocks up to new position
         for (int i = 0; i < currentTick && i < replayData.getFrames().size(); i++) {
@@ -236,18 +283,18 @@ public class ReplaySession {
     private void giveControlItems(Player player) {
         player.getInventory().clear();
 
-        player.getInventory().setItem(SLOT_REWIND, new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
+        player.getInventory().setItem(SLOT_REWIND, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
                 .name("&c<< Rewind (5s)").build());
-        player.getInventory().setItem(SLOT_SLOW, new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
-                .name("&e< Slower").lore("&7Current: " + playbackSpeed + "x").build());
-        player.getInventory().setItem(SLOT_PAUSE, new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
+        player.getInventory().setItem(SLOT_SLOW, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 4)
+                .name("&e< Slower").lore("&7Speed: " + String.format("%.2f", playbackSpeed) + "x").build());
+        player.getInventory().setItem(SLOT_PAUSE, new ItemBuilder(Material.STAINED_GLASS_PANE, paused ? (byte) 5 : (byte) 1)
                 .name(paused ? "&a> Resume" : "&6|| Pause").build());
-        player.getInventory().setItem(SLOT_FAST, new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
-                .name("&e> Faster").lore("&7Current: " + playbackSpeed + "x").build());
-        player.getInventory().setItem(SLOT_FORWARD, new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
+        player.getInventory().setItem(SLOT_FAST, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 4)
+                .name("&e> Faster").lore("&7Speed: " + String.format("%.2f", playbackSpeed) + "x").build());
+        player.getInventory().setItem(SLOT_FORWARD, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
                 .name("&a>> Forward (5s)").build());
         player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
-                .name("&c&lStop Replay").build());
+                .name("&c&lLeave Replay").build());
     }
 
     public void updateControlItems() {

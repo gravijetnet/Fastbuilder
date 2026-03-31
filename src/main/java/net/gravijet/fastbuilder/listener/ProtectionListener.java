@@ -16,6 +16,7 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
 /**
@@ -24,6 +25,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 public class ProtectionListener implements Listener {
 
     private final FastBuilder plugin;
+    private final java.util.Map<java.util.UUID, Long> fallCooldown = new java.util.HashMap<>();
 
     public ProtectionListener(FastBuilder plugin) {
         this.plugin = plugin;
@@ -164,7 +166,23 @@ public class ProtectionListener implements Listener {
         boolean inVoid = to.getBlockY() < bounds[1] - maxDist;
 
         if (outOfBounds || inVoid) {
-            plugin.getGameplayManager().onFall(player);
+            long now = System.currentTimeMillis();
+            Long lastFall = fallCooldown.get(player.getUniqueId());
+            if (lastFall == null || now - lastFall > 2000) {
+                fallCooldown.put(player.getUniqueId(), now);
+                plugin.getGameplayManager().onFall(player);
+            }
+        }
+    }
+
+    /**
+     * Prevent players from dropping items while on an island.
+     */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onDropItem(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        if (plugin.getGameplayManager() != null && plugin.getGameplayManager().getSession(player.getUniqueId()) != null) {
+            event.setCancelled(true);
         }
     }
 

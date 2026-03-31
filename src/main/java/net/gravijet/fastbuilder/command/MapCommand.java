@@ -438,7 +438,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     private void handleDistance(Player player, String[] args, MapManager mm) {
         if (args.length < 3) {
-            msgAdmin(player, "usage", "%command%", "/map distance <map> <blocks>");
+            msgAdmin(player, "usage", "%command%", "/map distance <map> <blocks> [--force]");
             return;
         }
 
@@ -456,11 +456,22 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // Check for --force flag in any remaining argument
+        boolean force = false;
+        for (int i = 3; i < args.length; i++) {
+            if ("--force".equalsIgnoreCase(args[i])) {
+                force = true;
+                break;
+            }
+        }
+
         int minDist = GridCalculator.getMinimumDistance(map.getIslandLength());
-        if (blocks < minDist) {
+        if (!force && blocks < minDist) {
             String raw = plugin.getConfigManager().getAdminMessage("distance-too-small");
             raw = raw.replace("%min%", String.valueOf(minDist));
             player.sendMessage(ColorUtil.translate(raw));
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    + "&7Use &f--force &7to bypass this check."));
             return;
         }
 
@@ -470,6 +481,10 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         String raw = plugin.getConfigManager().getAdminMessage("map-distance-set");
         raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(blocks));
         player.sendMessage(ColorUtil.translate(raw));
+        if (force && blocks < minDist) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    + "&eWarning: Distance is smaller than island length. Islands may overlap."));
+        }
     }
 
     // --- /map autoscale <map> <true/false> ---
@@ -566,7 +581,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "scale":
                     return Arrays.asList("1", "5", "10", "15", "20", "30");
                 case "distance":
-                    return Arrays.asList("50", "75", "100", "150", "200");
+                    if (args.length == 3) return Arrays.asList("10", "20", "30", "50", "100");
+                    if (args.length == 4) return Arrays.asList("--force");
+                    return java.util.Collections.emptyList();
                 case "autoscale":
                     return filter(BOOLEANS, args[2]);
                 default:

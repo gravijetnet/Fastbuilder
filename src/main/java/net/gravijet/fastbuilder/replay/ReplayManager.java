@@ -112,8 +112,21 @@ public class ReplayManager {
                 net.gravijet.fastbuilder.player.PlayerData data =
                         plugin.getPlayerManager().getCachedData(viewerUuid);
                 if (data != null && data.getLastMap() != null) {
-                    plugin.getGameplayManager().createSession(
-                            viewerUuid, data.getLastMap(), data.getLastIsland());
+                    String mapName = data.getLastMap();
+                    int island = data.getLastIsland();
+                    net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(mapName);
+                    if (mapData != null) {
+                        // Re-assign island if not already assigned
+                        if (plugin.getMapManager().getPlayerIsland(mapName, viewerUuid) < 0) {
+                            int newIsland = plugin.getMapManager().assignFreeIsland(
+                                    mapName, viewerUuid, player.getName());
+                            if (newIsland >= 0) {
+                                island = newIsland;
+                                data.setLastIsland(island);
+                            }
+                        }
+                        plugin.getGameplayManager().createSession(viewerUuid, mapName, island);
+                    }
                 }
             }
         }
