@@ -3,6 +3,7 @@ package net.gravijet.fastbuilder.player;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -18,16 +19,19 @@ public class PlayerData {
     private int coins;
     private String lastMap;
     private int lastIsland;
-    private String selectedBlock; // "MATERIAL:DATA" format
+    private String selectedBlock;
 
-    // Per-map statistics: mapName -> MapStats
+    // Per-map statistics
     private final Map<String, MapStats> mapStats = new HashMap<>();
 
     // Purchased blocks
-    private final java.util.Set<String> purchasedBlocks = new java.util.HashSet<>();
+    private final Set<String> purchasedBlocks = new HashSet<>();
 
-    // Auto-refill perk (purchasable with coins)
+    // Auto-refill perk
     private boolean autoRefill = false;
+
+    // Favorited replay file names (protected from deletion)
+    private final Set<String> favoriteReplays = new HashSet<>();
 
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
@@ -54,6 +58,7 @@ public class PlayerData {
 
         config.set("purchased-blocks", new java.util.ArrayList<>(purchasedBlocks));
         config.set("auto-refill", autoRefill);
+        config.set("favorite-replays", new java.util.ArrayList<>(favoriteReplays));
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -80,6 +85,11 @@ public class PlayerData {
             purchasedBlocks.addAll(config.getStringList("purchased-blocks"));
         }
         autoRefill = config.getBoolean("auto-refill", false);
+
+        favoriteReplays.clear();
+        if (config.isList("favorite-replays")) {
+            favoriteReplays.addAll(config.getStringList("favorite-replays"));
+        }
     }
 
     // --- Stats helpers ---
@@ -110,6 +120,32 @@ public class PlayerData {
         return purchasedBlocks;
     }
 
+    // --- Favorites ---
+
+    public boolean isFavoriteReplay(String fileName) {
+        return favoriteReplays.contains(fileName);
+    }
+
+    public void addFavoriteReplay(String fileName) {
+        favoriteReplays.add(fileName);
+    }
+
+    public void removeFavoriteReplay(String fileName) {
+        favoriteReplays.remove(fileName);
+    }
+
+    public void toggleFavoriteReplay(String fileName) {
+        if (favoriteReplays.contains(fileName)) {
+            favoriteReplays.remove(fileName);
+        } else {
+            favoriteReplays.add(fileName);
+        }
+    }
+
+    public Set<String> getFavoriteReplays() {
+        return favoriteReplays;
+    }
+
     // --- Getters/Setters ---
 
     public UUID getUuid() { return uuid; }
@@ -120,10 +156,7 @@ public class PlayerData {
     public void setCoins(int coins) { this.coins = coins; }
     public void addCoins(int amount) { this.coins += amount; }
     public boolean removeCoins(int amount) {
-        if (coins >= amount) {
-            coins -= amount;
-            return true;
-        }
+        if (coins >= amount) { coins -= amount; return true; }
         return false;
     }
 
@@ -139,16 +172,11 @@ public class PlayerData {
     public boolean hasAutoRefill() { return autoRefill; }
     public void setAutoRefill(boolean autoRefill) { this.autoRefill = autoRefill; }
 
-    /**
-     * Per-map statistics container.
-     */
     public static class MapStats {
-        public long bestTime = -1; // milliseconds, -1 = no record
+        public long bestTime = -1;
         public int totalAttempts = 0;
         public int successfulAttempts = 0;
 
-        public boolean hasBestTime() {
-            return bestTime > 0;
-        }
+        public boolean hasBestTime() { return bestTime > 0; }
     }
 }

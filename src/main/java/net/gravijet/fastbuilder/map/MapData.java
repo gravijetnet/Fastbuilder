@@ -13,35 +13,39 @@ public class MapData {
 
     private String name;
     private boolean enabled;
-    private String icon; // "MATERIAL:DATA" format
+    private String icon;
     private String worldName;
 
     // Origin of the first island (absolute world coordinates, min corner)
     private int originX, originY, originZ;
 
     // Island dimensions (calculated from selection during setup)
-    private int islandWidth;  // X extent
+    private int islandWidth;  // X extent (build direction)
     private int islandHeight; // Y extent
     private int islandLength; // Z extent
 
     // Spawn offset relative to island min corner
     private double spawnOffsetX, spawnOffsetY, spawnOffsetZ;
+    // Spawn yaw/pitch - always overridden to East (-90) in getIslandSpawn()
     private float spawnYaw, spawnPitch;
 
     // NPC offset relative to island min corner
     private double npcOffsetX, npcOffsetY, npcOffsetZ;
     private float npcYaw;
 
+    // Hologram offset relative to island min corner
+    private double hologramOffsetX, hologramOffsetY, hologramOffsetZ;
+
     // Finish zone bounds relative to island min corner
     private int finishMinX, finishMinY, finishMinZ;
     private int finishMaxX, finishMaxY, finishMaxZ;
 
     // Island placement
-    private int distance; // Block distance between island instance origins along Z axis
-    private int scale;    // Total number of island instances
+    private int distance;
+    private int scale;
     private boolean autoscale;
 
-    // Template file name (stored in plugins/FastBuilder/templates/)
+    // Template file name
     private String templateFile;
 
     public MapData(String name) {
@@ -75,6 +79,9 @@ public class MapData {
         config.set("npc.y", npcOffsetY);
         config.set("npc.z", npcOffsetZ);
         config.set("npc.yaw", npcYaw);
+        config.set("hologram.x", hologramOffsetX);
+        config.set("hologram.y", hologramOffsetY);
+        config.set("hologram.z", hologramOffsetZ);
         config.set("finish.min.x", finishMinX);
         config.set("finish.min.y", finishMinY);
         config.set("finish.min.z", finishMinZ);
@@ -107,6 +114,9 @@ public class MapData {
         npcOffsetY = config.getDouble("npc.y");
         npcOffsetZ = config.getDouble("npc.z");
         npcYaw = (float) config.getDouble("npc.yaw");
+        hologramOffsetX = config.getDouble("hologram.x", 0);
+        hologramOffsetY = config.getDouble("hologram.y", 0);
+        hologramOffsetZ = config.getDouble("hologram.z", 0);
         finishMinX = config.getInt("finish.min.x");
         finishMinY = config.getInt("finish.min.y");
         finishMinZ = config.getInt("finish.min.z");
@@ -131,19 +141,18 @@ public class MapData {
 
     /**
      * Get the absolute spawn location for a specific island instance.
-     * Islands scale along the Z-axis.
+     * Always faces East (yaw -90) as per spec.
      */
     public Location getIslandSpawn(int islandIndex) {
         Location origin = getOrigin();
         origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * distance + spawnOffsetZ);
-        origin.setYaw(spawnYaw);
-        origin.setPitch(spawnPitch);
+        origin.setYaw(-90f); // Always face East (positive X direction)
+        origin.setPitch(0f);
         return origin;
     }
 
     /**
      * Get the NPC location for a specific island instance.
-     * Islands scale along the Z-axis.
      */
     public Location getIslandNpcLocation(int islandIndex) {
         Location origin = getOrigin();
@@ -154,20 +163,24 @@ public class MapData {
     }
 
     /**
-     * Get the minimum corner of a specific island instance.
-     * Islands scale along the Z-axis.
+     * Get the hologram location for a specific island instance.
+     * Falls back to 3 blocks above spawn if hologram offset not configured.
      */
-    public Location getIslandMin(int islandIndex) {
-        return new Location(getWorld(),
-                originX,
-                originY,
-                originZ + (long) islandIndex * distance);
+    public Location getIslandHologramLocation(int islandIndex) {
+        if (hologramOffsetX == 0 && hologramOffsetY == 0 && hologramOffsetZ == 0) {
+            // Fallback: 3 blocks above spawn point
+            Location spawn = getIslandSpawn(islandIndex);
+            return spawn.clone().add(0, 3, 0);
+        }
+        Location origin = getOrigin();
+        origin.add(hologramOffsetX, hologramOffsetY, (long) islandIndex * distance + hologramOffsetZ);
+        return origin;
     }
 
-    /**
-     * Get the maximum corner of a specific island instance.
-     * Islands scale along the Z-axis.
-     */
+    public Location getIslandMin(int islandIndex) {
+        return new Location(getWorld(), originX, originY, originZ + (long) islandIndex * distance);
+    }
+
     public Location getIslandMax(int islandIndex) {
         return new Location(getWorld(),
                 originX + islandWidth - 1,
@@ -244,6 +257,13 @@ public class MapData {
     public void setNpcOffsetZ(double z) { this.npcOffsetZ = z; }
     public float getNpcYaw() { return npcYaw; }
     public void setNpcYaw(float yaw) { this.npcYaw = yaw; }
+
+    public double getHologramOffsetX() { return hologramOffsetX; }
+    public void setHologramOffsetX(double x) { this.hologramOffsetX = x; }
+    public double getHologramOffsetY() { return hologramOffsetY; }
+    public void setHologramOffsetY(double y) { this.hologramOffsetY = y; }
+    public double getHologramOffsetZ() { return hologramOffsetZ; }
+    public void setHologramOffsetZ(double z) { this.hologramOffsetZ = z; }
 
     public int getDistance() { return distance; }
     public void setDistance(int distance) { this.distance = distance; }

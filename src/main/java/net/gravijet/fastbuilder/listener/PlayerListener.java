@@ -1,12 +1,16 @@
 package net.gravijet.fastbuilder.listener;
 
 import net.gravijet.fastbuilder.FastBuilder;
+import net.gravijet.fastbuilder.gameplay.RunSession;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.player.PlayerManager;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -15,7 +19,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
- * Handles player join (route to map, setup hotbar/scoreboard/NPC/gameplay) and quit (save + cleanup).
+ * Handles player join (route to map, setup gameplay) and quit (cleanup + block removal).
  */
 public class PlayerListener implements Listener {
 
@@ -31,10 +35,9 @@ public class PlayerListener implements Listener {
         PlayerManager pm = plugin.getPlayerManager();
         MapManager mm = plugin.getMapManager();
 
-        // Load player data
         PlayerData data = pm.getPlayerData(player.getUniqueId(), player.getName());
 
-        // Route to last played map, or default
+        // Route to last played map or default map
         String targetMap = data.getLastMap();
         if (targetMap == null || targetMap.isEmpty() || mm.getMap(targetMap) == null) {
             targetMap = plugin.getConfigManager().getDefaultMap();
@@ -51,25 +54,21 @@ public class PlayerListener implements Listener {
 
                     String raw = plugin.getConfigManager().getMessage("joined-mode");
                     if (raw != null && !raw.isEmpty()) {
-                        raw = raw.replace("%map%", map.getName());
-                        raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+                        raw = raw.replace("%map%", map.getName())
+                                .replace("%prefix%", plugin.getConfigManager().getPrefix());
                         player.sendMessage(ColorUtil.translate(raw));
                     }
 
-                    // Setup gameplay session
                     setupPlayerOnIsland(player, map, island);
-
-                    // Check autoscale
                     mm.checkAutoscale(map);
                     return;
                 }
             }
         }
 
-        // No valid map found, relocate to any available
+        // Fallback: relocate to any available map
         mm.relocatePlayer(player, "");
 
-        // Try to setup on the relocated map
         data = pm.getCachedData(player.getUniqueId());
         if (data != null && data.getLastMap() != null) {
             MapData map = mm.getMap(data.getLastMap());
@@ -86,13 +85,19 @@ public class PlayerListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // Stop any active replay
+        // Stop active replay
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
             plugin.getReplayManager().stopPlayback(player.getUniqueId());
         }
 
-        // Remove gameplay session
+        // Stop any active recording
+        if (plugin.getReplayManager() != null) {
+            plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+        }
+
+        // STRICT BLOCK CLEANUP: remove all placed blocks before session is removed
         if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             plugin.getGameplayManager().removeSession(player.getUniqueId());
         }
 
@@ -104,41 +109,32 @@ public class PlayerListener implements Listener {
         // Remove scoreboard
         plugin.getScoreboardManager().removeScoreboard(player);
 
-        // Free all islands held by this player
+        // Free all islands
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         // Save and unload player data
         plugin.getPlayerManager().unload(player.getUniqueId());
     }
 
-    /**
-     * Setup all gameplay systems for a player on an island.
-     */
     private void setupPlayerOnIsland(Player player, MapData map, int island) {
-        // Set Survival mode
         player.setGameMode(GameMode.SURVIVAL);
         player.setFoodLevel(20);
         player.setHealth(player.getMaxHealth());
 
-        // Create gameplay session
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
         }
 
-        // Give hotbar items
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
         }
 
-        // Setup scoreboard
         plugin.getScoreboardManager().createScoreboard(player);
 
-        // Spawn NPC at the map's defined NPC location for this island
         if (plugin.getNpcManager() != null) {
             plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
         }
 
-        // Update hologram
         if (plugin.getHologramManager() != null) {
             plugin.getHologramManager().updateHologram(map.getName(), island, player);
         }

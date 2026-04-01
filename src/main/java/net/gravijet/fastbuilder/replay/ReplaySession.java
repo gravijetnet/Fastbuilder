@@ -10,7 +10,6 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
@@ -18,9 +17,17 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Active replay playback session for a player watching a replay.
+ * Active replay playback session.
+ * The replay is rendered in an isolated area at (REPLAY_AREA_X, Y, Z),
+ * away from all live maps. All frame coordinates are offset from their
+ * original island positions to the replay area.
  */
 public class ReplaySession {
+
+    // Isolated replay area - far from all live island grids
+    private static final int REPLAY_AREA_X = -10000;
+    private static final int REPLAY_AREA_Y = 10;
+    private static final int REPLAY_AREA_Z = -10000;
 
     private final FastBuilder plugin;
     private final UUID viewerUuid;
@@ -32,22 +39,27 @@ public class ReplaySession {
     private boolean ended = false;
     private int taskId = -1;
 
-    // NPC for replay
     private int npcId = -1;
 
-    // Blocks placed during playback (for cleanup)
+    // Blocks placed during playback (offset-adjusted coordinates), for cleanup
     private final List<Location> placedBlocks = new ArrayList<>();
 
-    // Original player location before entering replay
     private Location originalLocation;
+    private Location viewerWatchLocation;
+
+    // Translation from original island coordinates → replay area
+    private int offsetX;
+    private int offsetY;
+    private int offsetZ;
 
     // Hotbar slot assignments
-    public static final int SLOT_REWIND = 0;
-    public static final int SLOT_SLOW = 1;
-    public static final int SLOT_PAUSE = 2;
-    public static final int SLOT_FAST = 3;
-    public static final int SLOT_FORWARD = 4;
-    public static final int SLOT_STOP = 8;
+    public static final int SLOT_REWIND       = 0;
+    public static final int SLOT_SLOW         = 1;
+    public static final int SLOT_PAUSE        = 2;
+    public static final int SLOT_FAST         = 3;
+    public static final int SLOT_FORWARD      = 4;
+    public static final int SLOT_REPLAY_AGAIN = 7;
+    public static final int SLOT_STOP         = 8;
 
     public ReplaySession(FastBuilder plugin, UUID viewerUuid, ReplayData replayData) {
         this.plugin = plugin;
@@ -55,29 +67,63 @@ public class ReplaySession {
         this.replayData = replayData;
     }
 
-    /**
-     * Start the replay playback.
-     */
+    // -------------------------------------------------------------------------
+    // Start
+    // -------------------------------------------------------------------------
+
     public void start() {
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer == null) return;
 
         originalLocation = viewer.getLocation().clone();
 
-        // Put viewer in fly mode
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map == null) return;
+
+        // Offset: translate original island origin → replay area origin
+        int islandOriginX = map.getOriginX();
+        int islandOriginY = map.getOriginY();
+        int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getDistance();
+
+        offsetX = REPLAY_AREA_X - islandOriginX;
+        offsetY = REPLAY_AREA_Y - islandOriginY;
+        offsetZ = REPLAY_AREA_Z - islandOriginZ;
+
+        // Viewer watches from slightly above-behind the replay island spawn
+        Location islandSpawn = map.getIslandSpawn(replayData.getIslandIndex());
+        viewerWatchLocation = new Location(
+                viewer.getWorld(),
+                islandSpawn.getX() + offsetX,
+                islandSpawn.getY() + offsetY + 5,
+                islandSpawn.getZ() + offsetZ - 10,
+                0f, -20f
+        );
+
         viewer.setAllowFlight(true);
         viewer.setFlying(true);
-
-        // Give control items
         giveControlItems(viewer);
 
-        // Teleport viewer to replay map location
-        teleportToReplayMap(viewer);
+        // Paste template in replay area, then teleport and begin playback
+        plugin.getFawePaster().pasteIslands(
+                map.getWorld(),
+                map.getTemplateFile(),
+                REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                map.getDistance(),
+                0, 1,
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        Player v = Bukkit.getPlayer(viewerUuid);
+                        if (v == null || !v.isOnline()) return;
+                        v.teleport(viewerWatchLocation);
+                        spawnReplayNpc(v);
+                        startPlaybackLoop();
+                    }
+                }
+        );
+    }
 
-        // Spawn replay NPC
-        spawnReplayNpc(viewer);
-
-        // Start playback loop
+    private void startPlaybackLoop() {
         taskId = new BukkitRunnable() {
             private double tickAccumulator = 0;
 
@@ -99,7 +145,6 @@ public class ReplaySession {
                     tickAccumulator -= 1.0;
                 }
 
-                // End of replay - pause and show "Leave Replay" button
                 if (!ended && currentTick >= replayData.getFrames().size()) {
                     ended = true;
                     paused = true;
@@ -110,92 +155,41 @@ public class ReplaySession {
         }.runTaskTimer(plugin, 0L, 1L).getTaskId();
     }
 
-    private void teleportToReplayMap(Player viewer) {
-        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
-        if (map != null && map.getWorld() != null) {
-            Location islandSpawn = map.getIslandSpawn(replayData.getIslandIndex());
-            // Float viewer above and behind the island to watch
-            Location watchLoc = islandSpawn.clone();
-            watchLoc.add(0, 5, -10);
-            watchLoc.setYaw(0);
-            watchLoc.setPitch(-20);
-            viewer.teleport(watchLoc);
-        } else if (!replayData.getFrames().isEmpty()) {
-            ReplayFrame first = replayData.getFrames().get(0);
-            if (originalLocation != null) {
-                Location fallback = new Location(originalLocation.getWorld(),
-                        first.getX(), first.getY() + 5, first.getZ());
-                viewer.teleport(fallback);
-            }
-        }
-    }
+    // -------------------------------------------------------------------------
+    // Stop
+    // -------------------------------------------------------------------------
 
-    private void showReplayEndItems(Player player) {
-        player.getInventory().clear();
-        // Place "Leave Replay" at SLOT_STOP (8) so existing hotbar controls handle it
-        player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
-                .name("&c&lLeave Replay").lore("&7Click to return to your island").build());
-        player.sendMessage(ColorUtil.translate(
-                "&c&lFastbuilder &7>> &fReplay finished. Click &cLeave Replay &fto return."));
-    }
-
-    /**
-     * Play a single frame.
-     */
-    @SuppressWarnings("deprecation")
-    private void playFrame(Player viewer, int frameIndex) {
-        if (frameIndex < 0 || frameIndex >= replayData.getFrames().size()) return;
-
-        ReplayFrame frame = replayData.getFrames().get(frameIndex);
-        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
-        if (map == null) return;
-
-        World world = map.getWorld();
-        if (world == null) return;
-
-        // Move the NPC
-        moveReplayNpc(new Location(world, frame.getX(), frame.getY(), frame.getZ(),
-                frame.getYaw(), frame.getPitch()));
-
-        // Place block if needed
-        if (frame.hasBlockPlacement()) {
-            ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
-            Block block = world.getBlockAt(bp.getBlockX(), bp.getBlockY(), bp.getBlockZ());
-            block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
-            placedBlocks.add(block.getLocation().clone());
-        }
-    }
-
-    /**
-     * Stop the replay and clean up.
-     */
     public void stop() {
-        // Cancel task
         if (taskId != -1) {
             Bukkit.getScheduler().cancelTask(taskId);
             taskId = -1;
         }
 
-        // Cleanup placed blocks
+        // Clear blocks placed during playback
         for (Location loc : placedBlocks) {
             Block block = loc.getBlock();
-            if (block != null) {
-                block.setType(Material.AIR);
-            }
+            if (block != null) block.setType(Material.AIR);
         }
         placedBlocks.clear();
 
-        // Despawn replay NPC
+        // Clear the pasted template from the replay area
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map != null && map.getWorld() != null) {
+            plugin.getFawePaster().clearIslands(
+                    map.getWorld(),
+                    REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                    map.getDistance(), 0, 1, null);
+        }
+
         despawnReplayNpc();
 
-        // Teleport viewer back to their island spawn
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer != null && viewer.isOnline()) {
             viewer.setFlying(false);
             viewer.setAllowFlight(false);
             viewer.getInventory().clear();
 
-            // Try to teleport to last island spawn
             net.gravijet.fastbuilder.player.PlayerData pData =
                     plugin.getPlayerManager().getCachedData(viewerUuid);
             boolean teleported = false;
@@ -210,30 +204,115 @@ public class ReplaySession {
                 viewer.teleport(originalLocation);
             }
 
-            // Re-give hotbar items
             if (plugin.getHotbarManager() != null) {
                 plugin.getHotbarManager().giveItems(viewer);
             }
         }
     }
 
-    /**
-     * Rewind by a number of ticks.
-     */
+    // -------------------------------------------------------------------------
+    // Restart (Play Again)
+    // -------------------------------------------------------------------------
+
+    public void restart() {
+        if (taskId != -1) {
+            Bukkit.getScheduler().cancelTask(taskId);
+            taskId = -1;
+        }
+
+        // Clear blocks placed during this playback
+        for (Location loc : placedBlocks) {
+            Block block = loc.getBlock();
+            if (block != null) block.setType(Material.AIR);
+        }
+        placedBlocks.clear();
+
+        currentTick = 0;
+        ended = false;
+        paused = false;
+
+        despawnReplayNpc();
+
+        Player viewer = Bukkit.getPlayer(viewerUuid);
+        if (viewer != null) {
+            giveControlItems(viewer);
+            viewer.teleport(viewerWatchLocation);
+        }
+
+        // Re-paste template then restart loop
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map != null) {
+            plugin.getFawePaster().pasteIslands(
+                    map.getWorld(),
+                    map.getTemplateFile(),
+                    REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                    map.getDistance(),
+                    0, 1,
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            Player v = Bukkit.getPlayer(viewerUuid);
+                            if (v != null) spawnReplayNpc(v);
+                            startPlaybackLoop();
+                        }
+                    }
+            );
+        } else {
+            if (viewer != null) spawnReplayNpc(viewer);
+            startPlaybackLoop();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Playback controls
+    // -------------------------------------------------------------------------
+
+    @SuppressWarnings("deprecation")
+    private void playFrame(Player viewer, int frameIndex) {
+        if (frameIndex < 0 || frameIndex >= replayData.getFrames().size()) return;
+
+        ReplayFrame frame = replayData.getFrames().get(frameIndex);
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map == null) return;
+
+        World world = map.getWorld();
+        if (world == null) return;
+
+        // Move NPC with offset applied
+        moveReplayNpc(new Location(world,
+                frame.getX() + offsetX,
+                frame.getY() + offsetY,
+                frame.getZ() + offsetZ,
+                frame.getYaw(), frame.getPitch()));
+
+        // Place block with offset applied
+        if (frame.hasBlockPlacement()) {
+            ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
+            int bx = bp.getBlockX() + offsetX;
+            int by = bp.getBlockY() + offsetY;
+            int bz = bp.getBlockZ() + offsetZ;
+            Block block = world.getBlockAt(bx, by, bz);
+            block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
+            placedBlocks.add(block.getLocation().clone());
+        }
+    }
+
     public void rewind(int ticks) {
         int newTick = Math.max(0, currentTick - ticks);
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
 
-        // Remove blocks placed after the new tick
-        for (int i = replayData.getFrames().size() - 1; i >= newTick; i--) {
-            if (i < replayData.getFrames().size()) {
-                ReplayFrame frame = replayData.getFrames().get(i);
-                if (frame.hasBlockPlacement()) {
-                    ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
-                    MapData map = plugin.getMapManager().getMap(replayData.getMapName());
-                    if (map != null && map.getWorld() != null) {
-                        map.getWorld().getBlockAt(bp.getBlockX(), bp.getBlockY(), bp.getBlockZ())
-                                .setType(Material.AIR);
-                    }
+        // Undo blocks placed after newTick
+        for (int i = currentTick - 1; i >= newTick; i--) {
+            if (i < 0 || i >= replayData.getFrames().size()) continue;
+            ReplayFrame frame = replayData.getFrames().get(i);
+            if (frame.hasBlockPlacement()) {
+                ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
+                if (map != null && map.getWorld() != null) {
+                    map.getWorld().getBlockAt(
+                            bp.getBlockX() + offsetX,
+                            bp.getBlockY() + offsetY,
+                            bp.getBlockZ() + offsetZ)
+                            .setType(Material.AIR);
                 }
             }
         }
@@ -241,19 +320,17 @@ public class ReplaySession {
         currentTick = newTick;
         ended = false;
 
-        // Replay blocks up to new position
-        for (int i = 0; i < currentTick && i < replayData.getFrames().size(); i++) {
-            ReplayFrame frame = replayData.getFrames().get(i);
-            if (frame.hasBlockPlacement()) {
-                Player viewer = Bukkit.getPlayer(viewerUuid);
-                if (viewer != null) playFrame(viewer, i);
+        // Re-apply blocks up to new position
+        Player viewer = Bukkit.getPlayer(viewerUuid);
+        if (viewer != null) {
+            for (int i = 0; i < currentTick && i < replayData.getFrames().size(); i++) {
+                if (replayData.getFrames().get(i).hasBlockPlacement()) {
+                    playFrame(viewer, i);
+                }
             }
         }
     }
 
-    /**
-     * Fast forward by a number of ticks.
-     */
     public void fastForward(int ticks) {
         int targetTick = Math.min(replayData.getFrames().size() - 1, currentTick + ticks);
         Player viewer = Bukkit.getPlayer(viewerUuid);
@@ -265,20 +342,21 @@ public class ReplaySession {
         }
     }
 
-    public void togglePause() {
-        paused = !paused;
-    }
+    public void togglePause() { paused = !paused; }
 
     public void setPlaybackSpeed(double speed) {
         this.playbackSpeed = Math.max(0.25, Math.min(4.0, speed));
     }
 
-    public double getPlaybackSpeed() { return playbackSpeed; }
-    public boolean isPaused() { return paused; }
-    public UUID getViewerUuid() { return viewerUuid; }
-    public ReplayData getReplayData() { return replayData; }
+    public double getPlaybackSpeed()         { return playbackSpeed; }
+    public boolean isPaused()                { return paused; }
+    public UUID getViewerUuid()              { return viewerUuid; }
+    public ReplayData getReplayData()        { return replayData; }
+    public Location getViewerWatchLocation() { return viewerWatchLocation; }
 
-    // --- Control Items ---
+    // -------------------------------------------------------------------------
+    // Control items
+    // -------------------------------------------------------------------------
 
     private void giveControlItems(Player player) {
         player.getInventory().clear();
@@ -297,12 +375,24 @@ public class ReplaySession {
                 .name("&c&lLeave Replay").build());
     }
 
+    private void showReplayEndItems(Player player) {
+        player.getInventory().clear();
+        player.getInventory().setItem(SLOT_REPLAY_AGAIN, new ItemBuilder(Material.EMERALD)
+                .name("&a&lPlay Again").lore("&7Watch this replay from the start").build());
+        player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
+                .name("&c&lLeave Replay").lore("&7Click to return to your island").build());
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                + "&fReplay finished. &aPlay Again &7or &cLeave Replay&7."));
+    }
+
     public void updateControlItems() {
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer != null) giveControlItems(viewer);
     }
 
-    // --- NPC Management ---
+    // -------------------------------------------------------------------------
+    // NPC Management
+    // -------------------------------------------------------------------------
 
     private void spawnReplayNpc(Player viewer) {
         try {
@@ -312,7 +402,6 @@ public class ReplaySession {
                     ColorUtil.translate("&5" + replayData.getPlayerName())
             );
 
-            // Set skin to the recorded player
             npc.data().set("player-skin-uuid", replayData.getPlayerUuid().toString());
             npc.data().set("player-skin-name", replayData.getPlayerName());
 
@@ -320,7 +409,10 @@ public class ReplaySession {
             if (map != null && map.getWorld() != null && !replayData.getFrames().isEmpty()) {
                 ReplayFrame first = replayData.getFrames().get(0);
                 Location spawnLoc = new Location(map.getWorld(),
-                        first.getX(), first.getY(), first.getZ(), first.getYaw(), first.getPitch());
+                        first.getX() + offsetX,
+                        first.getY() + offsetY,
+                        first.getZ() + offsetZ,
+                        first.getYaw(), first.getPitch());
                 npc.spawn(spawnLoc);
             }
 
@@ -344,9 +436,7 @@ public class ReplaySession {
         if (npcId < 0) return;
         try {
             net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
-            if (npc != null) {
-                npc.destroy();
-            }
+            if (npc != null) npc.destroy();
         } catch (NoClassDefFoundError | Exception ignored) {}
         npcId = -1;
     }
