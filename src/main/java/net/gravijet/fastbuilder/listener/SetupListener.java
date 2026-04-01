@@ -95,6 +95,10 @@ public class SetupListener implements Listener {
             session.setSpawnPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-saved");
             player.sendMessage(ColorUtil.translate(raw));
+            if (!session.isSpawnFacingEast()) {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        + "&eWarning: Spawn is not facing East. Use &f/map setup continue --force-spawn-location &eto bypass."));
+            }
             sendClickableContinue(player);
         }
     }
@@ -112,10 +116,12 @@ public class SetupListener implements Listener {
 
     private void handleHologramSelection(Player player, SetupSession session, Action action) {
         if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
-            Location loc = player.getLocation();
+            Location loc = player.getLocation().clone();
+            loc.setY(loc.getY() + 3);
             session.setHologramPoint(loc);
+            String prefix = plugin.getConfigManager().getPrefix();
             player.sendMessage(ColorUtil.translate(
-                    "&c&lFastbuilder &7» &fHologram location saved at &c" +
+                    prefix + "&fHologram location saved at &c" +
                     loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&f."));
             sendClickableContinue(player);
         }

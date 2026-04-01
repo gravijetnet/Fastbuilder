@@ -30,6 +30,10 @@ public class PlayerData {
     // Auto-refill perk
     private boolean autoRefill = false;
 
+    // Cosmetic selections
+    private String selectedPickaxe = "DIAMOND_PICKAXE:0";
+    private String selectedAnimation = "NONE";
+
     // Favorited replay file names (protected from deletion)
     private final Set<String> favoriteReplays = new HashSet<>();
 
@@ -59,6 +63,8 @@ public class PlayerData {
         config.set("purchased-blocks", new java.util.ArrayList<>(purchasedBlocks));
         config.set("auto-refill", autoRefill);
         config.set("favorite-replays", new java.util.ArrayList<>(favoriteReplays));
+        config.set("selected-pickaxe", selectedPickaxe);
+        config.set("selected-animation", selectedAnimation);
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -90,6 +96,9 @@ public class PlayerData {
         if (config.isList("favorite-replays")) {
             favoriteReplays.addAll(config.getStringList("favorite-replays"));
         }
+
+        selectedPickaxe = config.getString("selected-pickaxe", "DIAMOND_PICKAXE:0");
+        selectedAnimation = config.getString("selected-animation", "NONE");
     }
 
     // --- Stats helpers ---
@@ -171,6 +180,12 @@ public class PlayerData {
 
     public boolean hasAutoRefill() { return autoRefill; }
     public void setAutoRefill(boolean autoRefill) { this.autoRefill = autoRefill; }
+
+    public String getSelectedPickaxe() { return selectedPickaxe; }
+    public void setSelectedPickaxe(String selectedPickaxe) { this.selectedPickaxe = selectedPickaxe; }
+
+    public String getSelectedAnimation() { return selectedAnimation; }
+    public void setSelectedAnimation(String selectedAnimation) { this.selectedAnimation = selectedAnimation; }
 
     public static class MapStats {
         public long bestTime = -1;

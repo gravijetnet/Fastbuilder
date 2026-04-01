@@ -44,7 +44,7 @@ public class GameplayListener implements Listener {
             return;
         }
 
-        gm.onBlockPlace(player, event.getBlock());
+        gm.onBlockPlace(player, event.getBlock(), event.getBlockReplacedState());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

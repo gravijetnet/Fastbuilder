@@ -38,6 +38,19 @@ messages:
   no-free-islands: "%prefix%&cNo free islands available on this map."
   cannot-build-here: "%prefix%&cYou can only build on your own island."
   teleported-default: "%prefix%&fYou have been sent to the default map."
+  map-already-on: "%prefix%&cYou are already on this map."
+  practice-blocks-cleared: "%prefix%&fAll practice blocks cleared."
+  setup-spawn-not-east: "%prefix%&cSpawn must face East (yaw -90). Stand facing East and re-select, or type &f/map setup continue --force-spawn-location &cto bypass."
+  no-islands: "%prefix%&cNo islands available. Please wait or try a different map."
+  coins-balance: "%prefix%&fYour balance: &c%coins% &fcoins."
+  coins-balance-other: "%prefix%&f%player%'s balance: &c%coins% &fcoins."
+  coins-added: "%prefix%&a+%amount% coins &fadded to &c%player%&f."
+  coins-removed: "%prefix%&c-%amount% coins &fremoved from &c%player%&f."
+  coins-set: "%prefix%&fCoins for &c%player% &fset to &c%amount%&f."
+  coins-not-enough: "%prefix%&cNot enough coins to remove."
+  build-mode-enter: "%prefix%&aYou entered Build Mode. Changes are preserved. Use &f/build &aagain to exit."
+  build-mode-exit: "%prefix%&cBuild Mode exited. Your blocks are preserved until the map is rescaled."
+  build-mode-not-on-island: "%prefix%&cYou must be on an island to use Build Mode."
 
 # Completion title
 # Placeholders: %time%, %coins%
@@ -74,3 +87,4 @@ admin:
   left-game: "%prefix%&fYou left the game."
   not-on-island: "%prefix%&cYou are not on any island."
   config-reloaded: "%prefix%&fConfiguration reloaded."
+  setup-spawn-not-east: "%prefix%&cSpawn must face East (yaw -90). Use &f/map setup continue --force-spawn-location &cto bypass."

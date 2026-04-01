@@ -15,6 +15,7 @@ public class MapData {
     private boolean enabled;
     private String icon;
     private String worldName;
+    private int deathY = Integer.MIN_VALUE;
 
     // Origin of the first island (absolute world coordinates, min corner)
     private int originX, originY, originZ;
@@ -92,6 +93,7 @@ public class MapData {
         config.set("scale", scale);
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
+        config.set("death-y", deathY == Integer.MIN_VALUE ? null : deathY);
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -127,6 +129,7 @@ public class MapData {
         scale = config.getInt("scale", 1);
         autoscale = config.getBoolean("autoscale", false);
         templateFile = config.getString("template");
+        deathY = config.getInt("death-y", Integer.MIN_VALUE);
     }
 
     // --- Computed ---
@@ -276,4 +279,8 @@ public class MapData {
 
     public String getTemplateFile() { return templateFile; }
     public void setTemplateFile(String templateFile) { this.templateFile = templateFile; }
+
+    public int getDeathY() { return deathY; }
+    public void setDeathY(int y) { this.deathY = y; }
+    public boolean hasDeathY() { return deathY != Integer.MIN_VALUE; }
 }

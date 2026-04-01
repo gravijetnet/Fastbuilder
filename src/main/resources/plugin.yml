@@ -16,6 +16,12 @@ commands:
     description: FastBuilder player commands
     usage: /<command> <subcommand>
     aliases: [fastbuilder]
+  coins:
+    description: Manage player coins
+    usage: /<command> [player] | add/remove/set <player|*> <amount>
+  build:
+    description: Toggle creative build mode on your island
+    usage: /<command>
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands
@@ -26,3 +32,6 @@ permissions:
   fastbuilder.blocks.*:
     description: Access to all building blocks
     default: false
+  fastbuilder.coins.admin:
+    description: "Modify other players' coins"
+    default: op

@@ -717,3 +717,77 @@ block-selector-slots:
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
+
+# Shop GUI
+shop:
+  name: "Shop"
+  max-slots: 27
+  blocks-slot: 11
+  pickaxes-slot: 13
+  animations-slot: 15
+
+# Pickaxe Selector GUI
+pickaxe-selector:
+  name: "Pickaxe Selector"
+  max-slots: 27
+
+pickaxe-selector-slots:
+  1:
+    name: "Stone Pickaxe"
+    material: "STONE_PICKAXE:0"
+    price: 0
+    lore:
+      - "&ePrice: Free"
+      - "%block_status%"
+  2:
+    name: "Iron Pickaxe"
+    material: "IRON_PICKAXE:0"
+    price: 500
+    lore:
+      - "&ePrice: 500"
+      - "%block_status%"
+  3:
+    name: "Diamond Pickaxe"
+    material: "DIAMOND_PICKAXE:0"
+    price: 0
+    lore:
+      - "&ePrice: Free"
+      - "%block_status%"
+  4:
+    name: "Gold Pickaxe"
+    material: "GOLD_PICKAXE:0"
+    price: 1000
+    lore:
+      - "&ePrice: 1000"
+      - "%block_status%"
+
+# Animation Selector GUI
+animation-selector:
+  name: "Reset Animations"
+  max-slots: 27
+
+animation-selector-slots:
+  1:
+    name: "&fNone"
+    material: "STAINED_GLASS_PANE:0"
+    animation: "NONE"
+    price: 0
+    lore:
+      - "&7Standard instant reset"
+      - "&ePrice: Free"
+  2:
+    name: "&aSlide Down"
+    material: "SLIME_BALL:0"
+    animation: "SLIDE_DOWN"
+    price: 1000
+    lore:
+      - "&7Blocks slide downward on reset"
+      - "&ePrice: 1000"
+  3:
+    name: "&cExplode"
+    material: "TNT:0"
+    animation: "EXPLODE"
+    price: 2000
+    lore:
+      - "&7Blocks explode outward on reset"
+      - "&ePrice: 2000"

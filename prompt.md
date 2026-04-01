@@ -1,3 +1,4 @@
+Bitte mach noch, dass wenn ein Setzling gepflanzt ist, dass wenn auf den rechtsklickt oder linksklickt, ein kleiner text (hologram) über dem setzling kommt mit Clickspeed: x (also Clicks pro sekunden werden da gemessen)
 
 
 

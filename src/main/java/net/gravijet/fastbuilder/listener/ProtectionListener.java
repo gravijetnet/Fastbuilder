@@ -166,7 +166,14 @@ public class ProtectionListener implements Listener {
                 || to.getBlockZ() < bounds[2] - maxDist
                 || to.getBlockZ() > bounds[5] + maxDist;
 
-        boolean inVoid = to.getBlockY() < bounds[1] - maxDist;
+        boolean inVoid;
+        MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
+        if (mapForVoid != null && mapForVoid.hasDeathY()) {
+            int absoluteDeathY = mapForVoid.getOriginY() + mapForVoid.getDeathY();
+            inVoid = to.getBlockY() < absoluteDeathY;
+        } else {
+            inVoid = to.getBlockY() < bounds[1] - maxDist;
+        }
 
         if (outOfBounds || inVoid) {
             long now = System.currentTimeMillis();
@@ -195,6 +202,10 @@ public class ProtectionListener implements Listener {
      * beyond the island template's defined width.
      */
     private boolean canBuildAtLocation(Player player, Location blockLoc) {
+        if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
+            return isOnOwnIsland(player, blockLoc);
+        }
+
         MapManager mm = plugin.getMapManager();
 
         for (MapData map : mm.getAllMaps()) {

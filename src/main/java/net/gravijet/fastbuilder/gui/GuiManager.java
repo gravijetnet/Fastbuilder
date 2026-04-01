@@ -44,9 +44,16 @@ public class GuiManager implements Listener {
     private static final String CONFIRM_PREFIX = "Confirm";
     private static final String MAP_SELECTOR_PREFIX = "Map Selector";
     private static final String REPLAYS_PREFIX = "Replays";
+    private static final String SHOP_PREFIX = "Shop";
+    private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Selector";
+    private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
 
     // Track which block selector page a player is on
     private final Map<UUID, Integer> blockSelectorPages = new HashMap<>();
+
+    // Track pickaxe/animation selector pages
+    private final Map<UUID, Integer> pickaxePages = new HashMap<>();
+    private final Map<UUID, Integer> animationPages = new HashMap<>();
 
     // Track which replay page a player is on
     private final Map<UUID, Integer> replayPages = new HashMap<>();
@@ -231,7 +238,7 @@ public class GuiManager implements Listener {
                             .replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
                 }
 
-                ItemStack item = ItemBuilder.fromString(mat).name(name).lore(lore).build();
+                ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore).build();
                 inv.setItem(slotIndex, item);
             } catch (NumberFormatException ignored) {}
         }
@@ -474,6 +481,115 @@ public class GuiManager implements Listener {
         player.openInventory(inv);
     }
 
+    // ===== Shop =====
+
+    public void openShop(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title = ColorUtil.translate(guis.getString("shop.name", "Shop"));
+        int size = guis.getInt("shop.max-slots", 27);
+        Inventory inv = Bukkit.createInventory(null, size, title);
+
+        // Category: Blocks
+        inv.setItem(guis.getInt("shop.blocks-slot", 11), new ItemBuilder(Material.SANDSTONE)
+                .name("&eBlocks").lore("&7Click to open the Block Selector", "", "&aClick to browse").build());
+        // Category: Pickaxes
+        inv.setItem(guis.getInt("shop.pickaxes-slot", 13), new ItemBuilder(Material.DIAMOND_PICKAXE)
+                .name("&bPickaxes").lore("&7Click to browse pickaxes", "", "&aClick to browse").build());
+        // Category: Animations
+        inv.setItem(guis.getInt("shop.animations-slot", 15), new ItemBuilder(Material.FIREWORK)
+                .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
+
+        player.openInventory(inv);
+    }
+
+    public void openPickaxeSelector(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title = ColorUtil.translate(guis.getString("pickaxe-selector.name", PICKAXE_SELECTOR_PREFIX));
+        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 27);
+        Inventory inv = Bukkit.createInventory(null, maxSlots, title);
+
+        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("pickaxe-selector-slots");
+        if (slotsSection == null) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNo pickaxes configured."));
+            return;
+        }
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String purchasedStatus = guis.getString("block-status.purchased", "&aYou already own this!");
+        String notPurchasedStatus = guis.getString("block-status.not-purchased", "&cYou don't own this yet!");
+
+        for (String slotKey : slotsSection.getKeys(false)) {
+            try {
+                int slotIndex = Integer.parseInt(slotKey) - 1;
+                if (slotIndex < 0 || slotIndex >= maxSlots) continue;
+                String name = slotsSection.getString(slotKey + ".name", "Pickaxe");
+                String mat = slotsSection.getString(slotKey + ".material", "DIAMOND_PICKAXE:0");
+                int price = slotsSection.getInt(slotKey + ".price", 0);
+                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("pickaxe:" + mat)) || player.hasPermission("fastbuilder.blocks.*");
+                java.util.List<String> loreTemplate = slotsSection.getStringList(slotKey + ".lore");
+                String[] lore = new String[loreTemplate.size()];
+                for (int i = 0; i < loreTemplate.size(); i++) {
+                    lore[i] = loreTemplate.get(i).replace("%price%", price == 0 ? "Free" : String.valueOf(price)).replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
+                }
+                inv.setItem(slotIndex, ItemBuilder.fromString(mat).name("&r" + name).lore(lore).build());
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // Back button
+        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+
+        player.openInventory(inv);
+    }
+
+    public void openAnimationSelector(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title = ColorUtil.translate(guis.getString("animation-selector.name", ANIMATION_SELECTOR_PREFIX));
+        int maxSlots = guis.getInt("animation-selector.max-slots", 27);
+        Inventory inv = Bukkit.createInventory(null, maxSlots, title);
+
+        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("animation-selector-slots");
+        if (slotsSection == null) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNo animations configured."));
+            return;
+        }
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String currentAnim = data != null ? data.getSelectedAnimation() : "NONE";
+
+        for (String slotKey : slotsSection.getKeys(false)) {
+            try {
+                int slotIndex = Integer.parseInt(slotKey) - 1;
+                if (slotIndex < 0 || slotIndex >= maxSlots) continue;
+                String name = slotsSection.getString(slotKey + ".name", "Animation");
+                String mat = slotsSection.getString(slotKey + ".material", "STAINED_GLASS_PANE:0");
+                String animId = slotsSection.getString(slotKey + ".animation", "NONE");
+                int price = slotsSection.getInt(slotKey + ".price", 0);
+                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("anim:" + animId));
+                boolean selected = animId.equalsIgnoreCase(currentAnim);
+                java.util.List<String> loreTemplate = slotsSection.getStringList(slotKey + ".lore");
+                java.util.List<String> lore = new java.util.ArrayList<>();
+                for (String line : loreTemplate) {
+                    lore.add(line.replace("%price%", price == 0 ? "Free" : String.valueOf(price)));
+                }
+                if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
+                if (selected) {
+                    org.bukkit.inventory.meta.ItemMeta im = item.getItemMeta();
+                    if (im != null) {
+                        im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true);
+                        item.setItemMeta(im);
+                    }
+                }
+                inv.setItem(slotIndex, item);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        // Back button
+        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+
+        player.openInventory(inv);
+    }
+
     // ===== Click Handling =====
 
     @EventHandler
@@ -504,6 +620,15 @@ public class GuiManager implements Listener {
         } else if (stripped.startsWith(REPLAYS_PREFIX)) {
             event.setCancelled(true);
             handleReplayClick(event);
+        } else if (stripped.startsWith(SHOP_PREFIX)) {
+            event.setCancelled(true);
+            handleShopClick(event);
+        } else if (stripped.startsWith(PICKAXE_SELECTOR_PREFIX)) {
+            event.setCancelled(true);
+            handlePickaxeSelectorClick(event);
+        } else if (stripped.startsWith(ANIMATION_SELECTOR_PREFIX)) {
+            event.setCancelled(true);
+            handleAnimationSelectorClick(event);
         }
     }
 
@@ -530,13 +655,9 @@ public class GuiManager implements Listener {
             return;
         }
 
-        // Clear placed blocks on old island
-        net.gravijet.fastbuilder.gameplay.RunSession oldSession = plugin.getGameplayManager().getSession(player.getUniqueId());
-        if (oldSession != null) {
-            for (org.bukkit.Location loc : oldSession.getPlacedBlocks()) {
-                org.bukkit.block.Block block = loc.getBlock();
-                if (block != null) block.setType(org.bukkit.Material.AIR);
-            }
+        // Clear ALL placed blocks (including practice) on old island
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
         }
 
         // Remove old NPC and hologram
@@ -699,6 +820,8 @@ public class GuiManager implements Listener {
                     player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                             + "&fPractice mode " + stateStr + "&f."));
                 }
+                // Update hotbar items to reflect practice mode change
+                if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 // Refresh settings GUI
                 openSettings(player);
                 break;
@@ -750,17 +873,39 @@ public class GuiManager implements Listener {
         MapData map = plugin.getMapManager().getMap(displayName);
         if (map == null || !map.isEnabled()) return;
 
+        // Check if already on this map
+        PlayerData existingData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (existingData != null && map.getName().equalsIgnoreCase(existingData.getLastMap())) {
+            player.closeInventory();
+            String raw = plugin.getConfigManager().getMessage("map-already-on");
+            if (raw == null || raw.isEmpty()) raw = plugin.getConfigManager().getPrefix() + "&cYou are already on this map.";
+            player.sendMessage(ColorUtil.translate(raw.replace("%prefix%", plugin.getConfigManager().getPrefix())));
+            return;
+        }
+
         player.closeInventory();
+
+        // Clear all placed blocks and despawn NPC/hologram before switching
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+        }
+        if (existingData != null) {
+            if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(player.getUniqueId());
+            if (plugin.getHologramManager() != null && existingData.getLastMap() != null) {
+                plugin.getHologramManager().removeHologram(existingData.getLastMap(), existingData.getLastIsland());
+            }
+        }
 
         // Free current island
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
-        plugin.getGameplayManager().removeSession(player.getUniqueId());
+        if (plugin.getGameplayManager() != null) plugin.getGameplayManager().removeSession(player.getUniqueId());
 
         // Assign a free island
         int island = plugin.getMapManager().assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
         if (island < 0) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+            String noIsland = plugin.getConfigManager().getMessage("no-islands");
+            if (noIsland == null || noIsland.isEmpty()) noIsland = plugin.getConfigManager().getMessage("no-free-islands");
+            player.sendMessage(ColorUtil.translate(noIsland.replace("%prefix%", plugin.getConfigManager().getPrefix())));
             return;
         }
 
@@ -772,15 +917,22 @@ public class GuiManager implements Listener {
         player.teleport(map.getIslandSpawn(island));
 
         // Create gameplay session
-        plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+        if (plugin.getGameplayManager() != null) plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
 
         // Give hotbar items
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
         }
 
+        // Spawn NPC and hologram
+        if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
+        if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(map.getName(), island, player);
+
         // Check autoscale
         plugin.getMapManager().checkAutoscale(map);
+
+        // Update scoreboard
+        plugin.getScoreboardManager().updateScoreboard(player);
 
         String raw = plugin.getConfigManager().getMessage("joined-mode");
         if (raw != null && !raw.isEmpty()) {
@@ -867,5 +1019,105 @@ public class GuiManager implements Listener {
                         + "&fStarting replay..."));
             }
         }
+    }
+
+    private void handleShopClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        ItemStack item = event.getCurrentItem();
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+        String name = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        player.closeInventory();
+        if (name.equals("Blocks")) {
+            openBlockSelector(player, 1);
+        } else if (name.equals("Pickaxes")) {
+            openPickaxeSelector(player);
+        } else if (name.equals("Reset Animations")) {
+            openAnimationSelector(player);
+        }
+    }
+
+    private void handlePickaxeSelectorClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        ItemStack item = event.getCurrentItem();
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        if (displayName.equals("Back to Shop")) {
+            player.closeInventory();
+            openShop(player);
+            return;
+        }
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("pickaxe-selector-slots");
+        if (slotsSection == null) return;
+
+        int slot = event.getSlot() + 1;
+        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+
+        String mat = slotsSection.getString(slot + ".material", "DIAMOND_PICKAXE:0");
+        int price = slotsSection.getInt(slot + ".price", 0);
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        boolean owned = price == 0 || data.hasPurchasedBlock("pickaxe:" + mat) || player.hasPermission("fastbuilder.blocks.*");
+        if (!owned) {
+            if (data.getCoins() >= price) {
+                data.removeCoins(price);
+                data.purchaseBlock("pickaxe:" + mat);
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fPickaxe purchased for &c" + price + " &fcoins."));
+                openPickaxeSelector(player);
+            } else {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
+            }
+            return;
+        }
+
+        data.setSelectedPickaxe(mat);
+        player.closeInventory();
+        if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
+        String pName = slotsSection.getString(slot + ".name", "Pickaxe");
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected pickaxe: &c" + pName));
+    }
+
+    private void handleAnimationSelectorClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        ItemStack item = event.getCurrentItem();
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        if (displayName.equals("Back to Shop")) {
+            player.closeInventory();
+            openShop(player);
+            return;
+        }
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("animation-selector-slots");
+        if (slotsSection == null) return;
+
+        int slot = event.getSlot() + 1;
+        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+
+        String animId = slotsSection.getString(slot + ".animation", "NONE");
+        int price = slotsSection.getInt(slot + ".price", 0);
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        boolean owned = price == 0 || data.hasPurchasedBlock("anim:" + animId);
+        if (!owned) {
+            if (data.getCoins() >= price) {
+                data.removeCoins(price);
+                data.purchaseBlock("anim:" + animId);
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased for &c" + price + " &fcoins."));
+                openAnimationSelector(player);
+            } else {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
+            }
+            return;
+        }
+
+        data.setSelectedAnimation(animId);
+        player.closeInventory();
+        String aName = slotsSection.getString(slot + ".name", "Animation");
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected animation: &c" + aName));
     }
 }

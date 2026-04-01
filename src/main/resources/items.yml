@@ -18,6 +18,10 @@ islandselector-item-material: NETHER_STAR:0
 settings-item: "&2Settings &7(Right-Click to use)"
 settings-item-material: EMERALD:0
 
+# Shop item
+shop-item: "&6Shop &7(Right-Click to use)"
+shop-item-material: "GOLD_NUGGET:0"
+
 # Page navigation items
 change-page:
   next-page:

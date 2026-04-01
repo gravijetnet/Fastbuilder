@@ -26,6 +26,9 @@ public class RunSession {
     // Practice blocks (lime STAINED_CLAY:5) placed while in practice mode
     private final List<Location> practiceBlocks = new ArrayList<>();
 
+    // Original block states before placement (for map environment restoration)
+    private final java.util.HashMap<String, int[]> originalBlockStates = new java.util.HashMap<>();
+
     // Session best times (top 3 for scoreboard)
     private final List<Long> sessionBests = new ArrayList<>();
 
@@ -58,6 +61,7 @@ public class RunSession {
         running = false;
         finished = false;
         placedBlocks.clear();
+        originalBlockStates.clear();
         // Note: practiceBlocks is intentionally NOT cleared here.
         // It is cleared in GameplayManager.resetRun() selectively
         // and in handleSettingsClick when practice mode is toggled off.
@@ -75,20 +79,43 @@ public class RunSession {
     }
 
     /**
+     * Add a placed block to tracking, saving original block state for later restoration.
+     * @param loc         The block location
+     * @param isPractice  True if this is a practice block (should persist across normal resets)
+     * @param origTypeId  The original block type ID before placement
+     * @param origData    The original block data byte before placement
+     */
+    public void addPlacedBlock(Location loc, boolean isPractice, int origTypeId, byte origData) {
+        Location clone = loc.clone();
+        placedBlocks.add(clone);
+        if (isPractice) {
+            practiceBlocks.add(clone);
+        }
+        String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+        originalBlockStates.put(key, new int[]{origTypeId, origData});
+    }
+
+    /**
      * Add a placed block to tracking.
      * @param loc         The block location
      * @param isPractice  True if this is a practice block (should persist across normal resets)
      */
     public void addPlacedBlock(Location loc, boolean isPractice) {
-        placedBlocks.add(loc.clone());
-        if (isPractice) {
-            practiceBlocks.add(loc.clone());
-        }
+        addPlacedBlock(loc, isPractice, 0, (byte) 0);
     }
 
     /** Legacy overload - always marks as non-practice. */
     public void addPlacedBlock(Location loc) {
-        addPlacedBlock(loc, false);
+        addPlacedBlock(loc, false, 0, (byte) 0);
+    }
+
+    /**
+     * Get the original block state at a location before this run placed a block there.
+     * @return int[]{typeId, data} or null if not tracked
+     */
+    public int[] getOriginalBlockState(Location loc) {
+        String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+        return originalBlockStates.get(key);
     }
 
     public List<Location> getPlacedBlocks() { return placedBlocks; }
