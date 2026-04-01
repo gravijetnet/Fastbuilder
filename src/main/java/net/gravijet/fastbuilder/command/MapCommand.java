@@ -160,7 +160,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         rod.setItemMeta(meta);
         player.getInventory().setItem(0, rod);
 
-        msgAdmin(player, "setup-started");
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&aMap Setup Wizard started!"));
+        player.sendMessage(ColorUtil.translate("&7You have been teleported to the setup area."));
+        player.sendMessage(ColorUtil.translate("&e&lStep 1: &fSelect your island area."));
+        player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bPosition 1 &7(one corner)."));
+        player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bPosition 2 &7(opposite corner)."));
+        player.sendMessage(ColorUtil.translate("&7Build your island template here, then type:"));
+        sendClickableContinue(player);
     }
 
     private void handleSetupContinue(Player player, MapManager mm) {
@@ -175,22 +182,44 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        String prefix = plugin.getConfigManager().getPrefix();
+
         switch (session.getState()) {
             case SELECTING_ISLAND:
                 session.advanceToSpawn();
-                msgAdmin(player, "setup-set-spawn");
+                player.sendMessage(ColorUtil.translate(prefix + "&aIsland area saved!"));
+                player.sendMessage(ColorUtil.translate("&e&lStep 2: &fSet the spawn point."));
+                player.sendMessage(ColorUtil.translate("&7  Stand exactly where players should spawn on the island."));
+                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set the spawn."));
+                player.sendMessage(ColorUtil.translate("&7  Then type:"));
+                sendClickableContinue(player);
                 break;
             case SELECTING_SPAWN:
                 session.advanceToNpc();
-                String npcMsg = plugin.getConfigManager().getAdminMessage("setup-set-npc");
-                if (npcMsg == null || npcMsg.isEmpty()) {
-                    npcMsg = "&eStep 3: &fGo to the NPC location and &cright-click &fthe blaze rod.";
-                }
-                player.sendMessage(ColorUtil.translate(npcMsg));
+                player.sendMessage(ColorUtil.translate(prefix + "&aSpawn point saved!"));
+                player.sendMessage(ColorUtil.translate("&e&lStep 3: &fSet the NPC location."));
+                player.sendMessage(ColorUtil.translate("&7  Go to where the NPC should stand on the island."));
+                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set the NPC position."));
+                player.sendMessage(ColorUtil.translate("&7  Then type:"));
+                sendClickableContinue(player);
                 break;
             case SELECTING_NPC:
+                session.advanceToHologram();
+                player.sendMessage(ColorUtil.translate(prefix + "&aNPC location saved!"));
+                player.sendMessage(ColorUtil.translate("&e&lStep 4: &fSet the hologram location."));
+                player.sendMessage(ColorUtil.translate("&7  Go to where the stats hologram should appear."));
+                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set the hologram position."));
+                player.sendMessage(ColorUtil.translate("&7  Then type:"));
+                sendClickableContinue(player);
+                break;
+            case SELECTING_HOLOGRAM:
                 session.advanceToFinish();
-                msgAdmin(player, "setup-select-finish");
+                player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
+                player.sendMessage(ColorUtil.translate("&e&lStep 5: &fSelect the finish zone (pressure plates area)."));
+                player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bFinish Pos 1."));
+                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bFinish Pos 2."));
+                player.sendMessage(ColorUtil.translate("&7  When both corners are set, type:"));
+                sendClickableFinish(player);
                 break;
             default:
                 msgAdmin(player, "setup-not-ready");
@@ -260,6 +289,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         MapData map = mm.createMap(session, name);
         map.setTemplateFile(name.toLowerCase());
         mm.saveMap(map);
+
+        // Paste the initial island into the world (fixes island #1 void bug)
+        mm.pasteInitialIsland(map);
 
         // Clear the setup build area (-1000, 20, -1000)
         Location setupMin = session.getIslandMin();
@@ -465,25 +497,36 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             }
         }
 
+        // Actual applied distance is 1/3 of the specified value
+        int actualDistance = Math.max(1, blocks / 3);
+
         int minDist = GridCalculator.getMinimumDistance(map.getIslandLength());
-        if (!force && blocks < minDist) {
+        if (!force && actualDistance < minDist) {
             String raw = plugin.getConfigManager().getAdminMessage("distance-too-small");
-            raw = raw.replace("%min%", String.valueOf(minDist));
+            raw = raw.replace("%min%", String.valueOf(minDist * 3));
             player.sendMessage(ColorUtil.translate(raw));
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                     + "&7Use &f--force &7to bypass this check."));
             return;
         }
 
-        map.setDistance(blocks);
+        int oldDistance = map.getDistance();
+        map.setDistance(actualDistance);
         mm.saveMap(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-distance-set");
-        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(blocks));
+        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(actualDistance));
         player.sendMessage(ColorUtil.translate(raw));
-        if (force && blocks < minDist) {
+        if (force && actualDistance < minDist) {
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                     + "&eWarning: Distance is smaller than island length. Islands may overlap."));
+        }
+
+        // Regenerate islands at new positions if distance actually changed
+        if (actualDistance != oldDistance && map.getScale() > 0) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    + "&eRegenerating " + map.getScale() + " island(s) at new distance. Please wait..."));
+            mm.regenerateIslands(map, oldDistance);
         }
     }
 
@@ -512,6 +555,36 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         String raw = plugin.getConfigManager().getAdminMessage("map-autoscale-set");
         raw = raw.replace("%map%", map.getName()).replace("%value%", String.valueOf(value));
         player.sendMessage(ColorUtil.translate(raw));
+    }
+
+    // --- Clickable Setup Prompts ---
+
+    private void sendClickableContinue(Player player) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
+                ColorUtil.translate(prefix + "&e&nClick here&r&7 or type &f/map setup continue"));
+        msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                "/map setup continue"));
+        msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                new net.md_5.bungee.api.chat.ComponentBuilder(
+                        ColorUtil.translate("&aClick to advance to the next step")).create()));
+        player.spigot().sendMessage(msg);
+    }
+
+    private void sendClickableFinish(Player player) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
+                ColorUtil.translate(prefix + "&e&nClick here&r&7 or type &f/map setup finish"));
+        msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                "/map setup finish"));
+        msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                new net.md_5.bungee.api.chat.ComponentBuilder(
+                        ColorUtil.translate("&aClick to finalize the island template")).create()));
+        player.spigot().sendMessage(msg);
     }
 
     // --- Help ---

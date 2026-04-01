@@ -31,7 +31,6 @@ public class SetupListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = player.getItemInHand();
 
-        // Only process blaze rod clicks
         if (item == null || item.getType() != Material.BLAZE_ROD) return;
 
         SetupSession session = plugin.getMapManager().getSetupSession(player.getUniqueId());
@@ -52,6 +51,9 @@ public class SetupListener implements Listener {
             case SELECTING_NPC:
                 handleNpcSelection(player, session, action);
                 break;
+            case SELECTING_HOLOGRAM:
+                handleHologramSelection(player, session, action);
+                break;
             case SELECTING_FINISH:
                 handleFinishSelection(player, session, action, clicked);
                 break;
@@ -62,7 +64,6 @@ public class SetupListener implements Listener {
 
     private void handleIslandSelection(Player player, SetupSession session, Action action, Block clicked) {
         if (clicked == null) return;
-
         Location loc = clicked.getLocation();
 
         if (action == Action.LEFT_CLICK_BLOCK) {
@@ -81,39 +82,47 @@ public class SetupListener implements Listener {
             player.sendMessage(ColorUtil.translate(raw));
         }
 
-        // Notify if both positions are set
         if (session.getIslandPos1() != null && session.getIslandPos2() != null) {
             String msg = plugin.getConfigManager().getAdminMessage("setup-select-both");
             player.sendMessage(ColorUtil.translate(msg));
+            sendClickableContinue(player);
         }
     }
 
     private void handleSpawnSelection(Player player, SetupSession session, Action action) {
-        // Right-click sets spawn at current player location
         if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
             Location loc = player.getLocation();
             session.setSpawnPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-saved");
             player.sendMessage(ColorUtil.translate(raw));
+            sendClickableContinue(player);
         }
     }
 
     private void handleNpcSelection(Player player, SetupSession session, Action action) {
-        // Right-click sets NPC location at current player position
         if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
             Location loc = player.getLocation();
             session.setNpcPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-npc-saved");
-            if (raw == null || raw.isEmpty()) {
-                raw = "&aNPC location saved at your position.";
-            }
+            if (raw == null || raw.isEmpty()) raw = "&aNPC location saved at your position.";
             player.sendMessage(ColorUtil.translate(raw));
+            sendClickableContinue(player);
+        }
+    }
+
+    private void handleHologramSelection(Player player, SetupSession session, Action action) {
+        if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+            Location loc = player.getLocation();
+            session.setHologramPoint(loc);
+            player.sendMessage(ColorUtil.translate(
+                    "&c&lFastbuilder &7» &fHologram location saved at &c" +
+                    loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&f."));
+            sendClickableContinue(player);
         }
     }
 
     private void handleFinishSelection(Player player, SetupSession session, Action action, Block clicked) {
         if (clicked == null) return;
-
         Location loc = clicked.getLocation();
 
         if (action == Action.LEFT_CLICK_BLOCK) {
@@ -132,16 +141,61 @@ public class SetupListener implements Listener {
             player.sendMessage(ColorUtil.translate(raw));
         }
 
-        // Notify if both positions are set
         if (session.getFinishPos1() != null && session.getFinishPos2() != null) {
             String msg = plugin.getConfigManager().getAdminMessage("setup-finish-ready");
             player.sendMessage(ColorUtil.translate(msg));
+            sendClickableFinish(player);
+        }
+    }
+
+    /**
+     * Send a clickable "/map setup continue" message.
+     */
+    private void sendClickableContinue(Player player) {
+        try {
+            net.md_5.bungee.api.chat.TextComponent prefix = new net.md_5.bungee.api.chat.TextComponent(
+                    net.md_5.bungee.api.ChatColor.GRAY + "When ready: ");
+            net.md_5.bungee.api.chat.TextComponent btn = new net.md_5.bungee.api.chat.TextComponent(
+                    net.md_5.bungee.api.ChatColor.RED + "" + net.md_5.bungee.api.ChatColor.BOLD + "[/map setup continue]");
+            btn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/map setup continue"));
+            btn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                    new net.md_5.bungee.api.chat.BaseComponent[]{
+                            new net.md_5.bungee.api.chat.TextComponent(
+                                    net.md_5.bungee.api.ChatColor.YELLOW + "Click to advance to the next step")}));
+            prefix.addExtra(btn);
+            player.spigot().sendMessage(prefix);
+        } catch (Exception e) {
+            player.sendMessage(ColorUtil.translate("&7When ready, type: &c/map setup continue"));
+        }
+    }
+
+    /**
+     * Send a clickable "/map setup finish" message.
+     */
+    private void sendClickableFinish(Player player) {
+        try {
+            net.md_5.bungee.api.chat.TextComponent prefix = new net.md_5.bungee.api.chat.TextComponent(
+                    net.md_5.bungee.api.ChatColor.GRAY + "When ready: ");
+            net.md_5.bungee.api.chat.TextComponent btn = new net.md_5.bungee.api.chat.TextComponent(
+                    net.md_5.bungee.api.ChatColor.RED + "" + net.md_5.bungee.api.ChatColor.BOLD + "[/map setup finish]");
+            btn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/map setup finish"));
+            btn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                    new net.md_5.bungee.api.chat.BaseComponent[]{
+                            new net.md_5.bungee.api.chat.TextComponent(
+                                    net.md_5.bungee.api.ChatColor.YELLOW + "Click to save the island template")}));
+            prefix.addExtra(btn);
+            player.spigot().sendMessage(prefix);
+        } catch (Exception e) {
+            player.sendMessage(ColorUtil.translate("&7When ready, type: &c/map setup finish"));
         }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        // Clean up setup session on disconnect
         plugin.getMapManager().removeSetupSession(event.getPlayer().getUniqueId());
     }
 }

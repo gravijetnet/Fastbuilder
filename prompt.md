@@ -1,64 +1,89 @@
-# CRITICAL SYSTEM DIRECTIVE: FASTBUILDER PRO
-You are a God-Tier Spigot Plugin Developer specializing in NMS, FastAsyncWorldEdit (FAWE) API, and highly optimized server architectures.
-Target Environment: Custom Spigot 1.8.8 Fork running on **Java 21**. Use modern Java 21 features (records, enhanced switch expressions) but strictly adhere to the Spigot 1.8.8 API.
-Dependencies: FastAsyncWorldEdit, Citizens, DecentHolograms.
-State: Delete any existing source code. Start from an absolute blank slate.
-Language: All code, variables, comments, and in-game messages MUST be strictly in English. Plugin name is strictly "Fastbuilder" (Case-sensitive).
 
-# 1. MATHEMATICAL GRID & INSTANCING (CORE ENGINE)
-- **The Template Zone:** `/map setup` ALWAYS teleports the admin to exactly `-1000 20 -1000`. This is just a temporary build zone. Once setup is complete, the template is saved/copied, and the physical blocks at the setup location MUST BE DELETED (replaced with air).
-- **Global Map Axis (X-Axis):** Map types are pasted strictly along the positive X-axis.
-    - Map 1 starts at `2000, 20, 0`. Map 2 at `4000, 20, 0`. Map 3 at `6000, 20, 0`.
-    - ALL maps MUST face the positive X direction (players build towards +X).
-- **Island Scaling Axis (Z-Axis):** When a map is scaled (`/map scale <map> <count>`), the individual island instances for players are pasted "to the right" of each other. Since they face +X, they must be pasted along the **positive Z-axis** on the same X and Y coordinates.
-    - The distance is EXACTLY `/map distance <map> <blocks>`. Ensure bounding boxes are calculated perfectly so even diagonal maps NEVER overlap.
-- **Switching Islands:** When a player switches to a new island: Clear all blocks on their old island. Completely REMOVE their old Hologram and NPC. Teleport them to the EXACT relative spawnpoint of the new island. Spawn the Hologram and NPC at the new island.
 
-# 2. ADMIN SETUP STATE MACHINE (/map)
-Requires full tab-completion. Teleport to `-1000 20 -1000`, clear inventory, set Creative & Fly, give Blazerod.
-- **Step 1 (Area):** Left-click Pos1, Right-click Pos2 (Island boundaries).
-- **Step 2 (Spawn):** Type `/map setup continue`. Go to exact spawn point, right-click Blazerod. Save relative location.
-- **Step 3 (NPC):** Type `/map setup continue`. Go to NPC location, right-click Blazerod. Save relative location.
-- **Step 4 (Finish):** Type `/map setup continue`. Select Pos1/Pos2 of the finish area (must be pressure plates).
-- **Step 5 (Save):** Type `/map setup finish` then `/map setup name <name>`. Map is saved but disabled.
 
-# 3. GAMEPLAY LOOP, PHYSICS & PROTECTION
-- **Routing:** On BungeeCord join, teleport player to their last active map. If none, route to the default map (defined in config.yml). A default map MUST always exist. NO auto-generated stone islands.
-- **Start State (On Join Island):** Clear inventory. Set Gamemode Survival. Give all items.
-- **Physics/Damage:** NEVER take fall damage. NEVER die from the void (if Y falls too low, instantly teleport back to the island's spawn). If a player somehow manages to "die", teleport them to a free island on their current map.
-- **Protection:** - Cannot break map blocks. Can ONLY break blocks they placed themselves.
-    - Cannot enter other players' islands. If a player leaves their assigned island bounding box, instantly teleport them back to their island spawn.
-- **Success Event:** Hitting the finish zone pressure plate -> Play success sound -> Launch Firework -> Wait exactly 2.0 seconds -> Teleport back to start and clear placed blocks.
-- **Practice Mode:** - Player receives practice blocks. If they fall/die, placed practice blocks STAY on the map.
-    - Practice time DOES NOT count towards the scoreboard or stats.
-    - **CRITICAL ANTI-EXPLOIT:** Players cannot use practice blocks to shorten a real run. When the player disables Practice Mode, ALL practice blocks on the map MUST be completely cleared before a real run starts.
+# IGNORIERE ALLES AB HIER!!!!!!!!! NICHT DURCHLESEN!!!!
+replay system prompt:
+I need to upgrade the Replay system to make it look exactly like the original player's movement. Currently, the replay NPC only moves to locations but doesn't rotate, sneak, or animate.
 
-# 4. INVENTORY, ITEMS & UI
-- **Inventory Layout:** - Exactly 2 Stacks of blocks. Add a setting/perk (buyable with Coins) to "Auto-Refill" blocks so they never run out.
-    - 1 Pickaxe (Default: Diamond. Expandable via Store/NBT).
-    - "Island Selector" (Player Head in hotbar).
-    - "Leave Item" -> Executes BungeeCord send to server `Lobby-1`.
-- **Island Selector GUI:** Opens via right-click. Centered, clean design. Empty islands show as numbered heads (1, 2, 3...). Occupied islands MUST show the actual Skin Head of the player currently there (NOT a Steve head). Cannot click occupied islands.
-- **Block Selector GUI:** Block names MUST have colors and MUST NOT be italic (`&r` / no `§o`). Purchasable via Coins or permissions.
-- **Map Selector GUI:** Large inventory (e.g., 54 slots). Must support adding custom "filler" items via config that do nothing, or changing the exact slot of a map item. Opened by clicking the Citizens NPC.
-- **Citizens NPC:** Spawns exactly at the map's defined `npc-location`. MUST have the current player's exact skin.
-- **DecentHolograms:** MUST spawn at every occupied island. Shows player's: Top Time, Total Attempts, Total Successful Runs.
+Objectives:
 
-# 5. HIGH-FIDELITY REPLAY SYSTEM
-- **Recording:** Log per-tick data: X, Y, Z, Yaw (Head Movement), Pitch, Sneaking state, and Block Place/Break events. It must capture exact head rotations and sneaking, not just XYZ.
-- **Replay GUI:** Centered, premium design. Separates Successful vs. Failed runs. Shows Date & Time.
-- **Permissions:** Add permission nodes to limit how many replays a player can save/view.
-- **Playback:** Fly mode for the spectator. A Citizens NPC mimics the recorded player perfectly. Hotbar items for playback control (Rewind, Fast-Forward, Speed, Exit). Also the player is being teleported to an extra island far away where he bridged. (think logical and much)
+    Enhance ReplayFrame: Update the ReplayFrame class to store more than just XYZ coordinates. It must now include:
 
-# 6. ECONOMY, STATS & VISUALS
-- **Scoreboard:** MUST be implemented and EXACTLY match this structure:
-  ```java
-  objective.getScore("§7§m-------------------").setScore(score--);
-  objective.getScore("§8» §cRank: §6"    + getPlaceholder(player, "%phoenix_player_real_rank%")).setScore(score--);
-  objective.getScore("§8» §cPlayers: §6" + getPlaceholder(player, "%phoenix_server_global_online%")).setScore(score--);
-  objective.getScore("§8» §cCoins: §6"   + getPlaceholder(player, "%pxcosmetics_player_coins%")).setScore(score--);
-  objective.getScore("§8» §cLevel: §6"   + getPlaceholder(player, "%phoenix_player_level_displayname%")).setScore(score--);
-  objective.getScore("§8» §cPlaytime: §6" + playtime + "h").setScore(score--);
-  objective.getScore("§f ").setScore(score--);
-  objective.getScore("§7§ogravijet.net").setScore(score--);
-  objective.getScore("§7§o§m-------------------").setScore(score--);
+        float yaw and float pitch (Body rotation).
+
+        float headYaw (Specific head rotation for 1.8.8).
+
+        boolean isSneaking and boolean isSprinting.
+
+        boolean isSwingingArm.
+
+    Update ReplayRecorder: Modify the recording logic to capture these extra values every tick. For animations like arm swings, ensure they are captured even if they happen between location updates.
+
+    Refactor ReplaySession (Playback): When playing back a frame, the NPC (EntityPlayer/NPC) must reflect all captured states:
+
+        Use PacketPlayOutEntityLook and PacketPlayOutEntityHeadRotation to update the direction.
+
+        Use PacketPlayOutEntityMetadata (DataWatcher) to set the sneaking and sprinting bits.
+
+        Use PacketPlayOutAnimation (ID 0) if isSwingingArm is true.
+
+    Smoothness: Ensure the NPC uses smooth interpolation (if possible) or at least updates every tick (20Hz) to avoid stuttering.
+
+Files to check:
+
+    net.gravijet.fastbuilder.replay.ReplayFrame
+
+    net.gravijet.fastbuilder.replay.ReplayRecorder
+
+    net.gravijet.fastbuilder.replay.ReplaySession
+
+    net.gravijet.fastbuilder.replay.ReplayData
+
+Please rewrite the recording and playback logic to ensure the replay is an exact 1:1 visual replica of the player's performance, including head movements and crouching.
+
+
+
+
+
+
+
+
+Später nachdem alles funktioniert kommt der timer prompt:
+I need to refactor my FastBuilder plugin to achieve professional-grade 1ms precision, completely bypassing the standard 50ms (20 TPS) server-tick limitation. We are targeting a 1.8.8 CarbonSpigot environment using the packetevents API.
+
+1. Packet-Level Interception:
+
+   Implement a PacketListener to intercept PacketType.Play.Client.PLAYER_BLOCK_PLACEMENT for starting the run and measuring block placement speed.
+
+   Intercept PacketType.Play.Client.PLAYER_FLYING (or Position packets) to detect the finish line. Compare player coordinates against the target area defined in IslandInstance/MapData.
+
+   Crucial: Capture the high-resolution server-receive timestamp immediately upon packet arrival (asynchronous), before it reaches the Bukkit main thread.
+
+2. Latency & Ping Compensation:
+
+   For every measurement (Start and Finish), apply a 'Fairness-Calculation': Subtract half of the player's current ping (ping / 2.0) from the arrival timestamp to estimate the exact millisecond the player performed the action on their client.
+
+   Handle edge cases where this adjustment might result in a timestamp earlier than the previous recorded action.
+
+3. Asynchronous 100Hz HUD (Actionbar):
+
+   Remove all BukkitRunnable HUD tasks.
+
+   Implement a ScheduledExecutorService in GameplayManager that updates the active player's Actionbar every 10 milliseconds (100Hz).
+
+   Use the packetevents User API to send the Actionbar packets asynchronously. This ensures the timer looks perfectly fluid (e.g., 00:01.458) without taxing the Main Thread.
+
+4. Thread-Safe State Management:
+
+   Update RunSession.java to handle startTimeAdjusted and finishTimeAdjusted using volatile or atomic references if necessary, as these will be accessed by multiple asynchronous threads (Netty threads and HUD executor).
+
+   Strict Sync Rule: All world-modifying actions (block placements, clearing practice blocks, teleports) triggered by the PacketListener must be wrapped in Bukkit.getScheduler().runTask(plugin, () -> { ... }) to ensure they execute safely on the Main Thread.
+
+5. Utility & Formatting:
+
+   Update TimeUtil.java to format the elapsed time with exactly 3 decimal places.
+
+   Ensure RunSession#getElapsed() calculates the difference based on the adjusted millisecond timestamps.
+
+Your Task:
+Please perform a deep-trace analysis of the packet-to-main-thread handoff. Provide the full updated code for the attached files. Ensure the system is memory-efficient, prevents race conditions, and provides the most precise FastBuilder experience possible in Minecraft 1.8.8.

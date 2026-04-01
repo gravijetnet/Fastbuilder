@@ -1,7 +1,6 @@
 package net.gravijet.fastbuilder.gameplay;
 
 import org.bukkit.Location;
-import org.bukkit.block.Block;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,16 +20,16 @@ public class RunSession {
     private boolean running = false;
     private boolean finished = false;
 
-    // Blocks placed during this run (for reset/replay)
+    // All blocks placed during this run
     private final List<Location> placedBlocks = new ArrayList<>();
 
-    // Blocks placed while in practice mode (tracked separately for anti-exploit clearing)
+    // Practice blocks (lime STAINED_CLAY:5) placed while in practice mode
     private final List<Location> practiceBlocks = new ArrayList<>();
 
-    // Session best times (for scoreboard top 3)
+    // Session best times (top 3 for scoreboard)
     private final List<Long> sessionBests = new ArrayList<>();
 
-    // Practice mode - no stats recorded
+    // Practice mode - no stats recorded, practice blocks persist across resets
     private boolean practiceMode = false;
 
     public RunSession(UUID playerUuid, String mapName, int islandIndex) {
@@ -39,9 +38,6 @@ public class RunSession {
         this.islandIndex = islandIndex;
     }
 
-    /**
-     * Start the timer. Called on first block placement.
-     */
     public void start() {
         if (!running && !finished) {
             startTime = System.currentTimeMillis();
@@ -49,9 +45,6 @@ public class RunSession {
         }
     }
 
-    /**
-     * Finish the run. Returns elapsed time in millis.
-     */
     public long finish() {
         if (!running) return -1;
         finishTimeMs = System.currentTimeMillis() - startTime;
@@ -60,19 +53,16 @@ public class RunSession {
         return finishTimeMs;
     }
 
-    /**
-     * Reset the run state for a new attempt.
-     */
     public void reset() {
         startTime = -1;
         running = false;
         finished = false;
         placedBlocks.clear();
+        // Note: practiceBlocks is intentionally NOT cleared here.
+        // It is cleared in GameplayManager.resetRun() selectively
+        // and in handleSettingsClick when practice mode is toggled off.
     }
 
-    /**
-     * Get elapsed time in milliseconds.
-     */
     public long getElapsed() {
         if (startTime < 0) return 0;
         if (finished) return finishTimeMs;
@@ -80,50 +70,39 @@ public class RunSession {
         return 0;
     }
 
-    /**
-     * Get elapsed time at finish (frozen).
-     */
     public long getFinishTime() {
         return finishTimeMs > 0 ? finishTimeMs : getElapsed();
     }
 
-    public void addPlacedBlock(Location loc) {
+    /**
+     * Add a placed block to tracking.
+     * @param loc         The block location
+     * @param isPractice  True if this is a practice block (should persist across normal resets)
+     */
+    public void addPlacedBlock(Location loc, boolean isPractice) {
         placedBlocks.add(loc.clone());
-        if (practiceMode) {
+        if (isPractice) {
             practiceBlocks.add(loc.clone());
         }
     }
 
-    public List<Location> getPlacedBlocks() {
-        return placedBlocks;
+    /** Legacy overload - always marks as non-practice. */
+    public void addPlacedBlock(Location loc) {
+        addPlacedBlock(loc, false);
     }
 
-    public List<Location> getPracticeBlocks() {
-        return practiceBlocks;
-    }
+    public List<Location> getPlacedBlocks() { return placedBlocks; }
+    public List<Location> getPracticeBlocks() { return practiceBlocks; }
 
-    /**
-     * Check if there are practice blocks that need clearing before a real run.
-     */
-    public boolean hasPracticeBlocks() {
-        return !practiceBlocks.isEmpty();
-    }
+    public boolean hasPracticeBlocks() { return !practiceBlocks.isEmpty(); }
 
     public void addSessionBest(long time) {
         sessionBests.add(time);
-        // Sort ascending
         java.util.Collections.sort(sessionBests);
-        // Keep only top 3
-        while (sessionBests.size() > 3) {
-            sessionBests.remove(sessionBests.size() - 1);
-        }
+        while (sessionBests.size() > 3) sessionBests.remove(sessionBests.size() - 1);
     }
 
-    public List<Long> getSessionBests() {
-        return sessionBests;
-    }
-
-    // --- Getters/Setters ---
+    public List<Long> getSessionBests() { return sessionBests; }
 
     public UUID getPlayerUuid() { return playerUuid; }
     public String getMapName() { return mapName; }

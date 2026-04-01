@@ -10,9 +10,10 @@ import java.util.UUID;
  * Flow:
  * 1. SELECTING_ISLAND  - Left/right-click blaze rod to set island pos1/pos2
  * 2. SELECTING_SPAWN   - Right-click blaze rod to set spawn point
- * 3. SELECTING_FINISH  - Left/right-click blaze rod to set finish zone
- * 4. AWAITING_FINALIZE - Type /map setup finish to save template
- * 5. AWAITING_NAME     - Type /map setup name <name> to complete
+ * 3. SELECTING_NPC     - Right-click blaze rod to set NPC location
+ * 4. SELECTING_HOLOGRAM - Right-click blaze rod to set hologram location
+ * 5. SELECTING_FINISH  - Left/right-click blaze rod to set finish zone
+ * 6. AWAITING_NAME     - Type /map setup name <name> to complete
  */
 public class SetupSession {
 
@@ -20,6 +21,7 @@ public class SetupSession {
         SELECTING_ISLAND,
         SELECTING_SPAWN,
         SELECTING_NPC,
+        SELECTING_HOLOGRAM,
         SELECTING_FINISH,
         AWAITING_NAME
     }
@@ -40,6 +42,9 @@ public class SetupSession {
     // NPC point (absolute world coordinates)
     private Location npcPoint;
 
+    // Hologram point (absolute world coordinates)
+    private Location hologramPoint;
+
     // Finish zone (absolute world coordinates)
     private Location finishPos1;
     private Location finishPos2;
@@ -52,10 +57,6 @@ public class SetupSession {
 
     // --- State transitions ---
 
-    /**
-     * Attempt to advance from SELECTING_ISLAND to SELECTING_SPAWN.
-     * Requires both island positions to be set.
-     */
     public boolean advanceToSpawn() {
         if (state != State.SELECTING_ISLAND) return false;
         if (islandPos1 == null || islandPos2 == null) return false;
@@ -63,10 +64,6 @@ public class SetupSession {
         return true;
     }
 
-    /**
-     * Attempt to advance from SELECTING_SPAWN to SELECTING_NPC.
-     * Requires spawn point to be set.
-     */
     public boolean advanceToNpc() {
         if (state != State.SELECTING_SPAWN) return false;
         if (spawnPoint == null) return false;
@@ -74,21 +71,20 @@ public class SetupSession {
         return true;
     }
 
-    /**
-     * Attempt to advance from SELECTING_NPC to SELECTING_FINISH.
-     * Requires NPC point to be set.
-     */
-    public boolean advanceToFinish() {
+    public boolean advanceToHologram() {
         if (state != State.SELECTING_NPC) return false;
         if (npcPoint == null) return false;
+        state = State.SELECTING_HOLOGRAM;
+        return true;
+    }
+
+    public boolean advanceToFinish() {
+        if (state != State.SELECTING_HOLOGRAM) return false;
+        if (hologramPoint == null) return false;
         state = State.SELECTING_FINISH;
         return true;
     }
 
-    /**
-     * Attempt to finalize: advance from SELECTING_FINISH to AWAITING_NAME.
-     * Requires both finish zone positions to be set.
-     */
     public boolean finalize_() {
         if (state != State.SELECTING_FINISH) return false;
         if (finishPos1 == null || finishPos2 == null) return false;
@@ -96,9 +92,6 @@ public class SetupSession {
         return true;
     }
 
-    /**
-     * Check if the current step can advance via /map setup continue.
-     */
     public boolean canContinue() {
         switch (state) {
             case SELECTING_ISLAND:
@@ -107,23 +100,19 @@ public class SetupSession {
                 return spawnPoint != null;
             case SELECTING_NPC:
                 return npcPoint != null;
+            case SELECTING_HOLOGRAM:
+                return hologramPoint != null;
             default:
                 return false;
         }
     }
 
-    /**
-     * Check if the setup can be finalized via /map setup finish.
-     */
     public boolean canFinalize() {
         return state == State.SELECTING_FINISH && finishPos1 != null && finishPos2 != null;
     }
 
     // --- Computed values ---
 
-    /**
-     * Get the normalized min corner of the island selection.
-     */
     public Location getIslandMin() {
         if (islandPos1 == null || islandPos2 == null) return null;
         return new Location(islandPos1.getWorld(),
@@ -132,9 +121,6 @@ public class SetupSession {
                 Math.min(islandPos1.getBlockZ(), islandPos2.getBlockZ()));
     }
 
-    /**
-     * Get the normalized max corner of the island selection.
-     */
     public Location getIslandMax() {
         if (islandPos1 == null || islandPos2 == null) return null;
         return new Location(islandPos1.getWorld(),
@@ -144,29 +130,23 @@ public class SetupSession {
     }
 
     public int getIslandWidth() {
-        Location min = getIslandMin();
-        Location max = getIslandMax();
+        Location min = getIslandMin(); Location max = getIslandMax();
         if (min == null || max == null) return 0;
         return max.getBlockX() - min.getBlockX() + 1;
     }
 
     public int getIslandHeight() {
-        Location min = getIslandMin();
-        Location max = getIslandMax();
+        Location min = getIslandMin(); Location max = getIslandMax();
         if (min == null || max == null) return 0;
         return max.getBlockY() - min.getBlockY() + 1;
     }
 
     public int getIslandLength() {
-        Location min = getIslandMin();
-        Location max = getIslandMax();
+        Location min = getIslandMin(); Location max = getIslandMax();
         if (min == null || max == null) return 0;
         return max.getBlockZ() - min.getBlockZ() + 1;
     }
 
-    /**
-     * Get the spawn offset relative to the island min corner.
-     */
     public double getSpawnOffsetX() {
         if (spawnPoint == null || getIslandMin() == null) return 0;
         return spawnPoint.getX() - getIslandMin().getBlockX();
@@ -182,9 +162,36 @@ public class SetupSession {
         return spawnPoint.getZ() - getIslandMin().getBlockZ();
     }
 
-    /**
-     * Get the normalized finish zone min, relative to island min corner.
-     */
+    public double getNpcOffsetX() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getX() - getIslandMin().getBlockX();
+    }
+
+    public double getNpcOffsetY() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getY() - getIslandMin().getBlockY();
+    }
+
+    public double getNpcOffsetZ() {
+        if (npcPoint == null || getIslandMin() == null) return 0;
+        return npcPoint.getZ() - getIslandMin().getBlockZ();
+    }
+
+    public double getHologramOffsetX() {
+        if (hologramPoint == null || getIslandMin() == null) return 0;
+        return hologramPoint.getX() - getIslandMin().getBlockX();
+    }
+
+    public double getHologramOffsetY() {
+        if (hologramPoint == null || getIslandMin() == null) return 0;
+        return hologramPoint.getY() - getIslandMin().getBlockY();
+    }
+
+    public double getHologramOffsetZ() {
+        if (hologramPoint == null || getIslandMin() == null) return 0;
+        return hologramPoint.getZ() - getIslandMin().getBlockZ();
+    }
+
     public int getFinishMinX() {
         if (finishPos1 == null || finishPos2 == null || getIslandMin() == null) return 0;
         return Math.min(finishPos1.getBlockX(), finishPos2.getBlockX()) - getIslandMin().getBlockX();
@@ -221,24 +228,6 @@ public class SetupSession {
     public State getState() { return state; }
     public Location getSetupOrigin() { return setupOrigin; }
 
-    /**
-     * Get the NPC offset relative to the island min corner.
-     */
-    public double getNpcOffsetX() {
-        if (npcPoint == null || getIslandMin() == null) return 0;
-        return npcPoint.getX() - getIslandMin().getBlockX();
-    }
-
-    public double getNpcOffsetY() {
-        if (npcPoint == null || getIslandMin() == null) return 0;
-        return npcPoint.getY() - getIslandMin().getBlockY();
-    }
-
-    public double getNpcOffsetZ() {
-        if (npcPoint == null || getIslandMin() == null) return 0;
-        return npcPoint.getZ() - getIslandMin().getBlockZ();
-    }
-
     public Location getIslandPos1() { return islandPos1; }
     public void setIslandPos1(Location pos) { this.islandPos1 = pos; }
 
@@ -250,6 +239,9 @@ public class SetupSession {
 
     public Location getNpcPoint() { return npcPoint; }
     public void setNpcPoint(Location pos) { this.npcPoint = pos; }
+
+    public Location getHologramPoint() { return hologramPoint; }
+    public void setHologramPoint(Location pos) { this.hologramPoint = pos; }
 
     public Location getFinishPos1() { return finishPos1; }
     public void setFinishPos1(Location pos) { this.finishPos1 = pos; }

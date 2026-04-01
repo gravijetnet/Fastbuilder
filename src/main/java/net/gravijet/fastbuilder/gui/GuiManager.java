@@ -21,10 +21,13 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -50,6 +53,12 @@ public class GuiManager implements Listener {
 
     // Track replays currently displayed in the GUI for click handling
     private final Map<UUID, List<ReplayData>> displayedReplays = new HashMap<>();
+
+    // Track whether a player is viewing the favorites tab
+    private final Map<UUID, Boolean> replayFavoritesMode = new HashMap<>();
+
+    // Track the map name for the current replay GUI (needed for tab switching)
+    private final Map<UUID, String> replayGuiMap = new HashMap<>();
 
     public GuiManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -316,18 +325,47 @@ public class GuiManager implements Listener {
 
     // ===== Replay Selector =====
 
-    public void openReplaySelector(Player player, String mapName) {
+    /**
+     * Open the replay selector.
+     * @param showFavorites true to show only favorited replays + PB; false for all replays
+     */
+    public void openReplaySelector(Player player, String mapName, boolean showFavorites) {
         if (plugin.getReplayManager() == null) {
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cReplay system is not available."));
             return;
         }
 
-        List<ReplayData> replays = plugin.getReplayManager().getPlayerReplays(player.getUniqueId(), mapName);
-        int page = 1;
-        openReplayPage(player, replays, page);
+        List<ReplayData> allReplays = plugin.getReplayManager().getPlayerReplays(player.getUniqueId(), mapName);
+
+        List<ReplayData> replays;
+        if (showFavorites) {
+            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            Set<String> favs = pData != null ? pData.getFavoriteReplays() : Collections.emptySet();
+            // Find PB file name
+            long pbTime = Long.MAX_VALUE;
+            for (ReplayData rd : allReplays) {
+                if (rd.isSuccessful() && rd.getRunTimeMillis() > 0 && rd.getRunTimeMillis() < pbTime) {
+                    pbTime = rd.getRunTimeMillis();
+                }
+            }
+            final long finalPb = pbTime;
+            replays = new ArrayList<>();
+            for (ReplayData rd : allReplays) {
+                boolean isFav = favs.contains(rd.getFileName());
+                boolean isPb  = rd.isSuccessful() && rd.getRunTimeMillis() == finalPb;
+                if (isFav || isPb) replays.add(rd);
+            }
+        } else {
+            replays = allReplays;
+        }
+
+        replayFavoritesMode.put(player.getUniqueId(), showFavorites);
+        replayGuiMap.put(player.getUniqueId(), mapName);
+        openReplayPage(player, replays, 1, showFavorites, mapName);
     }
 
-    private void openReplayPage(Player player, List<ReplayData> replays, int page) {
+    private void openReplayPage(Player player, List<ReplayData> replays, int page,
+                                boolean favoritesMode, String mapName) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         int itemsPerPage = 28; // 4 rows of 7 content slots (bordered)
         int maxPage = Math.max(1, (int) Math.ceil(replays.size() / (double) itemsPerPage));
@@ -339,16 +377,26 @@ public class GuiManager implements Listener {
 
         Inventory inv = Bukkit.createInventory(null, 54, title);
 
+        // Gather player favorites and PB for display
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        Set<String> favorites = pData != null ? pData.getFavoriteReplays() : Collections.<String>emptySet();
+        long pbTime = Long.MAX_VALUE;
+        for (ReplayData rd : replays) {
+            if (rd.isSuccessful() && rd.getRunTimeMillis() > 0 && rd.getRunTimeMillis() < pbTime) {
+                pbTime = rd.getRunTimeMillis();
+            }
+        }
+
         // Fill border with gray glass panes
         ItemStack border = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
-        for (int i = 0; i < 9; i++) inv.setItem(i, border);       // top row
-        for (int i = 45; i < 54; i++) inv.setItem(i, border);     // bottom row
-        for (int row = 1; row <= 4; row++) {                       // left/right columns
+        for (int i = 0; i < 9; i++) inv.setItem(i, border);
+        for (int i = 45; i < 54; i++) inv.setItem(i, border);
+        for (int row = 1; row <= 4; row++) {
             inv.setItem(row * 9, border);
             inv.setItem(row * 9 + 8, border);
         }
 
-        // Content slots: columns 1-7 (indices 1-7) in rows 1-4
+        // Content slots: columns 1-7 in rows 1-4
         int[] contentSlots = new int[28];
         int ci = 0;
         for (int row = 1; row <= 4; row++) {
@@ -364,20 +412,37 @@ public class GuiManager implements Listener {
             ReplayData replay = replays.get(i);
             int slot = contentSlots[i - startIndex];
 
-            Material icon = replay.isSuccessful() ? Material.EMERALD : Material.REDSTONE;
+            boolean isFav = favorites.contains(replay.getFileName());
+            boolean isPb  = replay.isSuccessful() && replay.getRunTimeMillis() > 0
+                            && replay.getRunTimeMillis() == pbTime;
+
+            Material icon;
+            if (isPb) {
+                icon = Material.NETHER_STAR;
+            } else if (isFav) {
+                icon = Material.GOLD_INGOT;
+            } else {
+                icon = replay.isSuccessful() ? Material.EMERALD : Material.REDSTONE;
+            }
+
             String status = replay.isSuccessful() ? "&aSuccessful" : "&cFailed";
             String time = replay.getRunTimeMillis() > 0
                     ? TimeUtil.formatTime(replay.getRunTimeMillis()) : "N/A";
+            String favLine = isFav ? "&6Favorited &e(Right-click to remove)" : "&7Right-click to favorite";
+            String pbLine  = isPb  ? "&6&lPersonal Best" : "";
+
+            java.util.List<String> loreList = new java.util.ArrayList<>();
+            loreList.add(ColorUtil.translate(status));
+            loreList.add(ColorUtil.translate("&7Time: &f" + time));
+            loreList.add(ColorUtil.translate("&7Map: &f" + replay.getMapName()));
+            if (!pbLine.isEmpty()) loreList.add(ColorUtil.translate(pbLine));
+            loreList.add("");
+            loreList.add(ColorUtil.translate("&eLeft-click to watch"));
+            loreList.add(ColorUtil.translate(favLine));
 
             ItemStack item = new ItemBuilder(icon)
                     .name("&f" + ReplayManager.formatTimestamp(replay.getTimestamp()))
-                    .lore(
-                            status,
-                            "&7Time: &f" + time,
-                            "&7Map: &f" + replay.getMapName(),
-                            "",
-                            "&eClick to watch"
-                    )
+                    .lore(loreList.toArray(new String[0]))
                     .build();
 
             inv.setItem(slot, item);
@@ -392,6 +457,17 @@ public class GuiManager implements Listener {
         }
         inv.setItem(49, new ItemBuilder(Material.PAPER)
                 .name("&7Page &f" + page + " &7/ &f" + maxPage).build());
+
+        // Favorites tab toggle button
+        if (favoritesMode) {
+            inv.setItem(47, new ItemBuilder(Material.GOLD_INGOT)
+                    .name("&6Favorites &7(viewing)")
+                    .lore("&7Click to view all replays").build());
+        } else {
+            inv.setItem(47, new ItemBuilder(Material.GOLD_INGOT)
+                    .name("&7Favorites")
+                    .lore("&7Click to view favorited replays").build());
+        }
 
         replayPages.put(player.getUniqueId(), page);
         displayedReplays.put(player.getUniqueId(), replays);
@@ -724,20 +800,29 @@ public class GuiManager implements Listener {
         List<ReplayData> replays = displayedReplays.get(player.getUniqueId());
         if (replays == null) return;
 
+        boolean favMode = Boolean.TRUE.equals(replayFavoritesMode.get(player.getUniqueId()));
+        String mapName  = replayGuiMap.getOrDefault(player.getUniqueId(), "");
+
         int itemsPerPage = 28;
         int maxPage = Math.max(1, (int) Math.ceil(replays.size() / (double) itemsPerPage));
 
-        // Navigation
+        // Previous page
         if (slot == 45 && currentPage > 1) {
-            openReplayPage(player, replays, currentPage - 1);
+            openReplayPage(player, replays, currentPage - 1, favMode, mapName);
             return;
         }
+        // Next page
         if (slot == 53 && currentPage < maxPage) {
-            openReplayPage(player, replays, currentPage + 1);
+            openReplayPage(player, replays, currentPage + 1, favMode, mapName);
+            return;
+        }
+        // Favorites tab toggle
+        if (slot == 47) {
+            openReplaySelector(player, mapName, !favMode);
             return;
         }
 
-        // Map slot to content index
+        // Map slot → content index
         int[] contentSlots = new int[28];
         int ci = 0;
         for (int row = 1; row <= 4; row++) {
@@ -759,12 +844,28 @@ public class GuiManager implements Listener {
         if (replayIndex < 0 || replayIndex >= replays.size()) return;
 
         ReplayData replay = replays.get(replayIndex);
-        player.closeInventory();
 
-        if (plugin.getReplayManager() != null) {
-            plugin.getReplayManager().startPlayback(player, replay);
+        boolean isRightClick = event.getClick() == org.bukkit.event.inventory.ClickType.RIGHT;
+
+        if (isRightClick) {
+            // Toggle favorite
+            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (pData == null) return;
+            boolean wasFav = pData.isFavoriteReplay(replay.getFileName());
+            pData.toggleFavoriteReplay(replay.getFileName());
+            boolean nowFav = !wasFav;
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                    + "&fStarting replay..."));
+                    + (nowFav ? "&aAdded to favorites." : "&7Removed from favorites.")));
+            // Refresh current view
+            openReplayPage(player, replays, currentPage, favMode, mapName);
+        } else {
+            // Left-click: watch
+            player.closeInventory();
+            if (plugin.getReplayManager() != null) {
+                plugin.getReplayManager().startPlayback(player, replay);
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        + "&fStarting replay..."));
+            }
         }
     }
 }

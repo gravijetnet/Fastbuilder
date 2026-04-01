@@ -1,7 +1,6 @@
 package net.gravijet.fastbuilder.gameplay;
 
 import net.gravijet.fastbuilder.FastBuilder;
-import net.gravijet.fastbuilder.map.GridCalculator;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
@@ -21,6 +20,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -31,20 +31,16 @@ public class GameplayManager {
     private final FastBuilder plugin;
     private final Map<UUID, RunSession> activeSessions = new HashMap<>();
 
-    // Actionbar update task id
+    private static final int PRACTICE_BLOCK_ID = 159; // STAINED_CLAY
+    private static final byte PRACTICE_BLOCK_DATA = 5; // Lime
+
     private int actionbarTaskId = -1;
-    // Boundary check task id
-    private int boundaryTaskId = -1;
 
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
         startActionbarTask();
-        startBoundaryCheckTask();
     }
 
-    /**
-     * Create a new run session for a player on an island.
-     */
     public RunSession createSession(UUID uuid, String mapName, int islandIndex) {
         RunSession session = new RunSession(uuid, mapName, islandIndex);
         activeSessions.put(uuid, session);
@@ -61,35 +57,43 @@ public class GameplayManager {
 
     /**
      * Called when a player places a block. Starts the timer if not already running.
+     * Detects practice blocks by material (STAINED_CLAY:5 = lime).
      */
+    @SuppressWarnings("deprecation")
     public void onBlockPlace(Player player, Block block) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
         if (session.isFinished()) {
-            // Auto-reset for new attempt
             resetRun(player);
             session = activeSessions.get(player.getUniqueId());
             if (session == null) return;
         }
 
         if (!session.isRunning()) {
+            // Block the timer start if there are un-cleared practice blocks
+            if (!session.isPracticeMode() && session.hasPracticeBlocks()) {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        + "&cClear your practice blocks before starting a real run."));
+                return;
+            }
             session.start();
-
-            // Start replay recording if replay manager exists
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().startRecording(player, session.getMapName(), session.getIslandIndex());
             }
         }
 
-        session.addPlacedBlock(block.getLocation());
+        // Determine if this is a practice block by material
+        boolean isPractice = session.isPracticeMode()
+                && block.getTypeId() == PRACTICE_BLOCK_ID
+                && block.getData() == PRACTICE_BLOCK_DATA;
 
-        // Auto-refill blocks if perk is active
+        session.addPlacedBlock(block.getLocation(), isPractice);
+
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().checkAutoRefill(player);
         }
 
-        // Record block placement for replay
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().recordBlockPlace(player.getUniqueId(),
                     block.getLocation(), block.getTypeId(), block.getData());
@@ -105,7 +109,6 @@ public class GameplayManager {
 
         long time = session.finish();
 
-        // Stop replay recording
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().stopRecording(player.getUniqueId(), true);
         }
@@ -113,25 +116,19 @@ public class GameplayManager {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        // Add session best
         session.addSessionBest(time);
 
         if (!session.isPracticeMode()) {
-            // Update stats
             PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
             stats.totalAttempts++;
             stats.successfulAttempts++;
 
             boolean isNewPB = !stats.hasBestTime() || time < stats.bestTime;
             long oldBest = stats.bestTime;
-            if (isNewPB) {
-                stats.bestTime = time;
-            }
+            if (isNewPB) stats.bestTime = time;
 
-            // Award coins
             int coins = plugin.getCoinManager().awardCompletionCoins(player, time);
 
-            // Send messages
             String prefix = plugin.getConfigManager().getPrefix();
             if (isNewPB) {
                 List<String> messages = plugin.getConfigManager().getEndPBMessages();
@@ -154,7 +151,6 @@ public class GameplayManager {
                 }
             }
 
-            // Send title
             String title = plugin.getConfigManager().getTitle();
             String subtitle = plugin.getConfigManager().getSubtitle();
             if (title != null && !title.isEmpty()) {
@@ -165,66 +161,97 @@ public class GameplayManager {
                 player.sendTitle(ColorUtil.translate(title), ColorUtil.translate(subtitle));
             }
 
-            // Update hologram
             if (plugin.getHologramManager() != null) {
-                plugin.getHologramManager().updateHologram(
-                        session.getMapName(), session.getIslandIndex(), player);
+                plugin.getHologramManager().updateHologram(session.getMapName(), session.getIslandIndex(), player);
             }
-        }
-
-        if (session.isPracticeMode()) {
-            // Show time as title but don't save stats
+        } else {
             String practiceTitle = "&6&lPractice: &f" + TimeUtil.formatTime(time);
             player.sendTitle(ColorUtil.translate(practiceTitle), ColorUtil.translate("&7Time not saved"));
         }
 
-        // Play success sound + launch firework
-        player.playSound(player.getLocation(), Sound.LEVEL_UP, 1.0f, 1.0f);
-        launchFirework(player.getLocation());
+        // Massive celebration
+        launchCelebration(player.getLocation());
 
-        // Update scoreboard
         plugin.getScoreboardManager().updateScoreboard(player);
 
-        // Wait 2 seconds, then reset and teleport to start
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (player.isOnline()) {
-                    resetRun(player);
-                }
+                if (player.isOnline()) resetRun(player);
             }
-        }.runTaskLater(plugin, 40L); // 40 ticks = 2 seconds
+        }.runTaskLater(plugin, 40L);
     }
 
     /**
-     * Launch a celebration firework at the given location.
+     * Launch a massive firework celebration with intense sounds.
      */
-    private void launchFirework(Location location) {
+    private void launchCelebration(final Location location) {
+        final Random rand = new Random();
+
+        // Intense sounds immediately
+        try { location.getWorld().playSound(location, Sound.FIREWORK_BLAST, 2.0f, 1.0f); } catch (Exception ignored) {}
+        try { location.getWorld().playSound(location, Sound.LEVEL_UP, 1.5f, 0.8f); } catch (Exception ignored) {}
+        try { location.getWorld().playSound(location, Sound.GHAST_FIREBALL, 1.5f, 1.2f); } catch (Exception ignored) {}
+        try { location.getWorld().playSound(location, Sound.WITHER_DEATH, 0.8f, 2.0f); } catch (Exception ignored) {}
+
+        // Launch 8 fireworks spread over ~3 seconds
+        for (int wave = 0; wave < 8; wave++) {
+            final int delay = wave * 7; // ~0.35s between waves
+            Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                @Override
+                public void run() {
+                    // Center firework
+                    spawnFirework(location, rand);
+                    // Two offset fireworks per wave
+                    Location off1 = location.clone().add(
+                            (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
+                    Location off2 = location.clone().add(
+                            (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
+                    spawnFirework(off1, rand);
+                    spawnFirework(off2, rand);
+                    // Extra sound on later waves
+                    if (delay > 14) {
+                        try { location.getWorld().playSound(location, Sound.FIREWORK_BLAST, 1.5f, 1.0f + rand.nextFloat() * 0.5f); }
+                        catch (Exception ignored) {}
+                    }
+                }
+            }, delay);
+        }
+    }
+
+    private void spawnFirework(Location location, Random rand) {
         try {
             Firework fw = location.getWorld().spawn(location, Firework.class);
             FireworkMeta meta = fw.getFireworkMeta();
+            Color[] colors = {Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.AQUA, Color.BLUE, Color.PURPLE, Color.WHITE};
+            Color primary = colors[rand.nextInt(colors.length)];
+            Color fade = colors[rand.nextInt(colors.length)];
+            FireworkEffect.Type[] types = {
+                FireworkEffect.Type.BALL_LARGE,
+                FireworkEffect.Type.BALL,
+                FireworkEffect.Type.STAR,
+                FireworkEffect.Type.BURST
+            };
             meta.addEffect(FireworkEffect.builder()
-                    .withColor(Color.RED, Color.ORANGE, Color.YELLOW)
-                    .withFade(Color.WHITE)
-                    .with(FireworkEffect.Type.BALL_LARGE)
+                    .withColor(primary, Color.WHITE)
+                    .withFade(fade)
+                    .with(types[rand.nextInt(types.length)])
                     .flicker(true)
                     .trail(true)
                     .build());
-            meta.setPower(1);
+            meta.setPower(1 + rand.nextInt(2));
             fw.setFireworkMeta(meta);
         } catch (Exception ignored) {}
     }
 
     /**
-     * Called when a player falls off (Y < island Y - maxDistance).
+     * Called when a player falls off their island.
      */
     public void onFall(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
-        // Count as failed attempt if run was active
         if (session.isRunning()) {
-            // Stop replay recording as failed
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
             }
@@ -238,12 +265,12 @@ public class GameplayManager {
             }
         }
 
-        // Reset the run
         resetRun(player);
     }
 
     /**
-     * Reset a player's current run: clear placed blocks, re-paste island, teleport to spawn.
+     * Reset a player's current run: clear placed blocks (keep practice blocks),
+     * teleport to spawn.
      */
     public void resetRun(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
@@ -252,45 +279,50 @@ public class GameplayManager {
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
-        // Remove placed blocks (set to air)
-        // In practice mode, keep practice blocks on the map
+        // Clear regular blocks; keep practice blocks if in practice mode
         for (Location loc : session.getPlacedBlocks()) {
+            // In practice mode, keep practice-specific blocks
             if (session.isPracticeMode() && session.getPracticeBlocks().contains(loc)) {
-                continue; // Keep practice blocks
+                continue;
             }
             Block block = loc.getBlock();
-            if (block != null) {
-                block.setType(Material.AIR);
-            }
+            if (block != null) block.setType(Material.AIR);
         }
 
-        // Keep session bests across resets
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
 
-        // Reset session
         session.reset();
-        // Restore session bests
-        for (Long best : bests) {
-            session.addSessionBest(best);
-        }
+
+        for (Long best : bests) session.addSessionBest(best);
         session.setPracticeMode(practice);
 
-        // Teleport to spawn
         player.teleport(map.getIslandSpawn(session.getIslandIndex()));
 
-        // Restore hotbar items after reset
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
         }
 
-        // Update scoreboard
         plugin.getScoreboardManager().updateScoreboard(player);
     }
 
     /**
-     * Periodic actionbar update showing live timer.
+     * Clear ALL placed blocks for a player unconditionally (used on disconnect).
      */
+    public void clearAllPlacedBlocks(UUID uuid) {
+        RunSession session = activeSessions.get(uuid);
+        if (session == null) return;
+
+        for (Location loc : session.getPlacedBlocks()) {
+            Block block = loc.getBlock();
+            if (block != null) block.setType(Material.AIR);
+        }
+        for (Location loc : session.getPracticeBlocks()) {
+            Block block = loc.getBlock();
+            if (block != null) block.setType(Material.AIR);
+        }
+    }
+
     private void startActionbarTask() {
         String actionBarFormat = plugin.getConfigManager().getActionBar();
         if (actionBarFormat == null || actionBarFormat.isEmpty()) return;
@@ -298,14 +330,13 @@ public class GameplayManager {
         actionbarTaskId = new BukkitRunnable() {
             @Override
             public void run() {
-                for (Map.Entry<UUID, RunSession> entry : activeSessions.entrySet()) {
+                for (Map.Entry<UUID, RunSession> entry : new HashMap<>(activeSessions).entrySet()) {
                     Player player = Bukkit.getPlayer(entry.getKey());
                     if (player == null || !player.isOnline()) continue;
 
                     RunSession session = entry.getValue();
                     String timer = session.isRunning()
-                            ? TimeUtil.formatTime(session.getElapsed())
-                            : "00:00.000";
+                            ? TimeUtil.formatTime(session.getElapsed()) : "00:00.000";
 
                     String msg = actionBarFormat.replace("%timer%", timer);
                     sendActionBar(player, ColorUtil.translate(msg));
@@ -314,19 +345,9 @@ public class GameplayManager {
         }.runTaskTimer(plugin, 1L, 1L).getTaskId();
     }
 
-    /**
-     * Boundary check is now handled by ProtectionListener.onMove().
-     * This task is kept as a safety net for edge cases (e.g. plugin reload).
-     */
-    private void startBoundaryCheckTask() {
-        // No-op: boundary enforcement moved to ProtectionListener for per-tick accuracy
-        boundaryTaskId = -1;
-    }
-
     @SuppressWarnings("deprecation")
     private void sendActionBar(Player player, String message) {
         try {
-            // Use NMS for 1.8.8 actionbar
             Object packet = getNMSClass("PacketPlayOutChat")
                     .getConstructor(getNMSClass("IChatBaseComponent"), byte.class)
                     .newInstance(
@@ -339,9 +360,7 @@ public class GameplayManager {
             Object playerConnection = handle.getClass().getField("playerConnection").get(handle);
             playerConnection.getClass().getMethod("sendPacket", getNMSClass("Packet"))
                     .invoke(playerConnection, packet);
-        } catch (Exception ignored) {
-            // Fallback: no actionbar on failure
-        }
+        } catch (Exception ignored) {}
     }
 
     private Class<?> getNMSClass(String name) throws ClassNotFoundException {
@@ -350,16 +369,9 @@ public class GameplayManager {
     }
 
     public void shutdown() {
-        if (actionbarTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(actionbarTaskId);
-        }
-        if (boundaryTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(boundaryTaskId);
-        }
+        if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
         activeSessions.clear();
     }
 
-    public Map<UUID, RunSession> getActiveSessions() {
-        return activeSessions;
-    }
+    public Map<UUID, RunSession> getActiveSessions() { return activeSessions; }
 }
