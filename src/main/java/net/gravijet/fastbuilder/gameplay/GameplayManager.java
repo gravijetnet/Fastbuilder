@@ -36,6 +36,9 @@ public class GameplayManager {
 
     private int actionbarTaskId = -1;
 
+    private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
+    private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
+
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
         startActionbarTask();
@@ -60,7 +63,7 @@ public class GameplayManager {
      * Detects practice blocks by material (STAINED_CLAY:5 = lime).
      */
     @SuppressWarnings("deprecation")
-    public void onBlockPlace(Player player, Block block) {
+    public void onBlockPlace(Player player, Block block, org.bukkit.block.BlockState replacedState) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
@@ -88,7 +91,9 @@ public class GameplayManager {
                 && block.getTypeId() == PRACTICE_BLOCK_ID
                 && block.getData() == PRACTICE_BLOCK_DATA;
 
-        session.addPlacedBlock(block.getLocation(), isPractice);
+        int origTypeId = replacedState != null ? replacedState.getTypeId() : 0;
+        byte origData = replacedState != null ? replacedState.getRawData() : (byte) 0;
+        session.addPlacedBlock(block.getLocation(), isPractice, origTypeId, origData);
 
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().checkAutoRefill(player);
@@ -104,8 +109,15 @@ public class GameplayManager {
      * Called when a player steps on a pressure plate in the finish zone.
      */
     public void onFinish(Player player) {
-        RunSession session = activeSessions.get(player.getUniqueId());
-        if (session == null || !session.isRunning() || session.isFinished()) return;
+        UUID uuid = player.getUniqueId();
+        if (finishCooldown.contains(uuid)) return;
+        finishCooldown.add(uuid);
+
+        RunSession session = activeSessions.get(uuid);
+        if (session == null || !session.isRunning() || session.isFinished()) {
+            finishCooldown.remove(uuid);
+            return;
+        }
 
         long time = session.finish();
 
@@ -177,6 +189,7 @@ public class GameplayManager {
         new BukkitRunnable() {
             @Override
             public void run() {
+                finishCooldown.remove(uuid);
                 if (player.isOnline()) resetRun(player);
             }
         }.runTaskLater(plugin, 40L);
@@ -279,15 +292,10 @@ public class GameplayManager {
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
-        // Clear regular blocks; keep practice blocks if in practice mode
-        for (Location loc : session.getPlacedBlocks()) {
-            // In practice mode, keep practice-specific blocks
-            if (session.isPracticeMode() && session.getPracticeBlocks().contains(loc)) {
-                continue;
-            }
-            Block block = loc.getBlock();
-            if (block != null) block.setType(Material.AIR);
-        }
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
+
+        clearBlocksWithAnimation(player, session.getPlacedBlocks(), session.getPracticeBlocks(), session, animation);
 
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
@@ -304,6 +312,61 @@ public class GameplayManager {
         }
 
         plugin.getScoreboardManager().updateScoreboard(player);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void clearBlocksWithAnimation(Player player, java.util.List<Location> blocks,
+                                           java.util.List<Location> practiceBlocks,
+                                           RunSession session, String animation) {
+        if ("SLIDE_DOWN".equalsIgnoreCase(animation)) {
+            java.util.List<Location> toClear = new java.util.ArrayList<>();
+            for (Location loc : blocks) {
+                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                toClear.add(loc);
+            }
+            toClear.sort((a, b) -> b.getBlockY() - a.getBlockY());
+            final int[] idx = {0};
+            new org.bukkit.scheduler.BukkitRunnable() {
+                @Override
+                public void run() {
+                    int batch = 3;
+                    for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                        Location loc = toClear.get(idx[0]);
+                        Block block = loc.getBlock();
+                        if (block != null) {
+                            int[] orig = session.getOriginalBlockState(loc);
+                            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                            else block.setType(Material.AIR);
+                        }
+                    }
+                    if (idx[0] >= toClear.size()) this.cancel();
+                }
+            }.runTaskTimer(plugin, 0L, 1L);
+        } else if ("EXPLODE".equalsIgnoreCase(animation)) {
+            for (Location loc : blocks) {
+                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                try {
+                    loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, loc.getBlock().getTypeId());
+                } catch (Exception ignored) {}
+                Block block = loc.getBlock();
+                if (block != null) {
+                    int[] orig = session.getOriginalBlockState(loc);
+                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                    else block.setType(Material.AIR);
+                }
+            }
+        } else {
+            // NONE: instant clear
+            for (Location loc : blocks) {
+                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                Block block = loc.getBlock();
+                if (block != null) {
+                    int[] orig = session.getOriginalBlockState(loc);
+                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                    else block.setType(Material.AIR);
+                }
+            }
+        }
     }
 
     /**
@@ -368,9 +431,15 @@ public class GameplayManager {
         return Class.forName("net.minecraft.server." + version + "." + name);
     }
 
+    public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }
+    public void exitBuildMode(UUID uuid) { buildModePlayers.remove(uuid); }
+    public boolean isInBuildMode(UUID uuid) { return buildModePlayers.contains(uuid); }
+
     public void shutdown() {
         if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
         activeSessions.clear();
+        finishCooldown.clear();
+        buildModePlayers.clear();
     }
 
     public Map<UUID, RunSession> getActiveSessions() { return activeSessions; }

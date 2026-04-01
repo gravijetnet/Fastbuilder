@@ -30,6 +30,7 @@ public class HotbarManager implements Listener {
     private static final int SLOT_BLOCK_2 = 1;
     private static final int SLOT_PICKAXE = 2;
     private static final int SLOT_PRACTICE_BLOCKS = 3;
+    private static final int SLOT_SHOP = 4;
 
     private static final int SLOT_REPLAY = 5;
     private static final int SLOT_ISLAND_SELECTOR = 6;
@@ -66,10 +67,10 @@ public class HotbarManager implements Listener {
             }
         }
 
-        // Slot 2: Diamond Pickaxe (unbreakable)
-        ItemStack pickaxe = new ItemBuilder(Material.DIAMOND_PICKAXE)
-                .name("&r&bPickaxe")
-                .build();
+        // Slot 2: Pickaxe (selected by player, unbreakable)
+        String pickaxeMat = (data != null && data.getSelectedPickaxe() != null && !data.getSelectedPickaxe().isEmpty())
+                ? data.getSelectedPickaxe() : "DIAMOND_PICKAXE:0";
+        ItemStack pickaxe = ItemBuilder.fromString(pickaxeMat).name("&r&bPickaxe").build();
         org.bukkit.inventory.meta.ItemMeta picMeta = pickaxe.getItemMeta();
         if (picMeta != null) {
             picMeta.spigot().setUnbreakable(true);
@@ -85,6 +86,11 @@ public class HotbarManager implements Listener {
                     .build();
             player.getInventory().setItem(SLOT_PRACTICE_BLOCKS, practiceStack);
         }
+
+        // Slot 4: Shop item
+        String shopName = items.getString("shop-item", "&6Shop &7(Right-Click to use)");
+        String shopMat = items.getString("shop-item-material", "GOLD_NUGGET:0");
+        player.getInventory().setItem(SLOT_SHOP, ItemBuilder.fromString(shopMat).name(shopName).build());
 
         // Slot 5: Replay item
         String replayName = items.getString("replay-item", "&5Replay View &7(Right-Click to use)");
@@ -173,6 +179,13 @@ public class HotbarManager implements Listener {
         if (displayName.equals(settingsName)) {
             event.setCancelled(true);
             plugin.getGuiManager().openSettings(player);
+            return;
+        }
+
+        String shopName = ColorUtil.translate(items.getString("shop-item", "&6Shop &7(Right-Click to use)"));
+        if (displayName.equals(shopName)) {
+            event.setCancelled(true);
+            plugin.getGuiManager().openShop(player);
             return;
         }
     }

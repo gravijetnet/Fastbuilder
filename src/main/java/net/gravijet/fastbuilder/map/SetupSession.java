@@ -28,6 +28,7 @@ public class SetupSession {
 
     private final UUID playerUuid;
     private State state;
+    private boolean forceSpawnLocation = false;
 
     // Map origin (where the admin was teleported)
     private Location setupOrigin;
@@ -227,6 +228,17 @@ public class SetupSession {
     public UUID getPlayerUuid() { return playerUuid; }
     public State getState() { return state; }
     public Location getSetupOrigin() { return setupOrigin; }
+
+    public boolean isForceSpawnLocation() { return forceSpawnLocation; }
+    public void setForceSpawnLocation(boolean f) { this.forceSpawnLocation = f; }
+
+    public boolean isSpawnFacingEast() {
+        if (spawnPoint == null) return false;
+        float y = spawnPoint.getYaw();
+        while (y > 180) y -= 360;
+        while (y < -180) y += 360;
+        return Math.abs(y - (-90f)) < 45f;
+    }
 
     public Location getIslandPos1() { return islandPos1; }
     public void setIslandPos1(Location pos) { this.islandPos1 = pos; }

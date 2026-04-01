@@ -114,7 +114,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         String sub = args[1].toLowerCase();
         switch (sub) {
             case "continue":
-                handleSetupContinue(player, mm);
+                handleSetupContinue(player, args, mm);
                 break;
             case "finish":
                 handleSetupFinish(player, mm);
@@ -170,7 +170,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         sendClickableContinue(player);
     }
 
-    private void handleSetupContinue(Player player, MapManager mm) {
+    private void handleSetupContinue(Player player, String[] args, MapManager mm) {
         SetupSession session = mm.getSetupSession(player.getUniqueId());
         if (session == null) {
             msgAdmin(player, "setup-no-session");
@@ -180,6 +180,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         if (!session.canContinue()) {
             msgAdmin(player, "setup-not-ready");
             return;
+        }
+
+        boolean forceSpawnLoc = false;
+        for (String a : args) {
+            if ("--force-spawn-location".equalsIgnoreCase(a)) {
+                forceSpawnLoc = true;
+                break;
+            }
         }
 
         String prefix = plugin.getConfigManager().getPrefix();
@@ -195,6 +203,12 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 sendClickableContinue(player);
                 break;
             case SELECTING_SPAWN:
+                if (!session.isSpawnFacingEast() && !forceSpawnLoc) {
+                    String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-not-east");
+                    if (raw == null || raw.isEmpty()) raw = prefix + "&cSpawn must face East. Use &f/map setup continue --force-spawn-location &cto bypass.";
+                    player.sendMessage(ColorUtil.translate(raw));
+                    return;
+                }
                 session.advanceToNpc();
                 player.sendMessage(ColorUtil.translate(prefix + "&aSpawn point saved!"));
                 player.sendMessage(ColorUtil.translate("&e&lStep 3: &fSet the NPC location."));
@@ -311,6 +325,29 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         String raw = plugin.getConfigManager().getAdminMessage("setup-complete");
         raw = raw.replace("%map%", name);
         player.sendMessage(ColorUtil.translate(raw));
+
+        // Restore player to Survival and return to their island
+        player.setGameMode(GameMode.SURVIVAL);
+        player.setAllowFlight(false);
+        player.setFlying(false);
+        player.getInventory().clear();
+        net.gravijet.fastbuilder.player.PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData != null && pData.getLastMap() != null) {
+            MapData pMap = mm.getMap(pData.getLastMap());
+            if (pMap != null && pMap.isEnabled()) {
+                int isl = pData.getLastIsland();
+                if (isl >= 0) {
+                    player.teleport(pMap.getIslandSpawn(isl));
+                    if (plugin.getGameplayManager() != null) plugin.getGameplayManager().createSession(player.getUniqueId(), pMap.getName(), isl);
+                    if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
+                    plugin.getScoreboardManager().createScoreboard(player);
+                    if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, pMap.getIslandNpcLocation(isl));
+                    if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(pMap.getName(), isl, player);
+                    return;
+                }
+            }
+        }
+        mm.relocatePlayer(player, "");
     }
 
     // --- /map setname <old> <new> ---
@@ -342,9 +379,10 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     // --- /map seticon <map> <MATERIAL:DATA> ---
 
+    @SuppressWarnings("deprecation")
     private void handleSetIcon(Player player, String[] args, MapManager mm) {
-        if (args.length < 3) {
-            msgAdmin(player, "usage", "%command%", "/map seticon <map> <MATERIAL:DATA>");
+        if (args.length < 2) {
+            msgAdmin(player, "usage", "%command%", "/map seticon <map> [MATERIAL:DATA]");
             return;
         }
 
@@ -354,7 +392,17 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        String icon = args[2].toUpperCase();
+        String icon;
+        if (args.length < 3) {
+            ItemStack held = player.getItemInHand();
+            if (held == null || held.getType() == Material.AIR) {
+                msgAdmin(player, "usage", "%command%", "/map seticon <map> [MATERIAL:DATA]");
+                return;
+            }
+            icon = held.getType().name() + ":" + held.getDurability();
+        } else {
+            icon = args[2].toUpperCase();
+        }
         // Validate material
         String matName = icon.contains(":") ? icon.split(":")[0] : icon;
         if (Material.matchMaterial(matName) == null) {
@@ -497,8 +545,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        // Actual applied distance is 1/3 of the specified value
-        int actualDistance = Math.max(1, blocks / 3);
+        int actualDistance = Math.max(1, blocks);
 
         int minDist = GridCalculator.getMinimumDistance(map.getIslandLength());
         if (!force && actualDistance < minDist) {
@@ -645,6 +692,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "setup":
                     if (args[1].equalsIgnoreCase("name")) {
                         return Collections.singletonList("<name>");
+                    }
+                    if (args[1].equalsIgnoreCase("continue")) {
+                        return filter(Collections.singletonList("--force-spawn-location"), args[2]);
                     }
                     return Collections.emptyList();
                 case "setname":

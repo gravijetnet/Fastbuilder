@@ -376,13 +376,13 @@ public class ReplaySession {
     }
 
     private void showReplayEndItems(Player player) {
-        player.getInventory().clear();
+        // Keep all existing control items, just update pause button and add Play Again
+        player.getInventory().setItem(SLOT_PAUSE, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
+                .name("&a&lReplay Finished").build());
         player.getInventory().setItem(SLOT_REPLAY_AGAIN, new ItemBuilder(Material.EMERALD)
-                .name("&a&lPlay Again").lore("&7Watch this replay from the start").build());
-        player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
-                .name("&c&lLeave Replay").lore("&7Click to return to your island").build());
+                .name("&a&lPlay Again").lore("&7Click to watch again").build());
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fReplay finished. &aPlay Again &7or &cLeave Replay&7."));
+                + "&fReplay finished. &aPlay Again &7(slot 8) or &cLeave Replay &7(slot 9)."));
     }
 
     public void updateControlItems() {
