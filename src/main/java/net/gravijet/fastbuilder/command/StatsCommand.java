@@ -1,7 +1,6 @@
 package net.gravijet.fastbuilder.command;
 
 import net.gravijet.fastbuilder.FastBuilder;
-import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import net.gravijet.fastbuilder.util.TimeUtil;
@@ -18,7 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * /stats <player> [map] - View player statistics.
+ * /stats [player] - View player statistics.
+ * Opens a GUI for in-game players; prints to chat for console.
  */
 public class StatsCommand implements CommandExecutor, TabCompleter {
 
@@ -31,14 +31,12 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         String targetName;
-        String mapFilter = args.length >= 2 ? args[1] : null;
 
         if (args.length < 1) {
-            // Show own stats if sender is a player
             if (!(sender instanceof Player)) {
                 String raw = plugin.getConfigManager().getMessage("usage");
-                raw = raw.replace("%command%", "/stats <player> [map]");
-                raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+                raw = raw.replace("%command%", "/stats [player]")
+                        .replace("%prefix%", plugin.getConfigManager().getPrefix());
                 sender.sendMessage(ColorUtil.translate(raw));
                 return true;
             }
@@ -54,7 +52,6 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
         if (target != null) {
             data = plugin.getPlayerManager().getPlayerData(target.getUniqueId(), target.getName());
         } else {
-            // Try offline lookup
             @SuppressWarnings("deprecation")
             org.bukkit.OfflinePlayer offline = Bukkit.getOfflinePlayer(targetName);
             if (offline.hasPlayedBefore()) {
@@ -66,14 +63,23 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
 
         if (data == null) {
             String raw = plugin.getConfigManager().getMessage("player-not-found");
-            raw = raw.replace("%player%", targetName);
-            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+            raw = raw.replace("%player%", targetName)
+                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
             sender.sendMessage(ColorUtil.translate(raw));
             return true;
         }
 
-        // Display stats
-        String prefix = plugin.getConfigManager().getPrefix();
+        // Players get a GUI; console gets chat output
+        if (sender instanceof Player) {
+            plugin.getGuiManager().openStatsGui((Player) sender, data);
+        } else {
+            printStatsToChat(sender, data);
+        }
+
+        return true;
+    }
+
+    private void printStatsToChat(CommandSender sender, PlayerData data) {
         sender.sendMessage(ColorUtil.translate("&7&m                                  "));
         sender.sendMessage(ColorUtil.translate("  &c&lFastbuilder &7| &fStats: &c" + data.getName()));
         sender.sendMessage(ColorUtil.translate("  &7Coins: &f" + data.getCoins()));
@@ -84,55 +90,37 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ColorUtil.translate("  &7No statistics recorded yet."));
         } else {
             for (Map.Entry<String, PlayerData.MapStats> entry : allStats.entrySet()) {
-                String mapName = entry.getKey();
-                if (mapFilter != null && !mapName.equalsIgnoreCase(mapFilter)) continue;
-
                 PlayerData.MapStats stats = entry.getValue();
-                String bestTime = stats.hasBestTime()
-                        ? TimeUtil.formatTime(stats.bestTime)
-                        : "N/A";
+                String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "N/A";
                 int successRate = stats.totalAttempts > 0
-                        ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100)
-                        : 0;
+                        ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
-                sender.sendMessage(ColorUtil.translate("  &c" + mapName));
+                sender.sendMessage(ColorUtil.translate("  &c" + entry.getKey()));
                 sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime));
                 sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts
                         + " &7/ &f" + stats.totalAttempts + " &7(" + successRate + "%)"));
+
+                net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(entry.getKey());
+                if (mapData != null && stats.hasBestTime()) {
+                    String rank = mapData.getPlayerRank(stats.bestTime);
+                    if (rank != null) sender.sendMessage(ColorUtil.translate("  &7Rank: &6" + rank));
+                }
                 sender.sendMessage("");
             }
         }
-
         sender.sendMessage(ColorUtil.translate("&7&m                                  "));
-        return true;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
         if (args.length == 1) {
-            // Suggest online player names
             String input = args[0].toLowerCase();
             List<String> result = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {
-                if (p.getName().toLowerCase().startsWith(input)) {
-                    result.add(p.getName());
-                }
+                if (p.getName().toLowerCase().startsWith(input)) result.add(p.getName());
             }
             return result;
         }
-
-        if (args.length == 2) {
-            // Suggest map names
-            String input = args[1].toLowerCase();
-            List<String> result = new ArrayList<>();
-            for (String name : plugin.getMapManager().getMapNames()) {
-                if (name.toLowerCase().startsWith(input)) {
-                    result.add(name);
-                }
-            }
-            return result;
-        }
-
         return Collections.emptyList();
     }
 }

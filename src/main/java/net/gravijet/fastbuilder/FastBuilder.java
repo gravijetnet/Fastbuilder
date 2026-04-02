@@ -106,6 +106,7 @@ public class FastBuilder extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new GameplayListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new net.gravijet.fastbuilder.listener.TreeGrowthListener(), this);
 
         // CPS Counter (only register if DecentHolograms is available)
         if (hologramManager != null) {
@@ -162,4 +163,5 @@ public class FastBuilder extends JavaPlugin {
     public GameplayManager getGameplayManager() { return gameplayManager; }
     public ReplayManager getReplayManager() { return replayManager; }
     public HotbarManager getHotbarManager() { return hotbarManager; }
+    public CpsListener getCpsListener() { return cpsListener; }
 }

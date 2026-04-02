@@ -43,9 +43,7 @@ public class ProtectionListener implements Listener {
         // (the build direction) beyond the island template's defined width.
         if (!canBuildAtLocation(player, event.getBlock().getLocation())) {
             event.setCancelled(true);
-            String raw = plugin.getConfigManager().getMessage("cannot-build-here");
-            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-            player.sendMessage(ColorUtil.translate(raw));
+            // Silent cancel — no message spam while building near the edge
         }
     }
 
@@ -203,12 +201,11 @@ public class ProtectionListener implements Listener {
 
     /**
      * Check if a player can place a block at a given location.
-     * Uses Z-corridor check to allow building along the X axis (build direction)
-     * beyond the island template's defined width.
+     * Only allows placement within the exact island bounds defined during map setup.
      */
     private boolean canBuildAtLocation(Player player, Location blockLoc) {
         if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
-            return true; // Global build mode: allow placing anywhere
+            return true;
         }
 
         MapManager mm = plugin.getMapManager();
@@ -220,15 +217,16 @@ public class ProtectionListener implements Listener {
             int playerIsland = mm.getPlayerIsland(map.getName(), player.getUniqueId());
             if (playerIsland < 0) continue;
 
-            // Z-corridor: allow blocks anywhere in the player's Z strip
-            long islandMinZ = map.getOriginZ() + (long) playerIsland * map.getDistance();
-            long islandMaxZ = islandMinZ + map.getIslandLength();
-            int blockZ = blockLoc.getBlockZ();
+            Location islandMin = map.getIslandMin(playerIsland);
+            Location islandMax = map.getIslandMax(playerIsland);
 
-            // Also enforce X >= originX - 1 (don't build behind the start)
-            // X is the build direction and is otherwise unlimited
-            if (blockZ >= islandMinZ - 5 && blockZ <= islandMaxZ + 5
-                    && blockLoc.getBlockX() >= map.getOriginX() - 8) {
+            int bx = blockLoc.getBlockX();
+            int by = blockLoc.getBlockY();
+            int bz = blockLoc.getBlockZ();
+
+            if (bx >= islandMin.getBlockX() && bx <= islandMax.getBlockX()
+                    && by >= islandMin.getBlockY() && by <= islandMax.getBlockY()
+                    && bz >= islandMin.getBlockZ() && bz <= islandMax.getBlockZ()) {
                 return true;
             }
         }

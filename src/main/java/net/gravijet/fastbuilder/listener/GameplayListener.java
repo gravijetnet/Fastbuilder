@@ -3,12 +3,8 @@ package net.gravijet.fastbuilder.listener;
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gameplay.RunSession;
-import net.gravijet.fastbuilder.map.GridCalculator;
 import net.gravijet.fastbuilder.map.MapData;
-import net.gravijet.fastbuilder.map.MapManager;
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,8 +13,8 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
 /**
- * Handles gameplay events: block placement (timer start), pressure plate (finish detection),
- * and player movement (fall detection handled in GameplayManager boundary task).
+ * Handles gameplay events: block placement (timer start), finish zone detection,
+ * and player movement (fall detection handled in ProtectionListener).
  */
 public class GameplayListener implements Listener {
 
@@ -68,25 +64,19 @@ public class GameplayListener implements Listener {
         RunSession session = gm.getSession(player.getUniqueId());
         if (session == null || !session.isRunning()) return;
 
-        // Check if player stepped on a pressure plate in the finish zone
+        MapData map = plugin.getMapManager().getMap(session.getMapName());
+        if (map == null) return;
+
         Location to = event.getTo();
-        Block blockBelow = to.getWorld().getBlockAt(to.getBlockX(), to.getBlockY() - 1, to.getBlockZ());
-        Block blockAt = to.getWorld().getBlockAt(to.getBlockX(), to.getBlockY(), to.getBlockZ());
-
-        if (isPressurePlate(blockBelow.getType()) || isPressurePlate(blockAt.getType())) {
-            // Check if this is within the finish zone of the player's island
-            MapData map = plugin.getMapManager().getMap(session.getMapName());
-            if (map == null) return;
-
-            if (isInFinishZone(map, session.getIslandIndex(), to)) {
-                gm.onFinish(player);
-            }
+        if (isInFinishZone(map, session.getIslandIndex(), to)) {
+            gm.onFinish(player);
         }
     }
 
     /**
      * Check if a location is within the finish zone of a specific island.
-     * Islands are offset along the Z-axis.
+     * Triggers if the player is within X/Z bounds and within Y range up to
+     * finishMaxY + configurable height tolerance (for aerial/jumping detection).
      */
     private boolean isInFinishZone(MapData map, int islandIndex, Location loc) {
         int offsetZ = islandIndex * map.getDistance();
@@ -98,19 +88,14 @@ public class GameplayListener implements Listener {
         int fMaxY = map.getOriginY() + map.getFinishMaxY();
         int fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
 
+        int heightTolerance = plugin.getConfigManager().getFinishHeightTolerance();
+
         int bx = loc.getBlockX();
         int by = loc.getBlockY();
         int bz = loc.getBlockZ();
 
         return bx >= fMinX && bx <= fMaxX
-                && by >= fMinY && by <= fMaxY
+                && by >= fMinY && by <= fMaxY + heightTolerance
                 && bz >= fMinZ && bz <= fMaxZ;
-    }
-
-    private boolean isPressurePlate(Material mat) {
-        return mat == Material.STONE_PLATE
-                || mat == Material.WOOD_PLATE
-                || mat == Material.GOLD_PLATE
-                || mat == Material.IRON_PLATE;
     }
 }

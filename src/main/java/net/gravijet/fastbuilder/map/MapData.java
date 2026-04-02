@@ -49,6 +49,14 @@ public class MapData {
     // Template file name
     private String templateFile;
 
+    // Minimum valid run time (ms). Times faster than this are rejected. 0 = use global.
+    private long minValidTime = 0;
+
+    // Time-based rank requirements (ms). -1 = not configured.
+    private long goldTime = -1;
+    private long silverTime = -1;
+    private long bronzeTime = -1;
+
     public MapData(String name) {
         this.name = name;
         this.enabled = false;
@@ -94,6 +102,10 @@ public class MapData {
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
         config.set("death-y", deathY == Integer.MIN_VALUE ? null : deathY);
+        config.set("min-valid-time", minValidTime > 0 ? minValidTime : null);
+        config.set("rank.gold", goldTime > 0 ? goldTime : null);
+        config.set("rank.silver", silverTime > 0 ? silverTime : null);
+        config.set("rank.bronze", bronzeTime > 0 ? bronzeTime : null);
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -130,6 +142,10 @@ public class MapData {
         autoscale = config.getBoolean("autoscale", false);
         templateFile = config.getString("template");
         deathY = config.getInt("death-y", Integer.MIN_VALUE);
+        minValidTime = config.getLong("min-valid-time", 0);
+        goldTime = config.getLong("rank.gold", -1);
+        silverTime = config.getLong("rank.silver", -1);
+        bronzeTime = config.getLong("rank.bronze", -1);
     }
 
     // --- Computed ---
@@ -283,4 +299,28 @@ public class MapData {
     public int getDeathY() { return deathY; }
     public void setDeathY(int y) { this.deathY = y; }
     public boolean hasDeathY() { return deathY != Integer.MIN_VALUE; }
+
+    public long getMinValidTime() { return minValidTime; }
+    public void setMinValidTime(long t) { this.minValidTime = t; }
+
+    public long getGoldTime() { return goldTime; }
+    public void setGoldTime(long t) { this.goldTime = t; }
+
+    public long getSilverTime() { return silverTime; }
+    public void setSilverTime(long t) { this.silverTime = t; }
+
+    public long getBronzeTime() { return bronzeTime; }
+    public void setBronzeTime(long t) { this.bronzeTime = t; }
+
+    /**
+     * Returns the highest rank the player achieves with the given best time.
+     * Returns null if no rank requirement is configured or met.
+     */
+    public String getPlayerRank(long bestTime) {
+        if (bestTime <= 0) return null;
+        if (goldTime > 0 && bestTime <= goldTime) return "Gold";
+        if (silverTime > 0 && bestTime <= silverTime) return "Silver";
+        if (bronzeTime > 0 && bestTime <= bronzeTime) return "Bronze";
+        return null;
+    }
 }
