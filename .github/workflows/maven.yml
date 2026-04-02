@@ -1,16 +1,13 @@
 name: Build and Permanent Release Fastbuilder
-
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch: 
-
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
     - name: Checkout Source
       uses: actions/checkout@v4
@@ -24,6 +21,33 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
+    - name: Set up JDK 8 (for BuildTools)
+      uses: actions/setup-java@v4
+      with:
+        java-version: '8'
+        distribution: 'temurin'
+
+    - name: Run BuildTools with Java 8
+      run: |
+        mkdir buildtools && cd buildtools
+        wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+        $JAVA_HOME_8_X64/bin/java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
+        # bungeecord-chat JAR suchen und installieren
+        CHAT_JAR=$(find ~/.m2 . -type f -name "*.jar" | grep -i "bungeecord-chat\|BungeeCord-Chat" | grep -v ".lastUpdated" | head -n 1)
+        echo "Found bungeecord-chat at: $CHAT_JAR"
+        mvn install:install-file \
+          -Dfile="$CHAT_JAR" \
+          -DgroupId=net.md-5 \
+          -DartifactId=bungeecord-chat \
+          -Dversion=1.8-SNAPSHOT \
+          -Dpackaging=jar
+
+    - name: Switch back to JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
@@ -31,29 +55,25 @@ jobs:
       run: |
         JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*shaded*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
-        
         cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
         cp "$JAR_PATH" ./fastbuilder-latest.jar
 
-    # Step 1: Permanent Archive (Unique Tag)
     - name: Create Archive Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: build-${{ github.run_number }}
         name: "Fastbuilder Build #${{ github.run_number }}"
-        body: "Archive of Build #${{ github.run_number }}. Includes source at this state."
+        body: "Archive of Build #${{ github.run_number }}."
         files: fastbuilder-build-${{ github.run_number }}.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Step 2: Update Latest Release (Points the 'latest' tag to NEWEST source)
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: latest
         name: "Fastbuilder Latest Build"
         body: "This release always contains the NEWEST JAR and NEWEST Source Code."
-        # This moves the 'latest' marker to the current commit
         make_latest: true
         files: fastbuilder-latest.jar
       env:
