@@ -1,6 +1,3 @@
-coins pro sekunde wegmachen. man bekommt pro stunde spielzeit 150 coins. bitte mit nachricht auch für spielzeit!
-
-
 # IGNORIERE ALLES AB HIER!!!!!!!!! NICHT DURCHLESEN!!!!
 replay system prompt:
 I need to upgrade the Replay system to make it look exactly like the original player's movement. Currently, the replay NPC only moves to locations but doesn't rotate, sneak, or animate.

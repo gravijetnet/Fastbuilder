@@ -82,8 +82,8 @@ public class CpsListener implements Listener {
             eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
         } catch (Exception ignored) {}
 
-        // Create hologram 1 block above the sapling
-        Location holoLoc = saplingLoc.clone().add(0.5, 1.8, 0.5);
+        // Create hologram above the sapling (lowered by 0.25 vs original position)
+        Location holoLoc = saplingLoc.clone().add(0.5, 1.55, 0.5);
         List<String> lines = new ArrayList<>();
         lines.add(net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f" + cps));
 
@@ -115,6 +115,20 @@ public class CpsListener implements Listener {
         }.runTaskLater(plugin, 40L).getTaskId(); // 40 ticks = 2 seconds
 
         removalTasks.put(uuid, taskId);
+    }
+
+    /** Remove CPS hologram and state for a specific player (call on leave/island switch). */
+    public void cleanupPlayer(UUID uuid) {
+        Integer taskId = removalTasks.remove(uuid);
+        if (taskId != null) {
+            plugin.getServer().getScheduler().cancelTask(taskId);
+        }
+        String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
+        try {
+            eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
+        } catch (Exception ignored) {}
+        clickTimes.remove(uuid);
+        saplingLocation.remove(uuid);
     }
 
     public void cleanup() {

@@ -70,8 +70,16 @@ public class ConfigManager {
         return mainConfig.getInt("reset-stats-cost", 100);
     }
 
-    public double getCoinsPerSecond() {
-        return mainConfig.getDouble("coins-per-second", 0.5);
+    public int getCoinsPerHour() {
+        return mainConfig.getInt("coins-per-hour", 150);
+    }
+
+    public int getFinishHeightTolerance() {
+        return mainConfig.getInt("finish-height-tolerance", 5);
+    }
+
+    public long getMinValidTime() {
+        return mainConfig.getLong("min-valid-time", 500);
     }
 
     public double getCoinsPerCompletion() {

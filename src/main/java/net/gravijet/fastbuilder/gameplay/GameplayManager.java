@@ -40,7 +40,9 @@ public class GameplayManager {
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
 
-    // Global session best: best run across all online players this session
+    // Global session bests: per-player best time this session (unique per player)
+    private final java.util.LinkedHashMap<String, Long> globalSessionBests = new java.util.LinkedHashMap<>();
+    // Kept for backward compat
     private long globalSessionBestTime = -1;
     private String globalSessionBestPlayer = null;
 
@@ -126,6 +128,32 @@ public class GameplayManager {
 
         long time = session.finish();
 
+        // Anticheat: reject times below the configured minimum valid time
+        long mapMinTime = -1;
+        MapData mapForMinTime = plugin.getMapManager().getMap(session.getMapName());
+        if (mapForMinTime != null && mapForMinTime.getMinValidTime() > 0) {
+            mapMinTime = mapForMinTime.getMinValidTime();
+        }
+        long globalMinTime = plugin.getConfigManager().getMinValidTime();
+        long effectiveMin = mapMinTime > 0 ? mapMinTime : globalMinTime;
+
+        if (effectiveMin > 0 && time < effectiveMin) {
+            if (plugin.getReplayManager() != null) {
+                plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+            }
+            finishCooldown.remove(uuid);
+            String msg = plugin.getConfigManager().getMessage("min-time-not-recorded");
+            if (msg == null || msg.isEmpty()) msg = "%prefix%&cTime too fast to be recorded &7(&f%time%&7).";
+            msg = msg.replace("%time%", net.gravijet.fastbuilder.util.TimeUtil.formatTime(time))
+                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
+            player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(msg));
+            // Reset without counting as attempt
+            new BukkitRunnable() {
+                @Override public void run() { if (player.isOnline()) resetRun(player); }
+            }.runTaskLater(plugin, 5L);
+            return;
+        }
+
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().stopRecording(player.getUniqueId(), true);
         }
@@ -135,7 +163,11 @@ public class GameplayManager {
 
         session.addSessionBest(time);
 
-        // Update global session best
+        // Update global session bests (unique per player)
+        Long existing = globalSessionBests.get(player.getName());
+        if (existing == null || time < existing) {
+            globalSessionBests.put(player.getName(), time);
+        }
         if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
             globalSessionBestTime = time;
             globalSessionBestPlayer = player.getName();
@@ -186,6 +218,22 @@ public class GameplayManager {
 
             if (plugin.getHologramManager() != null) {
                 plugin.getHologramManager().updateHologram(session.getMapName(), session.getIslandIndex(), player);
+            }
+
+            // Rank check: notify if player achieved a rank
+            MapData rankMap = plugin.getMapManager().getMap(session.getMapName());
+            if (rankMap != null) {
+                String rank = rankMap.getPlayerRank(stats.bestTime);
+                if (rank != null) {
+                    String rankMsg = plugin.getConfigManager().getMessage("rank-achieved");
+                    if (rankMsg == null || rankMsg.isEmpty()) {
+                        rankMsg = "%prefix%&fYou achieved the &6%rank% &frank on &c%map%&f!";
+                    }
+                    rankMsg = rankMsg.replace("%rank%", rank)
+                            .replace("%map%", session.getMapName())
+                            .replace("%prefix%", plugin.getConfigManager().getPrefix());
+                    player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(rankMsg));
+                }
             }
         } else {
             String practiceTitle = "&6&lPractice: &f" + TimeUtil.formatTime(time);
@@ -446,11 +494,26 @@ public class GameplayManager {
     public long getGlobalSessionBestTime() { return globalSessionBestTime; }
     public String getGlobalSessionBestPlayer() { return globalSessionBestPlayer; }
 
+    /**
+     * Returns the top 3 unique-player session bests as [playerName, timeMillisStr] pairs, sorted best first.
+     */
+    public List<String[]> getGlobalSessionTop3() {
+        List<Map.Entry<String, Long>> sorted = new ArrayList<>(globalSessionBests.entrySet());
+        sorted.sort((a, b) -> Long.compare(a.getValue(), b.getValue()));
+        List<String[]> result = new ArrayList<>();
+        for (int i = 0; i < Math.min(3, sorted.size()); i++) {
+            Map.Entry<String, Long> entry = sorted.get(i);
+            result.add(new String[]{entry.getKey(), String.valueOf(entry.getValue())});
+        }
+        return result;
+    }
+
     public void shutdown() {
         if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
         activeSessions.clear();
         finishCooldown.clear();
         buildModePlayers.clear();
+        globalSessionBests.clear();
     }
 
     public Map<UUID, RunSession> getActiveSessions() { return activeSessions; }

@@ -8,11 +8,18 @@ default-map: "Hell"
 
 # Economy
 reset-stats-cost: 100
-coins-per-second: 0.5
+# Playtime reward: coins awarded per hour of active playtime
+coins-per-hour: 150
 coins-per-completion: 10
 
 # Maximum distance from island edge before teleport to spawn (blocks)
 max-distance: 4
+
+# How many blocks above the finish zone Y-max a player can still trigger finish
+finish-height-tolerance: 5
+
+# Global minimum valid run time in milliseconds. Times faster than this are not recorded.
+min-valid-time: 500
 
 # Holograms (requires DecentHolograms)
 # Placeholders: %player%, %pb%, %successful_attempts%, %total_attempts%

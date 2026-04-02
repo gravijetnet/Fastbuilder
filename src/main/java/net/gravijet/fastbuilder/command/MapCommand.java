@@ -1,7 +1,6 @@
 package net.gravijet.fastbuilder.command;
 
 import net.gravijet.fastbuilder.FastBuilder;
-import net.gravijet.fastbuilder.map.GridCalculator;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.map.SetupSession;
@@ -38,8 +37,9 @@ import java.util.List;
 public class MapCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale", "setdeathy"
+            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale", "setdeathy", "setmintime", "setrank"
     );
+    private static final List<String> RANK_TIERS = Arrays.asList("gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "name");
     private static final List<String> BOOLEANS = Arrays.asList("true", "false");
 
@@ -97,6 +97,12 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 break;
             case "setdeathy":
                 handleSetDeathY(player, args, mm);
+                break;
+            case "setmintime":
+                handleSetMinTime(player, args, mm);
+                break;
+            case "setrank":
+                handleSetRank(player, args, mm);
                 break;
             default:
                 sendHelp(player);
@@ -507,13 +513,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         String raw = plugin.getConfigManager().getAdminMessage("scale-updating");
-        raw = raw.replace("%map%", map.getName());
+        raw = raw.replace("%map%", map.getName()).replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
 
         mm.updateScale(map, count);
 
         raw = plugin.getConfigManager().getAdminMessage("map-scale-set");
-        raw = raw.replace("%map%", map.getName()).replace("%scale%", String.valueOf(count));
+        raw = raw.replace("%map%", map.getName()).replace("%scale%", String.valueOf(count))
+                .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -521,7 +528,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     private void handleDistance(Player player, String[] args, MapManager mm) {
         if (args.length < 3) {
-            msgAdmin(player, "usage", "%command%", "/map distance <map> <blocks> [--force]");
+            msgAdmin(player, "usage", "%command%", "/map distance <map> <blocks>");
             return;
         }
 
@@ -539,38 +546,15 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Check for --force flag in any remaining argument
-        boolean force = false;
-        for (int i = 3; i < args.length; i++) {
-            if ("--force".equalsIgnoreCase(args[i])) {
-                force = true;
-                break;
-            }
-        }
-
         int actualDistance = Math.max(1, blocks);
-
-        int minDist = GridCalculator.getMinimumDistance(map.getIslandLength());
-        if (!force && actualDistance < minDist) {
-            String raw = plugin.getConfigManager().getAdminMessage("distance-too-small");
-            raw = raw.replace("%min%", String.valueOf(minDist * 3));
-            player.sendMessage(ColorUtil.translate(raw));
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                    + "&7Use &f--force &7to bypass this check."));
-            return;
-        }
-
         int oldDistance = map.getDistance();
         map.setDistance(actualDistance);
         mm.saveMap(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-distance-set");
-        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(actualDistance));
+        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(actualDistance))
+                .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
-        if (force && actualDistance < minDist) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                    + "&eWarning: Distance is smaller than island length. Islands may overlap."));
-        }
 
         // Regenerate islands at new positions if distance actually changed
         if (actualDistance != oldDistance && map.getScale() > 0) {
@@ -641,6 +625,60 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    // --- /map setmintime <map> <ms> ---
+
+    private void handleSetMinTime(Player player, String[] args, MapManager mm) {
+        if (args.length < 3) {
+            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setmintime <map> <ms> &7(0 to use global)");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        long ms;
+        try { ms = Long.parseLong(args[2]); } catch (NumberFormatException e) {
+            msg(player, "&cInvalid number: &f" + args[2]); return;
+        }
+
+        map.setMinValidTime(Math.max(0, ms));
+        mm.saveMap(map);
+        msg(player, plugin.getConfigManager().getPrefix() + "&fMin valid time for &c" + map.getName()
+                + " &fset to &c" + ms + "ms" + (ms <= 0 ? " &7(uses global)" : "") + "&f.");
+    }
+
+    // --- /map setrank <map> <gold|silver|bronze> <ms> ---
+
+    private void handleSetRank(Player player, String[] args, MapManager mm) {
+        if (args.length < 4) {
+            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setrank <map> <gold|silver|bronze> <ms> &7(-1 to remove)");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        String tier = args[2].toLowerCase();
+        long ms;
+        try { ms = Long.parseLong(args[3]); } catch (NumberFormatException e) {
+            msg(player, "&cInvalid number: &f" + args[3]); return;
+        }
+
+        switch (tier) {
+            case "gold":   map.setGoldTime(ms);   break;
+            case "silver": map.setSilverTime(ms); break;
+            case "bronze": map.setBronzeTime(ms); break;
+            default:
+                msg(player, "&cInvalid rank tier. Use: gold, silver, bronze"); return;
+        }
+        mm.saveMap(map);
+        String display = ms <= 0 ? "removed" : ms + "ms";
+        msg(player, plugin.getConfigManager().getPrefix() + "&f" + capitalize(tier) + " rank time for &c" + map.getName() + " &fset to &c" + display + "&f.");
+    }
+
+    private String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
     // --- Clickable Setup Prompts ---
 
     private void sendClickableContinue(Player player) {
@@ -687,6 +725,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&4- &c/map distance <map> <blocks> &7- &fSet island spacing"));
         player.sendMessage(ColorUtil.translate("&4- &c/map autoscale <map> <true|false> &7- &fToggle autoscaling"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setdeathy <map> <Y> &7- &fSet fall death Y level (-1 to remove)"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setmintime <map> <ms> &7- &fSet minimum valid run time (0 = global)"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setrank <map> <gold|silver|bronze> <ms> &7- &fSet rank time requirement"));
     }
 
     // --- Tab Completion ---
@@ -720,6 +760,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     return filter(mm.getEnabledMapNames(), args[1]);
                 case "autoscale":
                 case "setdeathy":
+                case "setmintime":
+                case "setrank":
                     return filter(mm.getMapNames(), args[1]);
                 default:
                     return Collections.emptyList();
@@ -743,14 +785,20 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "scale":
                     return Arrays.asList("1", "5", "10", "15", "20", "30");
                 case "distance":
-                    if (args.length == 3) return Arrays.asList("10", "20", "30", "50", "100");
-                    if (args.length == 4) return Arrays.asList("--force");
-                    return java.util.Collections.emptyList();
+                    return Arrays.asList("10", "20", "30", "50", "100");
+                case "setmintime":
+                    return Arrays.asList("0", "500", "1000", "2000", "5000");
+                case "setrank":
+                    return filter(RANK_TIERS, args[2]);
                 case "autoscale":
                     return filter(BOOLEANS, args[2]);
                 default:
                     return Collections.emptyList();
             }
+        }
+
+        if (args.length == 4 && sub.equals("setrank")) {
+            return Arrays.asList("1000", "2000", "5000", "10000", "30000");
         }
 
         return Collections.emptyList();
@@ -787,6 +835,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     private void msgAdmin(Player player, String key) {
         String raw = plugin.getConfigManager().getAdminMessage(key);
+        if (raw == null || raw.isEmpty()) raw = plugin.getConfigManager().getMessage(key);
+        if (raw == null) raw = "";
+        raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 

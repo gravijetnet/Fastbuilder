@@ -47,6 +47,7 @@ public class GuiManager implements Listener {
     private static final String SHOP_PREFIX = "Shop";
     private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Selector";
     private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
+    private static final String STATS_PREFIX = "Stats";
 
     // Track which block selector page a player is on
     private final Map<UUID, Integer> blockSelectorPages = new HashMap<>();
@@ -599,6 +600,83 @@ public class GuiManager implements Listener {
         player.openInventory(inv);
     }
 
+    // ===== Stats GUI =====
+
+    public void openStatsGui(Player viewer, PlayerData data) {
+        String title = ColorUtil.translate("&c&lStats &7- &f" + data.getName());
+        Inventory inv = Bukkit.createInventory(null, 54, title);
+
+        // Filler
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < 54; i++) inv.setItem(i, filler);
+
+        // Global stats summary (center of top row)
+        int totalAttempts = 0;
+        int totalSuccesses = 0;
+        for (PlayerData.MapStats s : data.getAllStats().values()) {
+            totalAttempts += s.totalAttempts;
+            totalSuccesses += s.successfulAttempts;
+        }
+        int globalRate = totalAttempts > 0 ? (int) ((double) totalSuccesses / totalAttempts * 100) : 0;
+
+        ItemStack head = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+        SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
+        skullMeta.setOwner(data.getName());
+        skullMeta.setDisplayName(ColorUtil.translate("&c&l" + data.getName()));
+        List<String> headLore = new ArrayList<>();
+        headLore.add(ColorUtil.translate("&7Coins: &f" + data.getCoins()));
+        headLore.add(ColorUtil.translate("&7Total Runs: &f" + totalAttempts));
+        headLore.add(ColorUtil.translate("&7Successful: &f" + totalSuccesses));
+        headLore.add(ColorUtil.translate("&7Success Rate: &f" + globalRate + "%"));
+        skullMeta.setLore(headLore);
+        head.setItemMeta(skullMeta);
+        inv.setItem(4, head);
+
+        // Per-map stats (start at slot 18)
+        int slot = 18;
+        for (Map.Entry<String, PlayerData.MapStats> entry : data.getAllStats().entrySet()) {
+            if (slot >= 54) break;
+            String mapName = entry.getKey();
+            PlayerData.MapStats stats = entry.getValue();
+
+            net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(mapName);
+            String iconStr = mapData != null ? mapData.getIcon() : null;
+            ItemBuilder builder = (iconStr != null && !iconStr.isEmpty())
+                    ? ItemBuilder.fromString(iconStr)
+                    : new ItemBuilder(Material.GRASS);
+
+            String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "N/A";
+            int rate = stats.totalAttempts > 0 ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ColorUtil.translate("&7Best Time: &f" + bestTime));
+            lore.add(ColorUtil.translate("&7Runs: &f" + stats.successfulAttempts + "/" + stats.totalAttempts + " &7(" + rate + "%)"));
+
+            // Rank display
+            if (mapData != null && stats.hasBestTime()) {
+                String rank = mapData.getPlayerRank(stats.bestTime);
+                if (rank != null) {
+                    String color = rank.equals("Gold") ? "&6" : rank.equals("Silver") ? "&7" : "&c";
+                    lore.add(ColorUtil.translate("&7Rank: " + color + "&l" + rank));
+                }
+                // Show configured rank thresholds
+                if (mapData.getGoldTime() > 0 || mapData.getSilverTime() > 0 || mapData.getBronzeTime() > 0) {
+                    lore.add(ColorUtil.translate("&8---"));
+                    if (mapData.getGoldTime() > 0) lore.add(ColorUtil.translate("&6Gold: &f" + TimeUtil.formatTime(mapData.getGoldTime())));
+                    if (mapData.getSilverTime() > 0) lore.add(ColorUtil.translate("&7Silver: &f" + TimeUtil.formatTime(mapData.getSilverTime())));
+                    if (mapData.getBronzeTime() > 0) lore.add(ColorUtil.translate("&cBronze: &f" + TimeUtil.formatTime(mapData.getBronzeTime())));
+                }
+            }
+
+            ItemStack item = builder.name("&c" + mapName).lore(lore.toArray(new String[0])).build();
+            inv.setItem(slot, item);
+            slot++;
+            if (slot % 9 == 0) slot++; // skip border column
+        }
+
+        viewer.openInventory(inv);
+    }
+
     // ===== Click Handling =====
 
     @EventHandler
@@ -638,6 +716,9 @@ public class GuiManager implements Listener {
         } else if (stripped.startsWith(ANIMATION_SELECTOR_PREFIX)) {
             event.setCancelled(true);
             handleAnimationSelectorClick(event);
+        } else if (stripped.startsWith(STATS_PREFIX)) {
+            event.setCancelled(true);
+            // Stats GUI is read-only; no action needed
         }
     }
 
@@ -667,6 +748,11 @@ public class GuiManager implements Listener {
         // Clear ALL placed blocks (including practice) on old island
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+        }
+
+        // Clean up CPS hologram
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
         }
 
         // Remove old NPC and hologram
@@ -759,10 +845,15 @@ public class GuiManager implements Listener {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock(mat);
+                // Auto-equip on purchase
+                data.setSelectedBlock(mat);
+                player.closeInventory();
+                if (plugin.getHotbarManager() != null) {
+                    plugin.getHotbarManager().updateBlockSlot(player);
+                }
+                String blockName = pageSection.getString(blockIndex + ".name", "Block");
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&fBlock purchased for &c" + price + " &fcoins."));
-                // Refresh the page
-                openBlockSelector(player, currentPage);
+                        + "&fBlock purchased and selected: &c" + blockName + " &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                         + "&cNot enough coins! You need &f" + price + " &ccoins."));
@@ -918,6 +1009,10 @@ public class GuiManager implements Listener {
         // Clear all placed blocks and despawn NPC/hologram before switching
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+        }
+        // Clean up CPS hologram
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
         }
         if (existingData != null) {
             if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(player.getUniqueId());
@@ -1094,8 +1189,12 @@ public class GuiManager implements Listener {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock("pickaxe:" + mat);
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fPickaxe purchased for &c" + price + " &fcoins."));
-                openPickaxeSelector(player);
+                // Auto-equip on purchase
+                data.setSelectedPickaxe(mat);
+                player.closeInventory();
+                if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
+                String pName = slotsSection.getString(slot + ".name", "Pickaxe");
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fPickaxe purchased and selected: &c" + pName + " &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
             }
@@ -1137,8 +1236,11 @@ public class GuiManager implements Listener {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock("anim:" + animId);
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased for &c" + price + " &fcoins."));
-                openAnimationSelector(player);
+                // Auto-equip on purchase
+                data.setSelectedAnimation(animId);
+                player.closeInventory();
+                String aName = slotsSection.getString(slot + ".name", "Animation");
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased and selected: &c" + aName + " &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
             }

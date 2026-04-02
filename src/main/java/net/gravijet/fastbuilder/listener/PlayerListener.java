@@ -117,6 +117,16 @@ public class PlayerListener implements Listener {
         // Remove scoreboard
         plugin.getScoreboardManager().removeScoreboard(player);
 
+        // Reset playtime counter
+        if (plugin.getCoinManager() != null) {
+            plugin.getCoinManager().resetPlaytime(player.getUniqueId());
+        }
+
+        // Clean up CPS hologram
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        }
+
         // Free all islands
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 

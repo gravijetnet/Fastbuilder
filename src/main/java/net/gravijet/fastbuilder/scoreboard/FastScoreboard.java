@@ -35,7 +35,6 @@ public class FastScoreboard {
         obj.setDisplayName(ColorUtil.translate("§c§lFASTBUILDER"));
 
         String[] lines = buildLines(player);
-        // lines[0] = top, lines[n-1] = bottom
         int score = lines.length;
         for (String line : lines) {
             obj.getScore(line).setScore(score--);
@@ -56,63 +55,40 @@ public class FastScoreboard {
         // ── Map ───────────────────────────────────────────────────────────────
         String mapName = (session != null) ? session.getMapName() : "§8None";
 
-        // ── Current Timer ─────────────────────────────────────────────────────
-        String timer;
-        if (session != null && session.isRunning()) {
-            timer = "§f" + TimeUtil.formatTime(session.getElapsed());
-        } else {
-            timer = "§80.000s";
-        }
-
-        // ── Personal Best ─────────────────────────────────────────────────────
-        String pb = "§8N/A";
-        if (data != null && session != null) {
-            PlayerData.MapStats stats = data.getAllStats().get(session.getMapName().toLowerCase());
-            if (stats == null) stats = data.getAllStats().get(session.getMapName());
-            if (stats != null && stats.hasBestTime()) {
-                pb = "§f" + TimeUtil.formatTime(stats.bestTime);
-            }
-        }
-
-        // ── Session / Global Best ─────────────────────────────────────────────
-        List<Long> bests = session != null ? session.getSessionBests() : java.util.Collections.emptyList();
-        String sessionBest;
-        if (!bests.isEmpty()) {
-            sessionBest = "§f" + TimeUtil.formatTime(bests.get(0)) + " §7(" + player.getName() + ")";
-        } else {
-            long gt = plugin.getGameplayManager() != null
-                    ? plugin.getGameplayManager().getGlobalSessionBestTime() : -1;
-            String gn = plugin.getGameplayManager() != null
-                    ? plugin.getGameplayManager().getGlobalSessionBestPlayer() : null;
-            sessionBest = (gt > 0 && gn != null)
-                    ? "§f" + TimeUtil.formatTime(gt) + " §7(" + gn + ")"
-                    : "§8-";
-        }
+        // ── Blocks Used ───────────────────────────────────────────────────────
+        int blocksPlaced = (session != null) ? session.getPlacedBlocks().size() : 0;
+        String blocksStr = "§f" + blocksPlaced;
 
         // ── Fastbuilder Coins ─────────────────────────────────────────────────
         String fbCoins = data != null ? String.valueOf(data.getCoins()) : "0";
 
-        // ── Top 3 Session Bests ───────────────────────────────────────────────
-        List<Long> sb = session != null ? session.getSessionBests() : java.util.Collections.emptyList();
-        String top1 = sb.size() >= 1 ? "§f" + TimeUtil.formatTime(sb.get(0)) : "§8-";
-        String top2 = sb.size() >= 2 ? "§f" + TimeUtil.formatTime(sb.get(1)) : "§8-";
-        String top3 = sb.size() >= 3 ? "§f" + TimeUtil.formatTime(sb.get(2)) : "§8-";
+        // ── Global Top 3 Session Bests (unique per player) ────────────────────
+        List<String[]> top3 = (plugin.getGameplayManager() != null)
+                ? plugin.getGameplayManager().getGlobalSessionTop3()
+                : java.util.Collections.emptyList();
+
+        String top1 = top3.size() >= 1
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(0)[1])) + " §7(" + top3.get(0)[0] + ")"
+                : "§8-";
+        String top2 = top3.size() >= 2
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(1)[1])) + " §7(" + top3.get(1)[0] + ")"
+                : "§8- ";
+        String top3str = top3.size() >= 3
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(2)[1])) + " §7(" + top3.get(2)[0] + ")"
+                : "§8-  ";
 
         return new String[] {
             ColorUtil.translate("§7§m─────────────────"),
             ColorUtil.translate(" §7Map: §c" + mapName),
-            ColorUtil.translate(" §7Time: " + timer),
-            ColorUtil.translate(" §7PB: §c" + pb),
+            ColorUtil.translate(" §7Blocks: " + blocksStr),
             ColorUtil.translate("§r"),
-            ColorUtil.translate(" §7Best: §c" + sessionBest),
-            ColorUtil.translate("§r "),
-            ColorUtil.translate(" §7Session Top:"),
+            ColorUtil.translate(" §7Session Top 3:"),
             ColorUtil.translate("  §8#1 " + top1),
             ColorUtil.translate("  §8#2 " + top2),
-            ColorUtil.translate("  §8#3 " + top3),
-            ColorUtil.translate("§r  "),
+            ColorUtil.translate("  §8#3 " + top3str),
+            ColorUtil.translate("§r "),
             ColorUtil.translate(" §8» §cCoins: §6" + fbCoins),
-            ColorUtil.translate("§r   "),
+            ColorUtil.translate("§r  "),
             ColorUtil.translate("§7§ogravijet.net"),
             ColorUtil.translate("§c§m─────────────────"),
         };
@@ -137,19 +113,6 @@ public class FastScoreboard {
                 }
             }
         }.runTaskTimer(plugin, 20L, 20L).getTaskId();
-    }
-
-    private String resolvePlaceholder(Player player, String placeholder, String fallback) {
-        try {
-            if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-                Class<?> papi = Class.forName("me.clip.placeholderapi.PlaceholderAPI");
-                java.lang.reflect.Method method = papi.getMethod("setPlaceholders",
-                        org.bukkit.OfflinePlayer.class, String.class);
-                String result = (String) method.invoke(null, player, placeholder);
-                if (result != null && !result.equals(placeholder)) return result;
-            }
-        } catch (Exception ignored) {}
-        return fallback;
     }
 
     public void shutdown() {
