@@ -30,6 +30,10 @@ public class PlayerData {
     // Auto-refill perk
     private boolean autoRefill = false;
 
+    // Infinite blocks perk (purchasable for 1000 coins)
+    private boolean infiniteBlocksUnlocked = false;
+    private boolean infiniteBlocks = false;
+
     // Cosmetic selections
     private String selectedPickaxe = "DIAMOND_PICKAXE:0";
     private String selectedAnimation = "NONE";
@@ -62,6 +66,8 @@ public class PlayerData {
 
         config.set("purchased-blocks", new java.util.ArrayList<>(purchasedBlocks));
         config.set("auto-refill", autoRefill);
+        config.set("infinite-blocks-unlocked", infiniteBlocksUnlocked);
+        config.set("infinite-blocks", infiniteBlocks);
         config.set("favorite-replays", new java.util.ArrayList<>(favoriteReplays));
         config.set("selected-pickaxe", selectedPickaxe);
         config.set("selected-animation", selectedAnimation);
@@ -91,6 +97,8 @@ public class PlayerData {
             purchasedBlocks.addAll(config.getStringList("purchased-blocks"));
         }
         autoRefill = config.getBoolean("auto-refill", false);
+        infiniteBlocksUnlocked = config.getBoolean("infinite-blocks-unlocked", false);
+        infiniteBlocks = config.getBoolean("infinite-blocks", false);
 
         favoriteReplays.clear();
         if (config.isList("favorite-replays")) {
@@ -180,6 +188,11 @@ public class PlayerData {
 
     public boolean hasAutoRefill() { return autoRefill; }
     public void setAutoRefill(boolean autoRefill) { this.autoRefill = autoRefill; }
+
+    public boolean hasInfiniteBlocksUnlocked() { return infiniteBlocksUnlocked; }
+    public void setInfiniteBlocksUnlocked(boolean unlocked) { this.infiniteBlocksUnlocked = unlocked; }
+    public boolean hasInfiniteBlocks() { return infiniteBlocks; }
+    public void setInfiniteBlocks(boolean enabled) { this.infiniteBlocks = enabled; }
 
     public String getSelectedPickaxe() { return selectedPickaxe; }
     public void setSelectedPickaxe(String selectedPickaxe) { this.selectedPickaxe = selectedPickaxe; }

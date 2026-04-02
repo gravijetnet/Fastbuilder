@@ -283,7 +283,13 @@ public class MapManager {
                     IslandInstance island = list.get(i);
                     if (island.isOccupied()) {
                         org.bukkit.entity.Player p = Bukkit.getPlayer(island.getOccupantUuid());
-                        if (p != null && p.isOnline()) relocatePlayer(p, map.getName());
+                        if (p != null && p.isOnline()) {
+                            // Clean up NPC and hologram before relocation
+                            if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(p.getUniqueId());
+                            if (plugin.getHologramManager() != null)
+                                plugin.getHologramManager().removeHologram(map.getName(), island.getIndex());
+                            relocatePlayer(p, map.getName());
+                        }
                         island.clearOccupant();
                     }
                 }
@@ -345,7 +351,7 @@ public class MapManager {
                                     @Override
                                     public void run() {
                                         plugin.getLogger().info("Regeneration complete for map: " + map.getName());
-                                        // Teleport players back to new spawn positions
+                                        // Teleport players back to new spawn positions and respawn entities
                                         List<IslandInstance> iList = islands.get(map.getName().toLowerCase());
                                         if (iList == null) return;
                                         for (IslandInstance island : iList) {
@@ -356,6 +362,13 @@ public class MapManager {
                                                     p.sendMessage(ColorUtil.translate(
                                                             plugin.getConfigManager().getPrefix()
                                                             + "&aIsland layout updated! Teleported to new spawn."));
+                                                    if (plugin.getNpcManager() != null) {
+                                                        plugin.getNpcManager().despawnNpc(p.getUniqueId());
+                                                        plugin.getNpcManager().spawnNpc(p, map.getIslandNpcLocation(island.getIndex()));
+                                                    }
+                                                    if (plugin.getHologramManager() != null) {
+                                                        plugin.getHologramManager().updateHologram(map.getName(), island.getIndex(), p);
+                                                    }
                                                 }
                                             }
                                         }

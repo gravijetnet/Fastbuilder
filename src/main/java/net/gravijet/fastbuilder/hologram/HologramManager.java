@@ -119,7 +119,7 @@ public class HologramManager {
         // Show as "Top X%" where X is how many percent you're better than
         double topPct = 100.0 - pct;
         if (topPct <= 0) topPct = 0;
-        return String.format("Top %.1f%%", topPct);
+        return String.format("[Top %.1f%%]", topPct);
     }
 
     public void removeHologram(String mapName, int islandIndex) {

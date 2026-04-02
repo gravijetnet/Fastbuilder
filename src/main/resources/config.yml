@@ -20,7 +20,7 @@ holograms:
   enabled: true
   lines:
     - "&c%player%'s Stats"
-    - "&fPersonal Best: &c%pb% &7%top_percent%"
+    - "&fPersonal best: &c%pb% &7%top_percent%"
     - "&fSuccessful Runs: &c%successful_attempts%"
     - "&fTotal Attempts: &c%total_attempts%"
 

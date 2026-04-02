@@ -125,10 +125,9 @@ public class RunSession {
     public boolean hasPracticeBlocks() { return !practiceBlocks.isEmpty(); }
 
     public void addSessionBest(long time) {
-        if (sessionBests.isEmpty() || time < sessionBests.get(0)) {
-            sessionBests.clear();
-            sessionBests.add(time);
-        }
+        sessionBests.add(time);
+        java.util.Collections.sort(sessionBests);
+        while (sessionBests.size() > 3) sessionBests.remove(sessionBests.size() - 1);
     }
 
     public List<Long> getSessionBests() { return sessionBests; }

@@ -89,27 +89,30 @@ public class FastScoreboard {
                     : "§8-";
         }
 
-        // ── Economy ───────────────────────────────────────────────────────────
-        String fallbackCoins = data != null ? String.valueOf(data.getCoins()) : "0";
-        String coins  = resolvePlaceholder(player, "%pxcosmetics_player_coins%", fallbackCoins);
-        String level  = resolvePlaceholder(player, "%phoenix_player_level_displayname%", "1");
-        String rank   = resolvePlaceholder(player, "%phoenix_player_real_rank%", "N/A");
-        String players = resolvePlaceholder(player, "%phoenix_server_global_online%",
-                String.valueOf(Bukkit.getOnlinePlayers().size()));
+        // ── Fastbuilder Coins ─────────────────────────────────────────────────
+        String fbCoins = data != null ? String.valueOf(data.getCoins()) : "0";
+
+        // ── Top 3 Session Bests ───────────────────────────────────────────────
+        List<Long> sb = session != null ? session.getSessionBests() : java.util.Collections.emptyList();
+        String top1 = sb.size() >= 1 ? "§f" + TimeUtil.formatTime(sb.get(0)) : "§8-";
+        String top2 = sb.size() >= 2 ? "§f" + TimeUtil.formatTime(sb.get(1)) : "§8-";
+        String top3 = sb.size() >= 3 ? "§f" + TimeUtil.formatTime(sb.get(2)) : "§8-";
 
         return new String[] {
             ColorUtil.translate("§7§m─────────────────"),
             ColorUtil.translate(" §7Map: §c" + mapName),
-            ColorUtil.translate(" §7Zeit: " + timer),
+            ColorUtil.translate(" §7Time: " + timer),
             ColorUtil.translate(" §7PB: §c" + pb),
             ColorUtil.translate("§r"),
             ColorUtil.translate(" §7Best: §c" + sessionBest),
             ColorUtil.translate("§r "),
-            ColorUtil.translate(" §8» §cCoins: §6" + coins),
-            ColorUtil.translate(" §8» §cLevel: §6" + level),
-            ColorUtil.translate(" §8» §cRank: §6" + rank),
-            ColorUtil.translate(" §8» §cPlayers: §6" + players),
+            ColorUtil.translate(" §7Session Top:"),
+            ColorUtil.translate("  §8#1 " + top1),
+            ColorUtil.translate("  §8#2 " + top2),
+            ColorUtil.translate("  §8#3 " + top3),
             ColorUtil.translate("§r  "),
+            ColorUtil.translate(" §8» §cCoins: §6" + fbCoins),
+            ColorUtil.translate("§r   "),
             ColorUtil.translate("§7§ogravijet.net"),
             ColorUtil.translate("§c§m─────────────────"),
         };

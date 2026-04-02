@@ -306,7 +306,7 @@ public class GameplayManager {
 
         clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
 
-        if (!bests.isEmpty()) session.addSessionBest(bests.get(0));
+        for (Long best : bests) session.addSessionBest(best);
         session.setPracticeMode(practice);
 
         player.teleport(map.getIslandSpawn(session.getIslandIndex()));

@@ -129,7 +129,8 @@ public class HotbarManager implements Listener {
 
     public void checkAutoRefill(Player player) {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        if (data == null || !data.hasAutoRefill()) return;
+        if (data == null) return;
+        if (!data.hasAutoRefill() && !data.hasInfiniteBlocks()) return;
 
         ItemStack slot1 = player.getInventory().getItem(SLOT_BLOCK_1);
         ItemStack slot2 = player.getInventory().getItem(SLOT_BLOCK_2);

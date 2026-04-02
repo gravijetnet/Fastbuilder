@@ -66,24 +66,28 @@ public class SetupListener implements Listener {
         if (clicked == null) return;
         Location loc = clicked.getLocation();
 
+        String prefix = plugin.getConfigManager().getPrefix();
         if (action == Action.LEFT_CLICK_BLOCK) {
             session.setIslandPos1(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-pos1");
             raw = raw.replace("%x%", String.valueOf(loc.getBlockX()))
                     .replace("%y%", String.valueOf(loc.getBlockY()))
-                    .replace("%z%", String.valueOf(loc.getBlockZ()));
+                    .replace("%z%", String.valueOf(loc.getBlockZ()))
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(raw));
         } else if (action == Action.RIGHT_CLICK_BLOCK) {
             session.setIslandPos2(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-pos2");
             raw = raw.replace("%x%", String.valueOf(loc.getBlockX()))
                     .replace("%y%", String.valueOf(loc.getBlockY()))
-                    .replace("%z%", String.valueOf(loc.getBlockZ()));
+                    .replace("%z%", String.valueOf(loc.getBlockZ()))
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(raw));
         }
 
         if (session.getIslandPos1() != null && session.getIslandPos2() != null) {
-            String msg = plugin.getConfigManager().getAdminMessage("setup-select-both");
+            String msg = plugin.getConfigManager().getAdminMessage("setup-select-both")
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(msg));
             sendClickableContinue(player);
         }
@@ -131,24 +135,28 @@ public class SetupListener implements Listener {
         if (clicked == null) return;
         Location loc = clicked.getLocation();
 
+        String prefix = plugin.getConfigManager().getPrefix();
         if (action == Action.LEFT_CLICK_BLOCK) {
             session.setFinishPos1(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-finish-pos1");
             raw = raw.replace("%x%", String.valueOf(loc.getBlockX()))
                     .replace("%y%", String.valueOf(loc.getBlockY()))
-                    .replace("%z%", String.valueOf(loc.getBlockZ()));
+                    .replace("%z%", String.valueOf(loc.getBlockZ()))
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(raw));
         } else if (action == Action.RIGHT_CLICK_BLOCK) {
             session.setFinishPos2(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-finish-pos2");
             raw = raw.replace("%x%", String.valueOf(loc.getBlockX()))
                     .replace("%y%", String.valueOf(loc.getBlockY()))
-                    .replace("%z%", String.valueOf(loc.getBlockZ()));
+                    .replace("%z%", String.valueOf(loc.getBlockZ()))
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(raw));
         }
 
         if (session.getFinishPos1() != null && session.getFinishPos2() != null) {
-            String msg = plugin.getConfigManager().getAdminMessage("setup-finish-ready");
+            String msg = plugin.getConfigManager().getAdminMessage("setup-finish-ready")
+                    .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(msg));
             sendClickableFinish(player);
         }

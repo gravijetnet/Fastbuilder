@@ -174,7 +174,7 @@ public class ProtectionListener implements Listener {
         boolean inVoid;
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
-            int absoluteDeathY = mapForVoid.getOriginY() + mapForVoid.getDeathY();
+            int absoluteDeathY = mapForVoid.getDeathY();
             inVoid = to.getBlockY() < absoluteDeathY;
         } else {
             inVoid = to.getBlockY() < bounds[1] - maxDist;
@@ -208,7 +208,7 @@ public class ProtectionListener implements Listener {
      */
     private boolean canBuildAtLocation(Player player, Location blockLoc) {
         if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
-            return isOnOwnIsland(player, blockLoc);
+            return true; // Global build mode: allow placing anywhere
         }
 
         MapManager mm = plugin.getMapManager();
@@ -227,8 +227,8 @@ public class ProtectionListener implements Listener {
 
             // Also enforce X >= originX - 1 (don't build behind the start)
             // X is the build direction and is otherwise unlimited
-            if (blockZ >= islandMinZ - 1 && blockZ <= islandMaxZ + 1
-                    && blockLoc.getBlockX() >= map.getOriginX() - 1) {
+            if (blockZ >= islandMinZ - 5 && blockZ <= islandMaxZ + 5
+                    && blockLoc.getBlockX() >= map.getOriginX() - 8) {
                 return true;
             }
         }
