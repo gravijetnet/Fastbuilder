@@ -32,8 +32,8 @@ jobs:
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
         $JAVA_HOME_8_X64/bin/java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
-        # bungeecord-chat manuell ins lokale Maven-Repo installieren
-        CHAT_JAR=$(find ~/.m2 . -name "*BungeeCord-Chat*.jar" -o -name "*bungeecord-chat*.jar" 2>/dev/null | grep -v ".lastUpdated" | head -n 1)
+        # bungeecord-chat JAR suchen und installieren
+        CHAT_JAR=$(find ~/.m2 . -type f -name "*.jar" | grep -i "bungeecord-chat\|BungeeCord-Chat" | grep -v ".lastUpdated" | head -n 1)
         echo "Found bungeecord-chat at: $CHAT_JAR"
         mvn install:install-file \
           -Dfile="$CHAT_JAR" \
