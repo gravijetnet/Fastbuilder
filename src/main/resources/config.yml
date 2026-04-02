@@ -1,7 +1,7 @@
 # FastBuilder Configuration
 
 # Plugin prefix for messages (include trailing space)
-prefix: "&c&lFastbuilder &7>> &f"
+prefix: "&c&lFastbuilder &7» &f"
 
 # Default map for new players (leave empty for none)
 default-map: "Hell"
@@ -20,7 +20,7 @@ holograms:
   enabled: true
   lines:
     - "&c%player%'s Stats"
-    - "&fPersonal Best: &c%pb%"
+    - "&fPersonal Best: &c%pb% &7%top_percent%"
     - "&fSuccessful Runs: &c%successful_attempts%"
     - "&fTotal Attempts: &c%total_attempts%"
 
@@ -35,16 +35,16 @@ scoreboard:
   title: "&c&lFastbuilder"
   lines:
     13: "&7&m-------------------"
-    12: "&8>> &cMap: &f%map%"
-    11: "&8>> &cBest: &f%pb%"
-    10: "&8>> &cTime: &a%current_time%"
+    12: "&8» &cMap: &f%map%"
+    11: "&8» &cBest: &f%pb%"
+    10: "&8» &cTime: &a%current_time%"
     9: "&f "
     8: "&7Top Session:"
     7: "&8#1 &f%top1%"
     6: "&8#2 &f%top2%"
     5: "&8#3 &f%top3%"
     4: "&f  "
-    3: "&8>> &cPlayers: &f%players%"
+    3: "&8» &cPlayers: &f%players%"
     2: "&7&oexample.invalid"
     1: "&7&o&m-------------------"
 

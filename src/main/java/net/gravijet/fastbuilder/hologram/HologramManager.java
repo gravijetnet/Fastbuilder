@@ -69,11 +69,16 @@ public class HologramManager {
             int successful = stats != null ? stats.successfulAttempts : 0;
             int total = stats != null ? stats.totalAttempts : 0;
 
+            // Calculate top percentile across all online players on this map
+            String topPercent = calculateTopPercent(map.getName(),
+                    stats != null && stats.hasBestTime() ? stats.bestTime : -1);
+
             for (String line : configLines) {
                 line = line.replace("%player%", playerData.getName())
                         .replace("%pb%", pb)
                         .replace("%successful_attempts%", String.valueOf(successful))
-                        .replace("%total_attempts%", String.valueOf(total));
+                        .replace("%total_attempts%", String.valueOf(total))
+                        .replace("%top_percent%", topPercent);
                 lines.add(ColorUtil.translate(line));
             }
 
@@ -86,6 +91,35 @@ public class HologramManager {
         } catch (NoClassDefFoundError | Exception e) {
             plugin.getLogger().warning("DecentHolograms API not available: " + e.getMessage());
         }
+    }
+
+    /**
+     * Calculate what percentage of online players have a SLOWER (worse) best time on this map.
+     * Returns a formatted string like "Top 9.8%" or "" if not enough data.
+     */
+    private String calculateTopPercent(String mapName, long playerBestTime) {
+        if (playerBestTime <= 0) return "";
+
+        int totalWithTime = 0;
+        int worseOrEqual = 0;
+
+        for (org.bukkit.entity.Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
+            net.gravijet.fastbuilder.player.PlayerData od =
+                    plugin.getPlayerManager().getCachedData(online.getUniqueId());
+            if (od == null) continue;
+            PlayerData.MapStats s = od.getStats(mapName);
+            if (s == null || !s.hasBestTime()) continue;
+            totalWithTime++;
+            if (s.bestTime > playerBestTime) worseOrEqual++;
+        }
+
+        if (totalWithTime < 2) return "";
+
+        double pct = (double) worseOrEqual / (totalWithTime - 1) * 100.0;
+        // Show as "Top X%" where X is how many percent you're better than
+        double topPct = 100.0 - pct;
+        if (topPct <= 0) topPct = 0;
+        return String.format("Top %.1f%%", topPct);
     }
 
     public void removeHologram(String mapName, int islandIndex) {

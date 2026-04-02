@@ -214,6 +214,10 @@ public class GuiManager implements Listener {
         String title = ColorUtil.translate(titleTemplate.replace("%page%", String.valueOf(page)));
         Inventory inv = Bukkit.createInventory(null, maxSlots, title);
 
+        // Fill ALL slots with a gray filler first (no empty gaps)
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < maxSlots; i++) inv.setItem(i, filler);
+
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         String purchasedStatus = guis.getString("block-status.purchased", "&aYou already own this block!");
         String notPurchasedStatus = guis.getString("block-status.not-purchased", "&cYou don't own this block yet!");
@@ -238,7 +242,8 @@ public class GuiManager implements Listener {
                             .replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
                 }
 
-                ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore).build();
+                // Block display names always use &c<name> as per spec
+                ItemStack item = ItemBuilder.fromString(mat).name("&c" + name).lore(lore).build();
                 inv.setItem(slotIndex, item);
             } catch (NumberFormatException ignored) {}
         }
@@ -248,13 +253,13 @@ public class GuiManager implements Listener {
 
         if (page > 1) {
             String prevMat = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
-            String prevName = itemsConfig.getString("change-page.previous-page.name", "&cPrevious Page");
+            String prevName = itemsConfig.getString("change-page.previous-page.name", "&c« Previous Page");
             inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
         }
 
         if (page < maxPage) {
             String nextMat = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
-            String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page");
+            String nextName = itemsConfig.getString("change-page.next-page.name", "&a» Next Page");
             inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
         }
 
@@ -460,7 +465,7 @@ public class GuiManager implements Listener {
             inv.setItem(45, new ItemBuilder(Material.ARROW).name("&c<< Previous Page").build());
         }
         if (page < maxPage) {
-            inv.setItem(53, new ItemBuilder(Material.ARROW).name("&a>> Next Page").build());
+            inv.setItem(53, new ItemBuilder(Material.ARROW).name("&a» Next Page").build());
         }
         inv.setItem(49, new ItemBuilder(Material.PAPER)
                 .name("&7Page &f" + page + " &7/ &f" + maxPage).build());

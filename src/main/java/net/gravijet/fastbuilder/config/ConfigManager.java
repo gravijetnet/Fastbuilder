@@ -59,7 +59,7 @@ public class ConfigManager {
     // --- Main Config Accessors ---
 
     public String getPrefix() {
-        return mainConfig.getString("prefix", "&c&lFastBuilder &7>> ");
+        return mainConfig.getString("prefix", "&c&lFastbuilder &7» &f");
     }
 
     public String getDefaultMap() {

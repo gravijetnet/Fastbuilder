@@ -24,10 +24,14 @@ import java.util.UUID;
  */
 public class ReplaySession {
 
-    // Isolated replay area - far from all live island grids
-    private static final int REPLAY_AREA_X = -10000;
+    // Isolated replay area base - far from all live island grids
+    private static final int REPLAY_BASE_X = -10000;
     private static final int REPLAY_AREA_Y = 10;
-    private static final int REPLAY_AREA_Z = -10000;
+    private static final int REPLAY_BASE_Z = -10000;
+    private static final int REPLAY_SLOT_SPACING = 1000;
+
+    // Slot assigned to this session (determines X offset)
+    private final int replaySlot;
 
     private final FastBuilder plugin;
     private final UUID viewerUuid;
@@ -61,10 +65,11 @@ public class ReplaySession {
     public static final int SLOT_REPLAY_AGAIN = 7;
     public static final int SLOT_STOP         = 8;
 
-    public ReplaySession(FastBuilder plugin, UUID viewerUuid, ReplayData replayData) {
+    public ReplaySession(FastBuilder plugin, UUID viewerUuid, ReplayData replayData, int replaySlot) {
         this.plugin = plugin;
         this.viewerUuid = viewerUuid;
         this.replayData = replayData;
+        this.replaySlot = replaySlot;
     }
 
     // -------------------------------------------------------------------------
@@ -80,14 +85,18 @@ public class ReplaySession {
         MapData map = plugin.getMapManager().getMap(replayData.getMapName());
         if (map == null) return;
 
+        // Calculate per-slot replay area coordinates (1000 blocks apart per viewer)
+        int replayAreaX = REPLAY_BASE_X - replaySlot * REPLAY_SLOT_SPACING;
+        int replayAreaZ = REPLAY_BASE_Z;
+
         // Offset: translate original island origin → replay area origin
         int islandOriginX = map.getOriginX();
         int islandOriginY = map.getOriginY();
         int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getDistance();
 
-        offsetX = REPLAY_AREA_X - islandOriginX;
+        offsetX = replayAreaX - islandOriginX;
         offsetY = REPLAY_AREA_Y - islandOriginY;
-        offsetZ = REPLAY_AREA_Z - islandOriginZ;
+        offsetZ = replayAreaZ - islandOriginZ;
 
         // Viewer watches from slightly above-behind the replay island spawn
         Location islandSpawn = map.getIslandSpawn(replayData.getIslandIndex());
@@ -107,7 +116,7 @@ public class ReplaySession {
         plugin.getFawePaster().pasteIslands(
                 map.getWorld(),
                 map.getTemplateFile(),
-                REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                replayAreaX, REPLAY_AREA_Y, replayAreaZ,
                 map.getDistance(),
                 0, 1,
                 new Runnable() {
@@ -175,9 +184,10 @@ public class ReplaySession {
         // Clear the pasted template from the replay area
         MapData map = plugin.getMapManager().getMap(replayData.getMapName());
         if (map != null && map.getWorld() != null) {
+            int replayAreaX = REPLAY_BASE_X - replaySlot * REPLAY_SLOT_SPACING;
             plugin.getFawePaster().clearIslands(
                     map.getWorld(),
-                    REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                    replayAreaX, REPLAY_AREA_Y, REPLAY_BASE_Z,
                     map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
                     map.getDistance(), 0, 1, null);
         }
@@ -242,10 +252,11 @@ public class ReplaySession {
         // Re-paste template then restart loop
         MapData map = plugin.getMapManager().getMap(replayData.getMapName());
         if (map != null) {
+            int replayAreaX = REPLAY_BASE_X - replaySlot * REPLAY_SLOT_SPACING;
             plugin.getFawePaster().pasteIslands(
                     map.getWorld(),
                     map.getTemplateFile(),
-                    REPLAY_AREA_X, REPLAY_AREA_Y, REPLAY_AREA_Z,
+                    replayAreaX, REPLAY_AREA_Y, REPLAY_BASE_Z,
                     map.getDistance(),
                     0, 1,
                     new Runnable() {
@@ -353,6 +364,7 @@ public class ReplaySession {
     public UUID getViewerUuid()              { return viewerUuid; }
     public ReplayData getReplayData()        { return replayData; }
     public Location getViewerWatchLocation() { return viewerWatchLocation; }
+    public int getReplaySlot()               { return replaySlot; }
 
     // -------------------------------------------------------------------------
     // Control items
@@ -370,7 +382,7 @@ public class ReplaySession {
         player.getInventory().setItem(SLOT_FAST, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 4)
                 .name("&e> Faster").lore("&7Speed: " + String.format("%.2f", playbackSpeed) + "x").build());
         player.getInventory().setItem(SLOT_FORWARD, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
-                .name("&a>> Forward (5s)").build());
+                .name("&a» Forward (5s)").build());
         player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
                 .name("&c&lLeave Replay").build());
     }

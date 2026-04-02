@@ -56,6 +56,11 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Build mode: allow breaking any block from the map or other players
+        if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
+            return;
+        }
+
         if (!isOnOwnIsland(player, event.getBlock().getLocation())) {
             event.setCancelled(true);
             return;

@@ -54,6 +54,7 @@ public class NpcManager implements Listener {
             String npcName = ColorUtil.translate(plugin.getConfigManager().getNpcName());
             net.citizensnpcs.api.npc.NPC npc = registry.createNPC(EntityType.PLAYER, npcName);
 
+            // Apply the player's own skin so the NPC mirrors the viewer
             npc.data().set("player-skin-uuid", player.getUniqueId().toString());
             npc.data().set("player-skin-name", player.getName());
 

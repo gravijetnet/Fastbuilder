@@ -38,7 +38,7 @@ import java.util.List;
 public class MapCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale"
+            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale", "setdeathy"
     );
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "name");
     private static final List<String> BOOLEANS = Arrays.asList("true", "false");
@@ -94,6 +94,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 break;
             case "autoscale":
                 handleAutoscale(player, args, mm);
+                break;
+            case "setdeathy":
+                handleSetDeathY(player, args, mm);
                 break;
             default:
                 sendHelp(player);
@@ -604,6 +607,40 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate(raw));
     }
 
+    // --- /map setdeathy <map> <Y> ---
+
+    private void handleSetDeathY(Player player, String[] args, MapManager mm) {
+        if (args.length < 3) {
+            msgAdmin(player, "usage", "%command%", "/map setdeathy <map> <yLevel>");
+            player.sendMessage(ColorUtil.translate("&7Sets the Y-level at which players die and get reset. Use -1 to remove."));
+            return;
+        }
+
+        MapData map = mm.getMap(args[1]);
+        if (map == null) {
+            msgMap(player, "map-not-found", args[1]);
+            return;
+        }
+
+        int yLevel;
+        try {
+            yLevel = Integer.parseInt(args[2]);
+        } catch (NumberFormatException e) {
+            msg(player, "&cInvalid Y level: &f" + args[2]);
+            return;
+        }
+
+        if (yLevel < 0) {
+            map.setDeathY(Integer.MIN_VALUE);
+            mm.saveMap(map);
+            msg(player, plugin.getConfigManager().getPrefix() + "&aFall death height removed for map &c" + map.getName() + "&a.");
+        } else {
+            map.setDeathY(yLevel);
+            mm.saveMap(map);
+            msg(player, plugin.getConfigManager().getPrefix() + "&aFall death height set to Y=&c" + yLevel + " &afor map &c" + map.getName() + "&a.");
+        }
+    }
+
     // --- Clickable Setup Prompts ---
 
     private void sendClickableContinue(Player player) {
@@ -649,6 +686,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&4- &c/map scale <map> <count> &7- &fSet island count"));
         player.sendMessage(ColorUtil.translate("&4- &c/map distance <map> <blocks> &7- &fSet island spacing"));
         player.sendMessage(ColorUtil.translate("&4- &c/map autoscale <map> <true|false> &7- &fToggle autoscaling"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setdeathy <map> <Y> &7- &fSet fall death Y level (-1 to remove)"));
     }
 
     // --- Tab Completion ---
@@ -681,6 +719,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "disable":
                     return filter(mm.getEnabledMapNames(), args[1]);
                 case "autoscale":
+                case "setdeathy":
                     return filter(mm.getMapNames(), args[1]);
                 default:
                     return Collections.emptyList();
