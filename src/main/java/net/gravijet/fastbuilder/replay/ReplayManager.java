@@ -30,6 +30,8 @@ public class ReplayManager {
 
     private final Map<UUID, ReplayRecorder> activeRecorders = new HashMap<>();
     private final Map<UUID, ReplaySession>  activeSessions  = new HashMap<>();
+    // Tracks which slot indices are currently in use
+    private final java.util.Set<Integer> usedReplaySlots = new java.util.HashSet<>();
 
     private int recordingTaskId = -1;
 
@@ -98,9 +100,19 @@ public class ReplayManager {
 
     public void startPlayback(Player viewer, ReplayData replayData) {
         stopPlayback(viewer.getUniqueId());
+
+        // Clear any placed blocks on the player's current island before entering replay
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(viewer.getUniqueId());
+        }
         plugin.getGameplayManager().removeSession(viewer.getUniqueId());
 
-        ReplaySession session = new ReplaySession(plugin, viewer.getUniqueId(), replayData);
+        // Allocate a free replay slot (1000-block spaced areas)
+        int slot = 0;
+        while (usedReplaySlots.contains(slot)) slot++;
+        usedReplaySlots.add(slot);
+
+        ReplaySession session = new ReplaySession(plugin, viewer.getUniqueId(), replayData, slot);
         activeSessions.put(viewer.getUniqueId(), session);
         session.start();
     }
@@ -108,6 +120,9 @@ public class ReplayManager {
     public void stopPlayback(UUID viewerUuid) {
         ReplaySession session = activeSessions.remove(viewerUuid);
         if (session == null) return;
+
+        // Free the slot so other viewers can reuse it
+        usedReplaySlots.remove(session.getReplaySlot());
 
         session.stop();
 

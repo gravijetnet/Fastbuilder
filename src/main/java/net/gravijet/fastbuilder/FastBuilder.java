@@ -9,6 +9,7 @@ import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gui.GuiManager;
 import net.gravijet.fastbuilder.hologram.HologramManager;
 import net.gravijet.fastbuilder.hotbar.HotbarManager;
+import net.gravijet.fastbuilder.listener.CpsListener;
 import net.gravijet.fastbuilder.listener.GameplayListener;
 import net.gravijet.fastbuilder.listener.PlayerListener;
 import net.gravijet.fastbuilder.listener.ProtectionListener;
@@ -38,6 +39,7 @@ public class FastBuilder extends JavaPlugin {
     private GameplayManager gameplayManager;
     private ReplayManager replayManager;
     private HotbarManager hotbarManager;
+    private CpsListener cpsListener;
 
     @Override
     public void onEnable() {
@@ -105,6 +107,12 @@ public class FastBuilder extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new GameplayListener(this), this);
 
+        // CPS Counter (only register if DecentHolograms is available)
+        if (hologramManager != null) {
+            cpsListener = new CpsListener(this);
+            Bukkit.getPluginManager().registerEvents(cpsListener, this);
+        }
+
         // BungeeCord channel
         if (configManager.isBungeeEnabled()) {
             getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
@@ -129,6 +137,7 @@ public class FastBuilder extends JavaPlugin {
         if (playerManager != null) playerManager.saveAll();
 
         // Cleanup integrations
+        if (cpsListener != null) cpsListener.cleanup();
         if (npcManager != null) npcManager.despawnAll();
         if (hologramManager != null) hologramManager.removeAll();
 

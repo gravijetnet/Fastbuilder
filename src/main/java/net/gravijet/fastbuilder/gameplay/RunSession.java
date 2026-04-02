@@ -120,13 +120,15 @@ public class RunSession {
 
     public List<Location> getPlacedBlocks() { return placedBlocks; }
     public List<Location> getPracticeBlocks() { return practiceBlocks; }
+    public java.util.HashMap<String, int[]> getOriginalBlockStates() { return originalBlockStates; }
 
     public boolean hasPracticeBlocks() { return !practiceBlocks.isEmpty(); }
 
     public void addSessionBest(long time) {
-        sessionBests.add(time);
-        java.util.Collections.sort(sessionBests);
-        while (sessionBests.size() > 3) sessionBests.remove(sessionBests.size() - 1);
+        if (sessionBests.isEmpty() || time < sessionBests.get(0)) {
+            sessionBests.clear();
+            sessionBests.add(time);
+        }
     }
 
     public List<Long> getSessionBests() { return sessionBests; }

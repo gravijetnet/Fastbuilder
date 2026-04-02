@@ -1,6 +1,49 @@
-Bitte mach noch, dass wenn ein Setzling gepflanzt ist, dass wenn auf den rechtsklickt oder linksklickt, ein kleiner text (hologram) über dem setzling kommt mit Clickspeed: x (also Clicks pro sekunden werden da gemessen)
+Please implement the following updates, bug fixes, and system adjustments. Pay close attention to every detail provided, as they are crucial for the plugin's functionality.
+🌍 Global Settings & Localization
 
+    Strict English Localization: Ensure the entire plugin—including all text, messages, menus, and outputs—is translated to and strictly uses English.
 
+    Global Build Mode: Modify "Build Mode" so that players have absolute freedom to place and break blocks anywhere in the entire world, ignoring all normal zone restrictions.
+
+🐛 Core Building & Gameplay Fixes
+
+    Track Boundary Bug: Fix a critical bug where players cannot place blocks if they build too far to the left or right of their track, or directly underneath themselves. Block placement must work flawlessly along the intended fastbuilder route.
+
+    Backward Building Limit: Restrict players from building too far backwards from their Fastbuilder island spawn point. Limit backward block placement to a maximum of about 5 to 10 blocks.
+
+    Broken Reset Animations: The block reset animations are completely non-functional (absolutely nothing happens to the blocks). Please investigate and fix this so the animations trigger properly.
+
+📊 Scoreboard & Hologram Updates
+
+    Scoreboard Overhaul: * Remove the four red statistics entirely (coins, level, rank, players).
+
+        Add a new "Fastbuilder Coins" statistic.
+
+        Add the "Top 3 Session Best" times directly to the scoreboard.
+
+    Top Percentile Hologram: Update the hologram that displays a player's best time to include a percentile ranking placeholder. It must be formatted exactly like this: Personal best: 3.8s [Top 9.8%].
+
+⚙️ Menus, Settings & Economy
+
+    Infinite Blocks Toggle: * Remove the "Block Selector" completely from the Settings menu.
+
+        Replace it with a new setting: an "Infinite Blocks On/Off" toggle.
+
+        This toggle must cost exactly 1000 coins to unlock.
+
+        When enabled, the player's block stack is permanently locked at 64. When disabled, blocks deplete normally as they build.
+
+    Practice Blocks Icon: Change the item ID for the "Practice Blocks" toggle in the Settings menu to use data value/ID 5 (Green).
+
+🛠️ Map Setup & Generation Logic
+
+    Fall Death Height Fix: Ensure that the fall death height set during map setup translates to the actual Y-coordinate of the generated map in the live world, rather than the relative Y-coordinate of the setup environment.
+
+    Selection Wand Prefix Bug: Fix the issue where the Fastbuilder prefix fails to display (showing raw placeholders instead) during the setup process, particularly on messages triggered by the Selection Wand.
+
+    Island Distance Calculation: Update the island distance algorithm. The distance between islands must be calculated based on the island's width (North to South axis), rather than its length (East to West axis).
+
+    Entity Deletion Bug: Fix a bug where all player NPCs and holograms permanently disappear whenever the islands are rescaled or the island distance value is changed. Ensure they respawn or persist correctly.
 
 # IGNORIERE ALLES AB HIER!!!!!!!!! NICHT DURCHLESEN!!!!
 replay system prompt:

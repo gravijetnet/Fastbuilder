@@ -106,6 +106,14 @@ public class PlayerListener implements Listener {
             plugin.getNpcManager().despawnNpc(player.getUniqueId());
         }
 
+        // Remove hologram from the player's last island
+        if (plugin.getHologramManager() != null) {
+            PlayerData qData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (qData != null && qData.getLastMap() != null) {
+                plugin.getHologramManager().removeHologram(qData.getLastMap(), qData.getLastIsland());
+            }
+        }
+
         // Remove scoreboard
         plugin.getScoreboardManager().removeScoreboard(player);
 
@@ -114,6 +122,26 @@ public class PlayerListener implements Listener {
 
         // Save and unload player data
         plugin.getPlayerManager().unload(player.getUniqueId());
+    }
+
+    /**
+     * Clean up a player's current island: despawn NPC, remove hologram, clear placed blocks.
+     * Call this before switching the player to a new island or map.
+     */
+    public void cleanupCurrentIsland(Player player) {
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+        if (plugin.getHologramManager() != null) {
+            PlayerData d = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (d != null && d.getLastMap() != null) {
+                plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
+            }
+        }
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        }
     }
 
     private void setupPlayerOnIsland(Player player, MapData map, int island) {

@@ -17,6 +17,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,10 @@ public class GameplayManager {
 
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
+
+    // Global session best: best run across all online players this session
+    private long globalSessionBestTime = -1;
+    private String globalSessionBestPlayer = null;
 
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -130,6 +135,12 @@ public class GameplayManager {
 
         session.addSessionBest(time);
 
+        // Update global session best
+        if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
+            globalSessionBestTime = time;
+            globalSessionBestPlayer = player.getName();
+        }
+
         if (!session.isPracticeMode()) {
             PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
             stats.totalAttempts++;
@@ -201,13 +212,7 @@ public class GameplayManager {
     private void launchCelebration(final Location location) {
         final Random rand = new Random();
 
-        // Intense sounds immediately
-        try { location.getWorld().playSound(location, Sound.FIREWORK_BLAST, 2.0f, 1.0f); } catch (Exception ignored) {}
-        try { location.getWorld().playSound(location, Sound.LEVEL_UP, 1.5f, 0.8f); } catch (Exception ignored) {}
-        try { location.getWorld().playSound(location, Sound.GHAST_FIREBALL, 1.5f, 1.2f); } catch (Exception ignored) {}
-        try { location.getWorld().playSound(location, Sound.WITHER_DEATH, 0.8f, 2.0f); } catch (Exception ignored) {}
-
-        // Launch 8 fireworks spread over ~3 seconds
+        // Launch 8 fireworks spread over ~3 seconds (firework sounds only, as on mcplayhd)
         for (int wave = 0; wave < 8; wave++) {
             final int delay = wave * 7; // ~0.35s between waves
             Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
@@ -222,11 +227,6 @@ public class GameplayManager {
                             (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
                     spawnFirework(off1, rand);
                     spawnFirework(off2, rand);
-                    // Extra sound on later waves
-                    if (delay > 14) {
-                        try { location.getWorld().playSound(location, Sound.FIREWORK_BLAST, 1.5f, 1.0f + rand.nextFloat() * 0.5f); }
-                        catch (Exception ignored) {}
-                    }
                 }
             }, delay);
         }
@@ -295,14 +295,18 @@ public class GameplayManager {
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
 
-        clearBlocksWithAnimation(player, session.getPlacedBlocks(), session.getPracticeBlocks(), session, animation);
-
+        // Capture copies BEFORE reset clears the session data
+        List<Location> blocksCopy = new ArrayList<>(session.getPlacedBlocks());
+        List<Location> practiceBlocksCopy = new ArrayList<>(session.getPracticeBlocks());
+        Map<String, int[]> origStatesCopy = new HashMap<>(session.getOriginalBlockStates());
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
 
         session.reset();
 
-        for (Long best : bests) session.addSessionBest(best);
+        clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
+
+        if (!bests.isEmpty()) session.addSessionBest(bests.get(0));
         session.setPracticeMode(practice);
 
         player.teleport(map.getIslandSpawn(session.getIslandIndex()));
@@ -315,13 +319,14 @@ public class GameplayManager {
     }
 
     @SuppressWarnings("deprecation")
-    private void clearBlocksWithAnimation(Player player, java.util.List<Location> blocks,
-                                           java.util.List<Location> practiceBlocks,
-                                           RunSession session, String animation) {
+    private void clearBlocksWithAnimation(Player player, List<Location> blocks,
+                                           List<Location> practiceBlocks,
+                                           Map<String, int[]> origStates,
+                                           boolean isPracticeMode, String animation) {
         if ("SLIDE_DOWN".equalsIgnoreCase(animation)) {
-            java.util.List<Location> toClear = new java.util.ArrayList<>();
+            List<Location> toClear = new ArrayList<>();
             for (Location loc : blocks) {
-                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
                 toClear.add(loc);
             }
             toClear.sort((a, b) -> b.getBlockY() - a.getBlockY());
@@ -334,7 +339,8 @@ public class GameplayManager {
                         Location loc = toClear.get(idx[0]);
                         Block block = loc.getBlock();
                         if (block != null) {
-                            int[] orig = session.getOriginalBlockState(loc);
+                            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                            int[] orig = origStates.get(key);
                             if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
                             else block.setType(Material.AIR);
                         }
@@ -344,13 +350,14 @@ public class GameplayManager {
             }.runTaskTimer(plugin, 0L, 1L);
         } else if ("EXPLODE".equalsIgnoreCase(animation)) {
             for (Location loc : blocks) {
-                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
                 try {
                     loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, loc.getBlock().getTypeId());
                 } catch (Exception ignored) {}
                 Block block = loc.getBlock();
                 if (block != null) {
-                    int[] orig = session.getOriginalBlockState(loc);
+                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                    int[] orig = origStates.get(key);
                     if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
                     else block.setType(Material.AIR);
                 }
@@ -358,10 +365,11 @@ public class GameplayManager {
         } else {
             // NONE: instant clear
             for (Location loc : blocks) {
-                if (session.isPracticeMode() && practiceBlocks.contains(loc)) continue;
+                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
                 Block block = loc.getBlock();
                 if (block != null) {
-                    int[] orig = session.getOriginalBlockState(loc);
+                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                    int[] orig = origStates.get(key);
                     if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
                     else block.setType(Material.AIR);
                 }
@@ -434,6 +442,9 @@ public class GameplayManager {
     public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }
     public void exitBuildMode(UUID uuid) { buildModePlayers.remove(uuid); }
     public boolean isInBuildMode(UUID uuid) { return buildModePlayers.contains(uuid); }
+
+    public long getGlobalSessionBestTime() { return globalSessionBestTime; }
+    public String getGlobalSessionBestPlayer() { return globalSessionBestPlayer; }
 
     public void shutdown() {
         if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
