@@ -31,7 +31,7 @@ jobs:
       run: |
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-        java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
+        $JAVA_HOME_8_X64/bin/java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
 
     - name: Switch back to JDK 21
       uses: actions/setup-java@v4
