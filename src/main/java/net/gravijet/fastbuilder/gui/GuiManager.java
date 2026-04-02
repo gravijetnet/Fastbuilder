@@ -295,6 +295,10 @@ public class GuiManager implements Listener {
                         line = line.replace("%price%", String.valueOf(plugin.getConfigManager().getResetStatsCost()));
                         line = line.replace("%practice_mode_enabled%",
                                 (run != null && run.isPracticeMode()) ? "&aEnabled" : "&cDisabled");
+                        line = line.replace("%infinite_blocks_status%",
+                                (data != null && data.hasInfiniteBlocks()) ? "&aEnabled" : "&cDisabled");
+                        line = line.replace("%infinite_blocks_unlocked%",
+                                (data != null && data.hasInfiniteBlocksUnlocked()) ? "&aUnlocked" : "&cLocked");
                         lore[i] = line;
                     }
 
@@ -791,10 +795,31 @@ public class GuiManager implements Listener {
         String gui = settingsSlots.getString(slot + ".gui", "");
 
         switch (gui) {
-            case "block_selector":
-                player.closeInventory();
-                openBlockSelector(player, 1);
+            case "infinite_blocks": {
+                PlayerData iData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                if (iData == null) break;
+                if (!iData.hasInfiniteBlocksUnlocked()) {
+                    int unlockCost = 1000;
+                    if (iData.removeCoins(unlockCost)) {
+                        iData.setInfiniteBlocksUnlocked(true);
+                        iData.setInfiniteBlocks(true);
+                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                + "&fInfinite Blocks unlocked and enabled for &c" + unlockCost + " &fcoins."));
+                        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
+                    } else {
+                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                + "&cNot enough coins! Infinite Blocks costs &f1000 &ccoins."));
+                    }
+                } else {
+                    boolean newState = !iData.hasInfiniteBlocks();
+                    iData.setInfiniteBlocks(newState);
+                    String stateStr = newState ? "&aenabled" : "&cdisabled";
+                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                            + "&fInfinite Blocks " + stateStr + "&f."));
+                }
+                openSettings(player);
                 break;
+            }
             case "reset_stats":
                 player.closeInventory();
                 openConfirmStatsReset(player);

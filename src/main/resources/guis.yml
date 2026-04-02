@@ -44,16 +44,19 @@ block-status:
   not-purchased: "&cYou don't own this block yet!"
 
 # Settings GUI slot layout
-# Available GUIs: block_selector, mode_changer, island_selector, reset_stats, practice_mode
-# Placeholders: %practice_mode_enabled%, %price%
+# Available GUIs: infinite_blocks, mode_changer, island_selector, reset_stats, practice_mode
+# Placeholders: %practice_mode_enabled%, %infinite_blocks_status%, %infinite_blocks_unlocked%, %price%
 settings-gui-slots:
   11:
-    name: "&eBlock Selector"
-    material: SANDSTONE:0
-    gui: "block_selector"
+    name: "&bInfinite Blocks"
+    material: STAINED_GLASS_PANE:11
+    gui: "infinite_blocks"
     lore:
+      - "&7Status: %infinite_blocks_status%"
+      - "&7Unlock: %infinite_blocks_unlocked%"
       - ""
-      - "&7Select your building blocks"
+      - "&7Blocks never run out"
+      - "&eUnlock cost: &c1000 coins"
   13:
     name: "&cReset Stats"
     material: DIAMOND_PICKAXE:0
