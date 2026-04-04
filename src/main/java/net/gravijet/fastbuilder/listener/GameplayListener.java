@@ -4,6 +4,7 @@ import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gameplay.RunSession;
 import net.gravijet.fastbuilder.map.MapData;
+import net.gravijet.fastbuilder.player.PlayerData;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -80,7 +81,7 @@ public class GameplayListener implements Listener {
         if (map == null) return;
 
         Location to = event.getTo();
-        if (isInFinishZone(map, session.getIslandIndex(), to)) {
+        if (isInFinishZone(map, session.getIslandIndex(), to, player)) {
             // In touch mode, also require the player to be standing on a pressure plate
             if (plugin.getConfigManager().isFinishTouchMode()) {
                 org.bukkit.block.Block below = to.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
@@ -113,10 +114,19 @@ public class GameplayListener implements Listener {
 
     /**
      * Check if a location is within the finish zone of a specific island.
-     * Triggers if the player is within X/Z bounds and within Y range up to
-     * finishMaxY + configurable height tolerance (for aerial/jumping detection).
+     *
+     * <ul>
+     *   <li>Returns false immediately for infinite-mode maps (no finish zone).</li>
+     *   <li>Applies the player's custom-length preference to shift the finish zone X
+     *       position when the map has custom length enabled.</li>
+     *   <li>Triggers if the player is within X/Z bounds and within Y range up to
+     *       finishMaxY + configurable height tolerance.</li>
+     * </ul>
      */
-    private boolean isInFinishZone(MapData map, int islandIndex, Location loc) {
+    private boolean isInFinishZone(MapData map, int islandIndex, Location loc, Player player) {
+        // Infinite maps have no finish condition
+        if (map.isInfinite()) return false;
+
         int offsetZ = islandIndex * map.getDistance();
 
         int fMinX = map.getOriginX() + map.getFinishMinX();
@@ -125,6 +135,21 @@ public class GameplayListener implements Listener {
         int fMaxX = map.getOriginX() + map.getFinishMaxX();
         int fMaxY = map.getOriginY() + map.getFinishMaxY();
         int fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
+
+        // Custom length: reposition finish zone X based on player preference
+        if (map.hasCustomLength()) {
+            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
+            if (customLength > 0) {
+                // Clamp to the admin-defined allowed range
+                customLength = Math.max(map.getMinCustomLength(),
+                        Math.min(map.getMaxCustomLength(), customLength));
+                // Finish zone starts at spawnOffsetX + customLength from the island origin
+                int finishZoneWidth = fMaxX - fMinX;
+                fMinX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
+                fMaxX = fMinX + finishZoneWidth;
+            }
+        }
 
         int heightTolerance = plugin.getConfigManager().getFinishHeightTolerance();
 

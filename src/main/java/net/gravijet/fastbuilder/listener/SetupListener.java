@@ -113,7 +113,11 @@ public class SetupListener implements Listener {
             Location loc = player.getLocation();
             session.setNpcPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-npc-saved");
-            if (raw == null || raw.isEmpty()) raw = "&aNPC location saved at your position.";
+            if (raw == null || raw.isEmpty()) {
+                raw = "%prefix%&aNPC location saved at &c"
+                        + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&a.";
+            }
+            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
             player.sendMessage(ColorUtil.translate(raw));
             sendClickableContinue(player);
         }

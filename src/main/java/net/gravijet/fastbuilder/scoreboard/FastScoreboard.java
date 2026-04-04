@@ -15,19 +15,23 @@ import org.bukkit.scoreboard.Scoreboard;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Per-player scoreboards. GraviJet branding, &c/&f/&7 color scheme.
  * Lines are fully config-driven via scoreboard.lines in config.yml.
+ * Supports up to 15 lines, top-10 granular placeholders, %blocks%, and PlaceholderAPI.
  */
 public class FastScoreboard {
 
     private final FastBuilder plugin;
     private int updateTaskId = -1;
 
+    // Whether PlaceholderAPI is available at runtime
+    private final boolean papiAvailable;
+
     public FastScoreboard(FastBuilder plugin) {
         this.plugin = plugin;
+        this.papiAvailable = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
         startUpdateTask();
     }
 
@@ -49,9 +53,10 @@ public class FastScoreboard {
 
     /**
      * Build display lines from config, resolving all placeholders for this player.
+     * Lines are returned in top-to-bottom order (index 0 = top of sidebar).
      */
     private List<String> buildLines(Player player) {
-        Map<Integer, String> configLines = plugin.getConfigManager().getScoreboardLines();
+        List<String> configLines = plugin.getConfigManager().getScoreboardLines();
         if (configLines.isEmpty()) {
             return Collections.emptyList();
         }
@@ -61,8 +66,6 @@ public class FastScoreboard {
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
         // Resolve placeholder values once
-        String mapName = (session != null) ? session.getMapName() : "§8None";
-
         String pb = "§8-";
         if (data != null && session != null) {
             PlayerData.MapStats stats = data.getStats(session.getMapName());
@@ -78,35 +81,70 @@ public class FastScoreboard {
 
         String coins = data != null ? String.valueOf(data.getCoins()) : "0";
 
-        List<String[]> top3list = (plugin.getGameplayManager() != null)
-                ? plugin.getGameplayManager().getGlobalSessionTop3()
-                : Collections.emptyList();
+        // Blocks placed: use running session count, or last finished count if session finished
+        String blocks = "§80";
+        if (session != null) {
+            blocks = "§f" + session.getPlacedBlocks().size();
+        }
 
-        String top1 = top3list.size() >= 1
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(0)[1]))
-                  + " §7(" + top3list.get(0)[0] + ")" : "§8-";
-        String top2 = top3list.size() >= 2
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(1)[1]))
-                  + " §7(" + top3list.get(1)[0] + ")" : "§8- ";
-        String top3 = top3list.size() >= 3
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(2)[1]))
-                  + " §7(" + top3list.get(2)[0] + ")" : "§8-  ";
+        // Top-10 session bests
+        List<String[]> topList = (plugin.getGameplayManager() != null)
+                ? plugin.getGameplayManager().getGlobalSessionTop(10)
+                : Collections.<String[]>emptyList();
 
+        // Build all result lines (in top-to-bottom order)
         List<String> result = new ArrayList<>();
-        // configLines is a TreeMap (sorted by key ascending) — display in ascending order
-        for (String raw : configLines.values()) {
+        for (String raw : configLines) {
+            // Internal placeholder replacement
             String line = raw
-                    .replace("%map%", mapName)
                     .replace("%pb%", pb)
                     .replace("%current_time%", currentTime)
                     .replace("%coins%", coins)
-                    .replace("%top1%", top1)
-                    .replace("%top2%", top2)
-                    .replace("%top3%", top3)
-                    .replace("%players%", "");  // removed per spec
-            result.add(ColorUtil.translate(line));
+                    .replace("%blocks%", blocks);
+
+            // Replace top_name_N and top_time_N for N = 1..10
+            for (int i = 1; i <= 10; i++) {
+                if (topList.size() >= i) {
+                    String[] entry = topList.get(i - 1);
+                    // Use unique padding to avoid duplicate scoreboard entries for empty slots
+                    line = line.replace("%top_name_" + i + "%", "§f" + entry[0]);
+                    line = line.replace("%top_time_" + i + "%", "§f" + TimeUtil.formatTime(Long.parseLong(entry[1])));
+                } else {
+                    line = line.replace("%top_name_" + i + "%", "§8-" + spaces(i - 1));
+                    line = line.replace("%top_time_" + i + "%", "§8-" + spaces(i - 1));
+                }
+            }
+
+            // Apply color codes before PAPI so PAPI can also use color codes
+            line = ColorUtil.translate(line);
+
+            // Apply PlaceholderAPI expansions (e.g. %phoenix_player_rank_color%, %online%, etc.)
+            line = applyPapi(player, line);
+
+            result.add(line);
         }
         return result;
+    }
+
+    /**
+     * Returns a string of N invisible spaces to make scoreboard entries unique.
+     * Scoreboard lines must all be unique strings or the last one wins.
+     */
+    private String spaces(int count) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) sb.append(' ');
+        return sb.toString();
+    }
+
+    /**
+     * Applies PlaceholderAPI placeholders if the plugin is available.
+     */
+    private String applyPapi(Player player, String text) {
+        if (!papiAvailable) return text;
+        try {
+            return me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(player, text);
+        } catch (Exception ignored) {}
+        return text;
     }
 
     public void updateScoreboard(Player player) {

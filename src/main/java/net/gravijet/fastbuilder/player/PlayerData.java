@@ -37,12 +37,22 @@ public class PlayerData {
     // Cosmetic selections
     private String selectedPickaxe = "DIAMOND_PICKAXE:0";
     private String selectedAnimation = "NONE";
+    private String selectedDeathSound = "NONE";
+
+    // One-Click Pick cosmetic: breaks blocks in a single click
+    private boolean oneClickPickEnabled = false;
+
+    // Per-map island design selection (mapName -> templateFile key)
+    private final Map<String, String> selectedDesigns = new HashMap<>();
 
     // Favorited replay file names (protected from deletion)
     private final Set<String> favoriteReplays = new HashSet<>();
 
     // Tracks which rank names (per map) the player has already been notified about (one-time messages)
     private final Map<String, Set<String>> notifiedRanks = new HashMap<>();
+
+    // Per-map custom run length preference (blocks from spawn to finish)
+    private final Map<String, Integer> customLengths = new HashMap<>();
 
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
@@ -75,9 +85,17 @@ public class PlayerData {
         config.set("favorite-replays", new java.util.ArrayList<>(favoriteReplays));
         config.set("selected-pickaxe", selectedPickaxe);
         config.set("selected-animation", selectedAnimation);
+        config.set("selected-death-sound", selectedDeathSound);
+        config.set("one-click-pick", oneClickPickEnabled);
+        for (Map.Entry<String, String> e : selectedDesigns.entrySet()) {
+            config.set("selected-designs." + e.getKey(), e.getValue());
+        }
         for (Map.Entry<String, Set<String>> e : notifiedRanks.entrySet()) {
             config.set("notified-ranks." + e.getKey(),
                     new java.util.ArrayList<>(e.getValue()));
+        }
+        for (Map.Entry<String, Integer> e : customLengths.entrySet()) {
+            config.set("custom-lengths." + e.getKey(), e.getValue());
         }
     }
 
@@ -116,11 +134,25 @@ public class PlayerData {
 
         selectedPickaxe = config.getString("selected-pickaxe", "DIAMOND_PICKAXE:0");
         selectedAnimation = config.getString("selected-animation", "NONE");
+        selectedDeathSound = config.getString("selected-death-sound", "NONE");
+        oneClickPickEnabled = config.getBoolean("one-click-pick", false);
+        selectedDesigns.clear();
+        if (config.isConfigurationSection("selected-designs")) {
+            for (String mapKey : config.getConfigurationSection("selected-designs").getKeys(false)) {
+                selectedDesigns.put(mapKey, config.getString("selected-designs." + mapKey));
+            }
+        }
         notifiedRanks.clear();
         if (config.isConfigurationSection("notified-ranks")) {
             for (String mapKey : config.getConfigurationSection("notified-ranks").getKeys(false)) {
                 java.util.List<String> rankList = config.getStringList("notified-ranks." + mapKey);
                 notifiedRanks.put(mapKey, new HashSet<>(rankList));
+            }
+        }
+        customLengths.clear();
+        if (config.isConfigurationSection("custom-lengths")) {
+            for (String mapKey : config.getConfigurationSection("custom-lengths").getKeys(false)) {
+                customLengths.put(mapKey, config.getInt("custom-lengths." + mapKey));
             }
         }
     }
@@ -219,6 +251,19 @@ public class PlayerData {
     public String getSelectedAnimation() { return selectedAnimation; }
     public void setSelectedAnimation(String selectedAnimation) { this.selectedAnimation = selectedAnimation; }
 
+    public String getSelectedDeathSound() { return selectedDeathSound; }
+    public void setSelectedDeathSound(String sound) { this.selectedDeathSound = sound; }
+
+    public boolean hasOneClickPick() { return oneClickPickEnabled; }
+    public void setOneClickPick(boolean enabled) { this.oneClickPickEnabled = enabled; }
+
+    public String getSelectedDesign(String mapName) { return selectedDesigns.get(mapName.toLowerCase()); }
+    public void setSelectedDesign(String mapName, String templateKey) {
+        if (templateKey == null) selectedDesigns.remove(mapName.toLowerCase());
+        else selectedDesigns.put(mapName.toLowerCase(), templateKey);
+    }
+    public Map<String, String> getSelectedDesigns() { return selectedDesigns; }
+
     public boolean hasBeenNotifiedOfRank(String mapName, String rankName) {
         Set<String> ranks = notifiedRanks.get(mapName.toLowerCase());
         return ranks != null && ranks.contains(rankName);
@@ -226,6 +271,26 @@ public class PlayerData {
 
     public void markRankNotified(String mapName, String rankName) {
         notifiedRanks.computeIfAbsent(mapName.toLowerCase(), k -> new HashSet<>()).add(rankName);
+    }
+
+    /**
+     * Returns the player's custom run length for the given map, or 0 if not set.
+     */
+    public int getCustomLength(String mapName) {
+        Integer val = customLengths.get(mapName.toLowerCase());
+        return val != null ? val : 0;
+    }
+
+    /**
+     * Sets the player's preferred custom run length for the given map.
+     * Pass 0 to clear/reset to default.
+     */
+    public void setCustomLength(String mapName, int length) {
+        if (length <= 0) {
+            customLengths.remove(mapName.toLowerCase());
+        } else {
+            customLengths.put(mapName.toLowerCase(), length);
+        }
     }
 
     public static class MapStats {

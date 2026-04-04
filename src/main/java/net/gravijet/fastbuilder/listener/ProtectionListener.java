@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
@@ -45,6 +46,64 @@ public class ProtectionListener implements Listener {
             event.setCancelled(true);
             // Silent cancel — no message spam while building near the edge
         }
+    }
+
+    /**
+     * One-Click Pick: if the player has the cosmetic enabled and left-clicks one of their own
+     * placed blocks, remove it instantly on first damage (no dig-time required).
+     */
+    @SuppressWarnings("deprecation")
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onBlockDamage(BlockDamageEvent event) {
+        Player player = event.getPlayer();
+        if (plugin.getGameplayManager() == null) return;
+
+        // Must have One-Click Pick cosmetic
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null || !pData.hasOneClickPick()) return;
+
+        // Must be on own island with an active session
+        RunSession session = plugin.getGameplayManager().getSession(player.getUniqueId());
+        if (session == null) return;
+
+        Location blockLoc = event.getBlock().getLocation();
+        boolean playerPlaced = false;
+        for (Location placed : session.getPlacedBlocks()) {
+            if (placed.getBlockX() == blockLoc.getBlockX()
+                    && placed.getBlockY() == blockLoc.getBlockY()
+                    && placed.getBlockZ() == blockLoc.getBlockZ()) {
+                playerPlaced = true;
+                break;
+            }
+        }
+        if (!playerPlaced) return;
+
+        // Instantly break the block: cancel the damage event (no crack animation),
+        // play the break effect, then set the block to its original state.
+        event.setCancelled(true);
+
+        org.bukkit.block.Block block = event.getBlock();
+        try {
+            block.getWorld().playEffect(blockLoc, org.bukkit.Effect.STEP_SOUND, block.getTypeId());
+        } catch (Exception ignored) {}
+
+        String key = blockLoc.getBlockX() + "," + blockLoc.getBlockY() + "," + blockLoc.getBlockZ();
+        int[] orig = session.getOriginalBlockStates().get(key);
+        if (orig != null && orig[0] != 0) {
+            block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+        } else {
+            block.setType(org.bukkit.Material.AIR);
+        }
+        // Remove from session tracking so it doesn't get cleared again on reset
+        session.getPlacedBlocks().removeIf(loc ->
+                loc.getBlockX() == blockLoc.getBlockX()
+                        && loc.getBlockY() == blockLoc.getBlockY()
+                        && loc.getBlockZ() == blockLoc.getBlockZ());
+        session.getPracticeBlocks().removeIf(loc ->
+                loc.getBlockX() == blockLoc.getBlockX()
+                        && loc.getBlockY() == blockLoc.getBlockY()
+                        && loc.getBlockZ() == blockLoc.getBlockZ());
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)

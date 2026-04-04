@@ -3,7 +3,8 @@ version: 2.0.0
 main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
-softdepend: [WorldEdit, FastAsyncWorldEdit, Citizens, DecentHolograms]
+depend: [WorldEdit, FastAsyncWorldEdit, Citizens, DecentHolograms]
+softdepend: [PlaceholderAPI]
 commands:
   map:
     description: Map administration commands
@@ -22,6 +23,9 @@ commands:
   build:
     description: Toggle creative build mode on your island
     usage: /<command>
+  length:
+    description: Set or reset your custom run length for the current map
+    usage: /<command> [blocks|reset]
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands

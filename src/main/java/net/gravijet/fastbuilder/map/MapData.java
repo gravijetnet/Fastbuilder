@@ -5,6 +5,9 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Holds all persistent data for a single map type.
  * Maps are saved as individual YAML files in plugins/FastBuilder/maps/.
@@ -46,11 +49,26 @@ public class MapData {
     private int scale;
     private boolean autoscale;
 
-    // Template file name
+    // Template file name (primary design)
     private String templateFile;
+
+    // Alternative design templates (admins can add extra schematics for the same map)
+    private List<String> alternativeTemplates = new ArrayList<>();
 
     // Minimum valid run time (ms). Times faster than this are rejected. 0 = use global.
     private long minValidTime = 0;
+
+    // Maximum allowed run time (ms). Runs that exceed this are auto-failed. 0 = disabled.
+    private long maxCompletionTime = 0;
+
+    // Infinite mode: no end island / finish zone. Players build indefinitely.
+    private boolean infinite = false;
+
+    // Custom length: per-player adjustable run distance (blocks from spawn to finish).
+    // 0 = feature disabled for this map. When enabled, players can set their own length
+    // within [minCustomLength, maxCustomLength].
+    private int minCustomLength = 0;
+    private int maxCustomLength = 0;
 
     // Time-based rank requirements (ms). -1 = not configured. Diamond > Gold > Silver > Bronze.
     private long diamondTime = -1;
@@ -102,8 +120,13 @@ public class MapData {
         config.set("scale", scale);
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
+        config.set("alternative-templates", alternativeTemplates.isEmpty() ? null : alternativeTemplates);
         config.set("death-y", deathY == Integer.MIN_VALUE ? null : deathY);
         config.set("min-valid-time", minValidTime > 0 ? minValidTime : null);
+        config.set("max-completion-time", maxCompletionTime > 0 ? maxCompletionTime : null);
+        config.set("infinite", infinite ? true : null);
+        config.set("custom-length.min", minCustomLength > 0 ? minCustomLength : null);
+        config.set("custom-length.max", maxCustomLength > 0 ? maxCustomLength : null);
         config.set("rank.diamond", diamondTime > 0 ? diamondTime : null);
         config.set("rank.gold", goldTime > 0 ? goldTime : null);
         config.set("rank.silver", silverTime > 0 ? silverTime : null);
@@ -143,8 +166,14 @@ public class MapData {
         scale = config.getInt("scale", 1);
         autoscale = config.getBoolean("autoscale", false);
         templateFile = config.getString("template");
+        alternativeTemplates = config.getStringList("alternative-templates");
+        if (alternativeTemplates == null) alternativeTemplates = new ArrayList<>();
         deathY = config.getInt("death-y", Integer.MIN_VALUE);
         minValidTime = config.getLong("min-valid-time", 0);
+        maxCompletionTime = config.getLong("max-completion-time", 0);
+        infinite = config.getBoolean("infinite", false);
+        minCustomLength = config.getInt("custom-length.min", 0);
+        maxCustomLength = config.getInt("custom-length.max", 0);
         diamondTime = config.getLong("rank.diamond", -1);
         goldTime = config.getLong("rank.gold", -1);
         silverTime = config.getLong("rank.silver", -1);
@@ -299,12 +328,33 @@ public class MapData {
     public String getTemplateFile() { return templateFile; }
     public void setTemplateFile(String templateFile) { this.templateFile = templateFile; }
 
+    /** Returns all available design templates: index 0 = primary, 1..N = alternatives. */
+    public List<String> getAllTemplates() {
+        List<String> all = new ArrayList<>();
+        if (templateFile != null) all.add(templateFile);
+        all.addAll(alternativeTemplates);
+        return all;
+    }
+
+    public List<String> getAlternativeTemplates() { return alternativeTemplates; }
+
+    public void addAlternativeTemplate(String template) {
+        if (!alternativeTemplates.contains(template)) alternativeTemplates.add(template);
+    }
+
+    public boolean removeAlternativeTemplate(String template) {
+        return alternativeTemplates.remove(template);
+    }
+
     public int getDeathY() { return deathY; }
     public void setDeathY(int y) { this.deathY = y; }
     public boolean hasDeathY() { return deathY != Integer.MIN_VALUE; }
 
     public long getMinValidTime() { return minValidTime; }
     public void setMinValidTime(long t) { this.minValidTime = t; }
+
+    public long getMaxCompletionTime() { return maxCompletionTime; }
+    public void setMaxCompletionTime(long t) { this.maxCompletionTime = t; }
 
     public long getDiamondTime() { return diamondTime; }
     public void setDiamondTime(long t) { this.diamondTime = t; }
@@ -317,6 +367,20 @@ public class MapData {
 
     public long getBronzeTime() { return bronzeTime; }
     public void setBronzeTime(long t) { this.bronzeTime = t; }
+
+    public boolean isInfinite() { return infinite; }
+    public void setInfinite(boolean infinite) { this.infinite = infinite; }
+
+    public int getMinCustomLength() { return minCustomLength; }
+    public void setMinCustomLength(int min) { this.minCustomLength = min; }
+
+    public int getMaxCustomLength() { return maxCustomLength; }
+    public void setMaxCustomLength(int max) { this.maxCustomLength = max; }
+
+    /** Returns true if the custom length feature is active for this map. */
+    public boolean hasCustomLength() {
+        return minCustomLength > 0 && maxCustomLength > 0 && maxCustomLength >= minCustomLength;
+    }
 
     /**
      * Returns the highest rank the player achieves with the given best time.

@@ -4,10 +4,10 @@
 prefix: "&c&lFastbuilder &7» &f"
 
 # Default map for new players (leave empty for none)
-default-map: "Hell"
+default-map: "SuperShort"
 
 # Economy
-reset-stats-cost: 100
+reset-stats-cost: 2000
 # Playtime reward: coins awarded per hour of active playtime
 coins-per-hour: 150
 coins-per-completion: 10
@@ -31,31 +31,41 @@ holograms:
     - "&fSuccessful Runs: &c%successful_attempts%"
     - "&fTotal Attempts: &c%total_attempts%"
 
-# NPCs (requires Citizens)
+# NPCs
 npcs:
   enabled: true
   name: "&cMap Selector"
 
 # Scoreboard
-# Placeholders: %map%, %pb%, %current_time%, %top1%, %top2%, %top3%, %coins%
+# Placeholders: %map%, %pb%, %current_time%, %coins%
+#   Combined top-3: %top1%, %top2%, %top3%  (format: "time (name)")
+#   Granular top-3: %top_name_1/2/3% (name only), %top_time_1/2/3% (time only)
 # update-interval: ticks between scoreboard refreshes (20 = 1 second)
 scoreboard:
   title: "&c&lFastbuilder"
-  update-interval: 20
+  update-interval: 1
   lines:
-    13: "&7&m-------------------"
-    12: "&8» &cMap: &f%map%"
-    11: "&8» &cBest: &f%pb%"
-    10: "&8» &cTime: &a%current_time%"
-    9: "&f "
-    8: "&7Top Session:"
-    7: "&8#1 &f%top1%"
-    6: "&8#2 &f%top2%"
-    5: "&8#3 &f%top3%"
-    4: "&f  "
-    3: "&8» &cCoins: &6%coins%"
-    2: "&7&ogravijet.net"
-    1: "&7&o&m-------------------"
+    - "&7&m-------------------"
+    - "&7Personal Best:"
+    - "&8» &c%pb%"
+    - ""
+    - "&7Session-Top-3:"
+    - "%phoenix_player_rank_color%%top_name_1%&7: &c%top_time_1%"
+    - "%phoenix_player_rank_color%%top_name_2%&7: &c%top_time_2%"
+    - "%phoenix_player_rank_color%%top_name_3%&7: &c%top_time_3%"
+    - ""
+    - "&7Blocks:"
+    - "&8» &c%blocks%"
+    - ""
+    - "&7&ogravijet.net"
+    - "&7&m-------------------"
+
+# Replay settings
+replay:
+  # How the player's name is shown on the replay NPC.
+  # "recorded" = use the name as it was at the time of the run.
+  # "current"  = update to the player's current username (if resolvable).
+  player-name-mode: "recorded"
 
 # Finish trigger mode: "zone" (enter finish area) or "touch" (step on pressure plate)
 finish-trigger-mode: "zone"
@@ -65,14 +75,14 @@ autoscale:
   min-islands: 15
   scale-threshold: 80
 
-# Map spacing (blocks between different map types)
+# Map spacing (distance between different map types)
 map-spacing: 2000
 
 # Default Y level for new map origins
 default-y: 20
 
 # Auto-refill perk cost (coins)
-auto-refill-cost: 5000
+auto-refill-cost: 1000
 
 # BungeeCord
 bungee:

@@ -19,6 +19,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -39,6 +40,47 @@ public class GameplayManager {
 
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
+
+    // -------------------------------------------------------------------------
+    // Death Sounds: display name → Bukkit Sound enum name
+    // -------------------------------------------------------------------------
+    public static final Map<String, String> DEATH_SOUNDS = new LinkedHashMap<>();
+    static {
+        DEATH_SOUNDS.put("NONE",        null);
+        DEATH_SOUNDS.put("Creeper",     "EXPLODE");
+        DEATH_SOUNDS.put("Anvil",       "ANVIL_LAND");
+        DEATH_SOUNDS.put("Ghast",       "GHAST_DEATH");
+        DEATH_SOUNDS.put("Wither",      "WITHER_DEATH");
+        DEATH_SOUNDS.put("IronGolem",   "IRONGOLEM_DEATH");
+        DEATH_SOUNDS.put("Enderman",    "ENDERMAN_SCREAM");
+        DEATH_SOUNDS.put("Zombie",      "ZOMBIE_HURT");
+        DEATH_SOUNDS.put("Piglin",      "ZOMBIE_PIG_ANGRY");
+        DEATH_SOUNDS.put("Blaze",       "BLAZE_DEATH");
+        DEATH_SOUNDS.put("Wolf",        "WOLF_DEATH");
+        DEATH_SOUNDS.put("GhastShoot",  "GHAST_FIREBALL");
+        DEATH_SOUNDS.put("Slime",       "SLIME_ATTACK");
+        DEATH_SOUNDS.put("Portal",      "PORTAL");
+        DEATH_SOUNDS.put("Firework",    "FIREWORK_BLAST");
+        DEATH_SOUNDS.put("LevelUp",     "LEVEL_UP");
+        DEATH_SOUNDS.put("Splash",      "SPLASH");
+        DEATH_SOUNDS.put("WitherShoot", "WITHER_SHOOT");
+        DEATH_SOUNDS.put("Villager",    "VILLAGER_DEATH");
+        DEATH_SOUNDS.put("ArrowHit",    "ARROW_HIT");
+        DEATH_SOUNDS.put("Fizz",        "FIZZ");
+        DEATH_SOUNDS.put("Bat",         "BAT_DEATH");
+        DEATH_SOUNDS.put("Lava",        "LAVA_POP");
+        DEATH_SOUNDS.put("Cave",        "AMBIENCE_CAVE");
+        DEATH_SOUNDS.put("Thunder",     "AMBIENCE_THUNDER");
+        DEATH_SOUNDS.put("Note",        "NOTE_PLING");
+        DEATH_SOUNDS.put("Skeleton",    "SKELETON_HURT");
+        DEATH_SOUNDS.put("Spider",      "SPIDER_IDLE");
+        DEATH_SOUNDS.put("WolfHowl",    "WOLF_HOWL");
+        DEATH_SOUNDS.put("Enderman2",   "ENDERMAN_STARE");
+        DEATH_SOUNDS.put("DragonGrowl", "ENDERDRAGON_GROWL");
+        DEATH_SOUNDS.put("WitherSpawn", "WITHER_SPAWN");
+        DEATH_SOUNDS.put("ItemBreak",   "ITEM_BREAK");
+        DEATH_SOUNDS.put("Chest",       "CHEST_OPEN");
+    }
 
     // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
     private final java.util.Set<UUID> animationEntities = new java.util.HashSet<>();
@@ -119,7 +161,8 @@ public class GameplayManager {
     }
 
     /**
-     * Called when a player steps on a pressure plate in the finish zone.
+     * Called when a player enters the finish zone.
+     * Does nothing for infinite-mode maps (no finish condition).
      */
     public void onFinish(Player player) {
         UUID uuid = player.getUniqueId();
@@ -128,6 +171,13 @@ public class GameplayManager {
 
         RunSession session = activeSessions.get(uuid);
         if (session == null || !session.isRunning() || session.isFinished()) {
+            finishCooldown.remove(uuid);
+            return;
+        }
+
+        // Infinite mode maps have no finish condition
+        MapData infiniteCheck = plugin.getMapManager().getMap(session.getMapName());
+        if (infiniteCheck != null && infiniteCheck.isInfinite()) {
             finishCooldown.remove(uuid);
             return;
         }
@@ -356,6 +406,7 @@ public class GameplayManager {
             }
         }
 
+        playDeathSound(player);
         resetRun(player);
     }
 
@@ -394,6 +445,23 @@ public class GameplayManager {
         }
 
         plugin.getScoreboardManager().updateScoreboard(player);
+    }
+
+    /**
+     * Plays the player's selected death sound at their location.
+     */
+    public void playDeathSound(Player player) {
+        net.gravijet.fastbuilder.player.PlayerData data =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+        String soundKey = data.getSelectedDeathSound();
+        if (soundKey == null || soundKey.equalsIgnoreCase("NONE")) return;
+        String soundEnum = DEATH_SOUNDS.getOrDefault(soundKey, soundKey);
+        if (soundEnum == null) return;
+        try {
+            org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundEnum);
+            player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
+        } catch (Exception ignored) {}
     }
 
     @SuppressWarnings("deprecation")
@@ -451,6 +519,12 @@ public class GameplayManager {
                     else block.setType(Material.AIR);
                 }
             }
+        } else if ("ITEM_DROP".equalsIgnoreCase(animation)) {
+            clearBlocksItemDrop(blocks, practiceBlocks, origStates, isPracticeMode);
+        } else if ("ICE_MELT".equalsIgnoreCase(animation)) {
+            clearBlocksIceMelt(blocks, practiceBlocks, origStates, isPracticeMode);
+        } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
+            clearBlocksCreativeNpc(blocks, practiceBlocks, origStates, isPracticeMode);
         } else {
             // NONE: instant clear
             for (Location loc : blocks) {
@@ -464,6 +538,125 @@ public class GameplayManager {
                 }
             }
         }
+    }
+
+    /**
+     * ITEM_DROP animation: blocks turn into dropped item entities and fall down.
+     */
+    @SuppressWarnings("deprecation")
+    private void clearBlocksItemDrop(List<Location> blocks, List<Location> practiceBlocks,
+                                      Map<String, int[]> origStates, boolean isPracticeMode) {
+        for (Location loc : blocks) {
+            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
+            Block block = loc.getBlock();
+            if (block == null || block.getType() == Material.AIR) continue;
+            Material mat = block.getType();
+            short durability = block.getData();
+            Location center = loc.clone().add(0.5, 0.5, 0.5);
+            try {
+                org.bukkit.entity.Item item = loc.getWorld().dropItem(
+                        center, new org.bukkit.inventory.ItemStack(mat, 1, durability));
+                item.setPickupDelay(32767); // prevent pickup
+                item.setVelocity(new org.bukkit.util.Vector(
+                        (Math.random() - 0.5) * 0.25,
+                        0.15 + Math.random() * 0.25,
+                        (Math.random() - 0.5) * 0.25));
+                final org.bukkit.entity.Item ref = item;
+                Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!ref.isDead()) ref.remove(); }, 40L);
+            } catch (Exception ignored) {}
+            // Clear block
+            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+            int[] orig = origStates.get(key);
+            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+            else block.setType(Material.AIR);
+        }
+    }
+
+    /**
+     * ICE_MELT animation: replace blocks with ice, then melt (remove) after a few ticks.
+     */
+    @SuppressWarnings("deprecation")
+    private void clearBlocksIceMelt(List<Location> blocks, List<Location> practiceBlocks,
+                                     Map<String, int[]> origStates, boolean isPracticeMode) {
+        List<Location> toClear = new ArrayList<>();
+        for (Location loc : blocks) {
+            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
+            Block block = loc.getBlock();
+            if (block == null || block.getType() == Material.AIR) continue;
+            block.setTypeIdAndData(79, (byte) 0, false); // ICE (ID 79)
+            toClear.add(loc);
+        }
+        // Remove ice after 4 ticks (~0.2 s) — fast melt
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (Location loc : toClear) {
+                Block block = loc.getBlock();
+                if (block == null) continue;
+                String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                int[] orig = origStates.get(key);
+                if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                else block.setType(Material.AIR);
+            }
+        }, 4L);
+    }
+
+    /**
+     * CREATIVE_NPC animation: a Citizens NPC in creative-mode skin rapidly "mines" all blocks away.
+     * The NPC teleports to each block and removes it instantly — very fast (~10 blocks/tick).
+     */
+    @SuppressWarnings("deprecation")
+    private void clearBlocksCreativeNpc(List<Location> blocks, List<Location> practiceBlocks,
+                                         Map<String, int[]> origStates, boolean isPracticeMode) {
+        List<Location> toClear = new ArrayList<>();
+        for (Location loc : blocks) {
+            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
+            Block block = loc.getBlock();
+            if (block == null || block.getType() == Material.AIR) continue;
+            toClear.add(loc);
+        }
+        if (toClear.isEmpty()) return;
+
+        // Spawn NPC at the first block location
+        net.citizensnpcs.api.npc.NPC[] npcRef = new net.citizensnpcs.api.npc.NPC[1];
+        try {
+            net.citizensnpcs.api.npc.NPCRegistry reg = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
+            net.citizensnpcs.api.npc.NPC npc = reg.createNPC(
+                    org.bukkit.entity.EntityType.PLAYER, "§6Builder");
+            Location spawnLoc = toClear.get(0).clone().add(0.5, 0, 0.5);
+            npc.spawn(spawnLoc);
+            npcRef[0] = npc;
+        } catch (NoClassDefFoundError | Exception ignored) {}
+
+        final int BLOCKS_PER_TICK = 10;
+        final int[] idx = {0};
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < BLOCKS_PER_TICK && idx[0] < toClear.size(); i++, idx[0]++) {
+                    Location loc = toClear.get(idx[0]);
+                    Block block = loc.getBlock();
+                    if (block == null || block.getType() == Material.AIR) continue;
+                    // Teleport NPC to block
+                    if (npcRef[0] != null && npcRef[0].isSpawned()) {
+                        try { npcRef[0].getEntity().teleport(loc.clone().add(0.5, 0, 0.5)); }
+                        catch (Exception ignored) {}
+                    }
+                    // Block break effect
+                    try { loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, block.getTypeId()); }
+                    catch (Exception ignored) {}
+                    // Remove block
+                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                    int[] orig = origStates.get(key);
+                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                    else block.setType(Material.AIR);
+                }
+                if (idx[0] >= toClear.size()) {
+                    if (npcRef[0] != null) {
+                        try { npcRef[0].destroy(); } catch (Exception ignored) {}
+                    }
+                    this.cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     @SuppressWarnings("deprecation")
@@ -558,7 +751,6 @@ public class GameplayManager {
 
     private void startActionbarTask() {
         String actionBarFormat = plugin.getConfigManager().getActionBar();
-        if (actionBarFormat == null || actionBarFormat.isEmpty()) return;
 
         actionbarTaskId = new BukkitRunnable() {
             @Override
@@ -568,6 +760,33 @@ public class GameplayManager {
                     if (player == null || !player.isOnline()) continue;
 
                     RunSession session = entry.getValue();
+
+                    // Max completion time check: auto-fail runs that exceed the configured limit
+                    if (session.isRunning()) {
+                        MapData mapData = plugin.getMapManager().getMap(session.getMapName());
+                        if (mapData != null && mapData.getMaxCompletionTime() > 0
+                                && session.getElapsed() > mapData.getMaxCompletionTime()) {
+                            if (plugin.getReplayManager() != null) {
+                                plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+                            }
+                            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                            if (pData != null && !session.isPracticeMode()) {
+                                PlayerData.MapStats stats = pData.getOrCreateStats(session.getMapName());
+                                stats.totalAttempts++;
+                            }
+                            String limitMsg = plugin.getConfigManager().getMessage("max-time-exceeded");
+                            if (limitMsg == null || limitMsg.isEmpty()) {
+                                limitMsg = "%prefix%&cRun failed: time limit exceeded.";
+                            }
+                            limitMsg = limitMsg.replace("%prefix%", plugin.getConfigManager().getPrefix());
+                            player.sendMessage(ColorUtil.translate(limitMsg));
+                            resetRun(player);
+                            continue;
+                        }
+                    }
+
+                    if (actionBarFormat == null || actionBarFormat.isEmpty()) continue;
+
                     String timer = session.isRunning()
                             ? TimeUtil.formatTime(session.getElapsed()) : "00:00.000";
 
@@ -609,17 +828,22 @@ public class GameplayManager {
     public String getGlobalSessionBestPlayer() { return globalSessionBestPlayer; }
 
     /**
-     * Returns the top 3 unique-player session bests as [playerName, timeMillisStr] pairs, sorted best first.
+     * Returns the top N unique-player session bests as [playerName, timeMillisStr] pairs, sorted best first.
      */
-    public List<String[]> getGlobalSessionTop3() {
+    public List<String[]> getGlobalSessionTop(int n) {
         List<Map.Entry<String, Long>> sorted = new ArrayList<>(globalSessionBests.entrySet());
         sorted.sort((a, b) -> Long.compare(a.getValue(), b.getValue()));
         List<String[]> result = new ArrayList<>();
-        for (int i = 0; i < Math.min(3, sorted.size()); i++) {
+        for (int i = 0; i < Math.min(n, sorted.size()); i++) {
             Map.Entry<String, Long> entry = sorted.get(i);
             result.add(new String[]{entry.getKey(), String.valueOf(entry.getValue())});
         }
         return result;
+    }
+
+    /** Convenience overload — returns top 3 (backward compat). */
+    public List<String[]> getGlobalSessionTop3() {
+        return getGlobalSessionTop(3);
     }
 
     public void removeGlobalSessionBest(String playerName) {
