@@ -48,12 +48,20 @@ public class ReplayRecorder {
     /**
      * Record a tick. Called every server tick while recording.
      */
+    @SuppressWarnings("deprecation")
     public void recordTick(Player player) {
         Location loc = player.getLocation();
         boolean sneaking   = player.isSneaking();
         boolean sprinting  = player.isSprinting();
         boolean swingArm   = pendingArmSwing;
         pendingArmSwing = false;
+
+        // Record hand item (v4)
+        org.bukkit.inventory.ItemStack handItem = player.getItemInHand();
+        int handItemId = (handItem != null && handItem.getType() != org.bukkit.Material.AIR)
+                ? handItem.getTypeId() : 0;
+        byte handItemData = (handItem != null && handItem.getType() != org.bukkit.Material.AIR)
+                ? handItem.getData().getData() : 0;
 
         ReplayFrame.BlockPlacement placement = pendingPlacements.poll();
 
@@ -62,6 +70,7 @@ public class ReplayRecorder {
                 loc.getX(), loc.getY(), loc.getZ(),
                 loc.getYaw(), loc.getPitch(), loc.getYaw(),
                 sneaking, sprinting, swingArm,
+                handItemId, handItemData,
                 placement
         ));
 
@@ -73,6 +82,7 @@ public class ReplayRecorder {
                     loc.getX(), loc.getY(), loc.getZ(),
                     loc.getYaw(), loc.getPitch(), loc.getYaw(),
                     sneaking, sprinting, false,
+                    handItemId, handItemData,
                     extra
             ));
         }

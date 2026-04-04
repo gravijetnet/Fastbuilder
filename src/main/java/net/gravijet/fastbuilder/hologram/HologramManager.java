@@ -98,8 +98,9 @@ public class HologramManager {
      * (loaded from disk, with 60-second cache).
      * "Top X%" = the player is in the top X% fastest players (lower = better rank).
      * Returns "" if fewer than 2 players have a recorded time.
+     * Public so it can be used in /stats output.
      */
-    private String calculateTopPercent(String mapName, long playerBestTime) {
+    public String calculateTopPercent(String mapName, long playerBestTime) {
         if (playerBestTime <= 0) return "";
 
         long[] allTimes = plugin.getPlayerManager().getGlobalBestTimesForMap(mapName);

@@ -6,8 +6,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 
 /**
@@ -110,17 +111,29 @@ public class ConfigManager {
         return mainConfig.getString("scoreboard.title", "&c&lFastBuilder");
     }
 
-    public Map<Integer, String> getScoreboardLines() {
-        Map<Integer, String> lines = new TreeMap<>();
+    /**
+     * Returns scoreboard lines in top-to-bottom display order (index 0 = top).
+     * Supports both the new YAML list format and the legacy numbered-key format
+     * (where key=1 maps to the top line, key=N to the bottom).
+     */
+    public List<String> getScoreboardLines() {
+        // New format: a YAML list where first entry = top, last entry = bottom
+        if (mainConfig.isList("scoreboard.lines")) {
+            List<String> lines = mainConfig.getStringList("scoreboard.lines");
+            return lines != null ? lines : Collections.<String>emptyList();
+        }
+        // Legacy format: integer-keyed section; TreeMap ascending gives key=1 first = top
         if (mainConfig.isConfigurationSection("scoreboard.lines")) {
+            TreeMap<Integer, String> map = new TreeMap<>();
             for (String key : mainConfig.getConfigurationSection("scoreboard.lines").getKeys(false)) {
                 try {
                     int slot = Integer.parseInt(key);
-                    lines.put(slot, mainConfig.getString("scoreboard.lines." + key));
+                    map.put(slot, mainConfig.getString("scoreboard.lines." + key));
                 } catch (NumberFormatException ignored) {}
             }
+            return new ArrayList<>(map.values());
         }
-        return lines;
+        return Collections.<String>emptyList();
     }
 
     public int getAutoscaleMinIslands() {
@@ -183,6 +196,13 @@ public class ConfigManager {
 
     public boolean isFinishTouchMode() {
         return "touch".equalsIgnoreCase(mainConfig.getString("finish-trigger-mode", "zone"));
+    }
+
+    /**
+     * "recorded" = use name from replay file; "current" = resolve current username.
+     */
+    public String getReplayPlayerNameMode() {
+        return mainConfig.getString("replay.player-name-mode", "recorded");
     }
 
     // --- GUI Config Accessors ---

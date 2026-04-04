@@ -37,7 +37,9 @@ import java.util.List;
 public class MapCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale", "setdeathy", "setmintime", "setrank"
+            "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale",
+            "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign", "removedesign",
+            "setinfinite", "setcustomlength"
     );
     private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "name");
@@ -101,8 +103,23 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             case "setmintime":
                 handleSetMinTime(player, args, mm);
                 break;
+            case "setmaxtime":
+                handleSetMaxTime(player, args, mm);
+                break;
             case "setrank":
                 handleSetRank(player, args, mm);
+                break;
+            case "adddesign":
+                handleAddDesign(player, args, mm);
+                break;
+            case "removedesign":
+                handleRemoveDesign(player, args, mm);
+                break;
+            case "setinfinite":
+                handleSetInfinite(player, args, mm);
+                break;
+            case "setcustomlength":
+                handleSetCustomLength(player, args, mm);
                 break;
             default:
                 sendHelp(player);
@@ -215,6 +232,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 if (!session.isSpawnFacingEast() && !forceSpawnLoc) {
                     String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-not-east");
                     if (raw == null || raw.isEmpty()) raw = prefix + "&cSpawn must face East. Use &f/map setup continue --force-spawn-location &cto bypass.";
+                    raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
                     player.sendMessage(ColorUtil.translate(raw));
                     return;
                 }
@@ -236,13 +254,44 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 sendClickableContinue(player);
                 break;
             case SELECTING_HOLOGRAM:
-                session.advanceToFinish();
-                player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
-                player.sendMessage(ColorUtil.translate("&e&lStep 5: &fSelect the finish zone (pressure plates area)."));
-                player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bFinish Pos 1."));
-                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bFinish Pos 2."));
-                player.sendMessage(ColorUtil.translate("&7  When both corners are set, type:"));
-                sendClickableFinish(player);
+                boolean isInfiniteFlag = false;
+                for (String a : args) {
+                    if ("--infinite".equalsIgnoreCase(a)) { isInfiniteFlag = true; break; }
+                }
+
+                if (isInfiniteFlag) {
+                    // Infinite mode: skip finish zone — save template now and jump to naming
+                    session.setInfinite(true);
+                    Location setupMin = session.getIslandMin();
+                    Location setupMax = session.getIslandMax();
+                    if (setupMin == null || setupMax == null) {
+                        msg(player, "&cIsland selection is missing. Restart setup.");
+                        return;
+                    }
+                    String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
+                    boolean saved = plugin.getFawePaster().saveTemplate(
+                            setupMin.getWorld(),
+                            setupMin.getBlockX(), setupMin.getBlockY(), setupMin.getBlockZ(),
+                            setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
+                            tempName);
+                    if (!saved) {
+                        msg(player, "&cFailed to save island template. Check console for errors.");
+                        return;
+                    }
+                    session.advanceToName();
+                    player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved! Infinite mode enabled."));
+                    player.sendMessage(ColorUtil.translate("&7No finish zone required for infinite maps."));
+                    player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map with: &c/map setup name <name>"));
+                } else {
+                    session.advanceToFinish();
+                    player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
+                    player.sendMessage(ColorUtil.translate("&e&lStep 5: &fSelect the finish zone (any blocks work as the finish area)."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bFinish Pos 1."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bFinish Pos 2."));
+                    player.sendMessage(ColorUtil.translate("&7  For an &cinfinite map&7 (no end island), add &c--infinite&7 to this command."));
+                    player.sendMessage(ColorUtil.translate("&7  When both corners are set, type:"));
+                    sendClickableFinish(player);
+                }
                 break;
             default:
                 msgAdmin(player, "setup-not-ready");
@@ -311,6 +360,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         // Create map (origin is calculated from grid, not setup area)
         MapData map = mm.createMap(session, name);
         map.setTemplateFile(name.toLowerCase());
+        if (session.isInfinite()) {
+            map.setInfinite(true);
+        }
         mm.saveMap(map);
 
         // Paste the initial island into the world (fixes island #1 void bug)
@@ -383,7 +435,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.renameMap(oldName, newName);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-renamed");
-        raw = raw.replace("%old%", oldName).replace("%new%", newName);
+        raw = raw.replace("%old%", oldName).replace("%new%", newName)
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -424,7 +477,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.saveMap(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-icon-set");
-        raw = raw.replace("%map%", map.getName()).replace("%icon%", icon);
+        raw = raw.replace("%map%", map.getName()).replace("%icon%", icon)
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -449,7 +503,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.checkAutoscale(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-enabled");
-        raw = raw.replace("%map%", map.getName());
+        raw = raw.replace("%map%", map.getName())
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -482,7 +537,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         String raw = plugin.getConfigManager().getAdminMessage("map-disabled");
-        raw = raw.replace("%map%", map.getName());
+        raw = raw.replace("%map%", map.getName())
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -588,7 +644,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         String raw = plugin.getConfigManager().getAdminMessage("map-autoscale-set");
-        raw = raw.replace("%map%", map.getName()).replace("%value%", String.valueOf(value));
+        raw = raw.replace("%map%", map.getName()).replace("%value%", String.valueOf(value))
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
 
@@ -647,6 +704,27 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 + " &fset to &c" + ms + "ms" + (ms <= 0 ? " &7(uses global)" : "") + "&f.");
     }
 
+    // --- /map setmaxtime <map> <ms> ---
+
+    private void handleSetMaxTime(Player player, String[] args, MapManager mm) {
+        if (args.length < 3) {
+            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setmaxtime <map> <ms> &7(0 to disable)");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        long ms;
+        try { ms = Long.parseLong(args[2]); } catch (NumberFormatException e) {
+            msg(player, "&cInvalid number: &f" + args[2]); return;
+        }
+
+        map.setMaxCompletionTime(Math.max(0, ms));
+        mm.saveMap(map);
+        msg(player, plugin.getConfigManager().getPrefix() + "&fMax completion time for &c" + map.getName()
+                + " &fset to &c" + (ms <= 0 ? "disabled" : ms + "ms") + "&f.");
+    }
+
     // --- /map setrank <map> <gold|silver|bronze> <ms> ---
 
     private void handleSetRank(Player player, String[] args, MapManager mm) {
@@ -674,6 +752,127 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.saveMap(map);
         String display = ms <= 0 ? "removed" : ms + "ms";
         msg(player, plugin.getConfigManager().getPrefix() + "&f" + capitalize(tier) + " rank time for &c" + map.getName() + " &fset to &c" + display + "&f.");
+    }
+
+    // --- /map adddesign <map> ---
+    // Saves the current setup area template as an alternative design for the map.
+
+    private void handleAddDesign(Player player, String[] args, MapManager mm) {
+        if (args.length < 2) {
+            msg(player, plugin.getConfigManager().getPrefix()
+                    + "&cUsage: &f/map adddesign <map> &7- Saves the current setup template as a new design.");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        String prefix = plugin.getConfigManager().getPrefix();
+        // Save current setup area as a uniquely-named template file
+        String designKey = map.getName().toLowerCase() + "_design_" + (map.getAllTemplates().size());
+
+        // Check if admin is in setup mode with a valid selection
+        net.gravijet.fastbuilder.map.SetupSession session =
+                mm.getSetupSession(player.getUniqueId());
+        if (session != null && session.getIslandMin() != null && session.getIslandMax() != null) {
+            Location min = session.getIslandMin();
+            Location max = session.getIslandMax();
+            boolean saved = plugin.getFawePaster().saveTemplate(
+                    min.getWorld(),
+                    min.getBlockX(), min.getBlockY(), min.getBlockZ(),
+                    max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                    designKey);
+            if (!saved) {
+                msg(player, prefix + "&cFailed to save design template. Check console for errors.");
+                return;
+            }
+        } else {
+            // No active setup session — use the name provided as args[2] if given
+            if (args.length < 3) {
+                msg(player, prefix + "&cNo active setup selection found. "
+                        + "&fUse the setup wizard to select an area, or provide a template key: "
+                        + "&c/map adddesign <map> <existingTemplateKey>");
+                return;
+            }
+            designKey = args[2];
+        }
+
+        map.addAlternativeTemplate(designKey);
+        mm.saveMap(map);
+        msg(player, prefix + "&fAlternative design &c" + designKey + " &fadded to map &c" + map.getName() + "&f. "
+                + "&7(" + (map.getAllTemplates().size() - 1) + " alternative(s) total)");
+    }
+
+    // --- /map removedesign <map> <templateKey> ---
+
+    private void handleRemoveDesign(Player player, String[] args, MapManager mm) {
+        if (args.length < 3) {
+            msg(player, plugin.getConfigManager().getPrefix()
+                    + "&cUsage: &f/map removedesign <map> <templateKey>");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        String key = args[2];
+        String prefix = plugin.getConfigManager().getPrefix();
+        if (map.removeAlternativeTemplate(key)) {
+            mm.saveMap(map);
+            msg(player, prefix + "&fDesign &c" + key + " &fremoved from map &c" + map.getName() + "&f.");
+        } else {
+            msg(player, prefix + "&cDesign &f" + key + " &cnot found for map &f" + map.getName()
+                    + "&c. Available alternatives: &f" + map.getAlternativeTemplates());
+        }
+    }
+
+    // --- /map setinfinite <map> <true|false> ---
+
+    private void handleSetInfinite(Player player, String[] args, MapManager mm) {
+        if (args.length < 3) {
+            msg(player, plugin.getConfigManager().getPrefix()
+                    + "&cUsage: &f/map setinfinite <map> <true|false>");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        boolean value = Boolean.parseBoolean(args[2]);
+        map.setInfinite(value);
+        mm.saveMap(map);
+        msg(player, plugin.getConfigManager().getPrefix()
+                + "&fInfinite mode for &c" + map.getName() + " &fset to &c" + value + "&f.");
+    }
+
+    // --- /map setcustomlength <map> <min> <max> ---
+
+    private void handleSetCustomLength(Player player, String[] args, MapManager mm) {
+        if (args.length < 4) {
+            msg(player, plugin.getConfigManager().getPrefix()
+                    + "&cUsage: &f/map setcustomlength <map> <min> <max> &7(0 0 to disable)");
+            return;
+        }
+        MapData map = mm.getMap(args[1]);
+        if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
+
+        int min, max;
+        try {
+            min = Integer.parseInt(args[2]);
+            max = Integer.parseInt(args[3]);
+        } catch (NumberFormatException e) {
+            msg(player, "&cInvalid numbers.");
+            return;
+        }
+
+        if (min > 0 && max > 0 && min > max) {
+            msg(player, "&cMin must be less than or equal to max.");
+            return;
+        }
+
+        map.setMinCustomLength(Math.max(0, min));
+        map.setMaxCustomLength(Math.max(0, max));
+        mm.saveMap(map);
+        String display = (min > 0 && max > 0) ? min + " - " + max + " blocks" : "disabled";
+        msg(player, plugin.getConfigManager().getPrefix()
+                + "&fCustom length for &c" + map.getName() + " &fset to &c" + display + "&f.");
     }
 
     private String capitalize(String s) {
@@ -728,7 +927,13 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&4- &c/map autoscale <map> <true|false> &7- &fToggle autoscaling"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setdeathy <map> <Y> &7- &fSet fall death Y level (-1 to remove)"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setmintime <map> <ms> &7- &fSet minimum valid run time (0 = global)"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setmaxtime <map> <ms> &7- &fSet max completion time — auto-fail on exceed (0 = off)"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setrank <map> <diamond|gold|silver|bronze> <ms> &7- &fSet rank time requirement"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map adddesign <map> [templateKey] &7- &fAdd alternative island design"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map removedesign <map> <templateKey> &7- &fRemove alternative island design"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setinfinite <map> <true|false> &7- &fEnable infinite mode (no finish zone)"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setcustomlength <map> <min> <max> &7- &fSet player-adjustable run length range (0 0 to disable)"));
+        player.sendMessage(ColorUtil.translate("&7  Infinite setup tip: use &f/map setup continue --infinite &7in the hologram step."));
     }
 
     // --- Tab Completion ---
@@ -763,7 +968,12 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "autoscale":
                 case "setdeathy":
                 case "setmintime":
+                case "setmaxtime":
                 case "setrank":
+                case "setinfinite":
+                case "setcustomlength":
+                case "adddesign":
+                case "removedesign":
                     return filter(mm.getMapNames(), args[1]);
                 default:
                     return Collections.emptyList();
@@ -777,7 +987,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                         return Collections.singletonList("<name>");
                     }
                     if (args[1].equalsIgnoreCase("continue")) {
-                        return filter(Collections.singletonList("--force-spawn-location"), args[2]);
+                        return filter(Arrays.asList("--force-spawn-location", "--infinite"), args[2]);
                     }
                     return Collections.emptyList();
                 case "setname":
@@ -790,10 +1000,15 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     return Arrays.asList("10", "20", "30", "50", "100");
                 case "setmintime":
                     return Arrays.asList("0", "500", "1000", "2000", "5000");
+                case "setmaxtime":
+                    return Arrays.asList("0", "30000", "60000", "120000", "300000");
                 case "setrank":
                     return filter(RANK_TIERS, args[2]);
                 case "autoscale":
+                case "setinfinite":
                     return filter(BOOLEANS, args[2]);
+                case "setcustomlength":
+                    return Arrays.asList("<min>");
                 default:
                     return Collections.emptyList();
             }

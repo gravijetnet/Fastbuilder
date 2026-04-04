@@ -96,8 +96,13 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
                 int successRate = stats.totalAttempts > 0
                         ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
+                String topPercent = "";
+                if (stats.hasBestTime() && plugin.getHologramManager() != null) {
+                    topPercent = plugin.getHologramManager().calculateTopPercent(entry.getKey(), stats.bestTime);
+                }
                 sender.sendMessage(ColorUtil.translate("  &c" + entry.getKey()));
-                sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime));
+                sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime
+                        + (topPercent.isEmpty() ? "" : " &7" + topPercent)));
                 sender.sendMessage(ColorUtil.translate("  &7Average Time: &f" + avgTime));
                 sender.sendMessage(ColorUtil.translate("  &7Total Attempts: &f" + stats.totalAttempts));
                 sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts));

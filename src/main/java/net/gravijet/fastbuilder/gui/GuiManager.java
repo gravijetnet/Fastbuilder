@@ -47,6 +47,7 @@ public class GuiManager implements Listener {
     private static final String SHOP_PREFIX = "Shop";
     private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Selector";
     private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
+    private static final String DEATH_SOUND_SELECTOR_PREFIX = "Death Sounds";
     private static final String STATS_PREFIX = "Stats";
 
     // Track which block selector page a player is on
@@ -505,9 +506,22 @@ public class GuiManager implements Listener {
         // Category: Pickaxes
         inv.setItem(guis.getInt("shop.pickaxes-slot", 13), new ItemBuilder(Material.DIAMOND_PICKAXE)
                 .name("&bPickaxes").lore("&7Click to browse pickaxes", "", "&aClick to browse").build());
-        // Category: Animations
+        // Category: Reset Animations
         inv.setItem(guis.getInt("shop.animations-slot", 15), new ItemBuilder(Material.FIREWORK)
                 .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
+        // Category: Death Sounds
+        inv.setItem(guis.getInt("shop.death-sounds-slot", 10), new ItemBuilder(Material.NOTE_BLOCK)
+                .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
+        // One-Click Pick (toggle purchase)
+        PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        boolean hasOcp = shopData != null && shopData.hasOneClickPick();
+        boolean ocpPurchased = shopData != null && shopData.hasPurchasedBlock("cosmetic:one_click_pick");
+        int ocpPrice = guis.getInt("one-click-pick.price", 5000);
+        String ocpStatus = ocpPurchased ? (hasOcp ? "&a&lACTIVE" : "&7Owned - Click to enable") : "&cNot owned - Click to buy";
+        inv.setItem(guis.getInt("shop.one-click-pick-slot", 16), new ItemBuilder(Material.DIAMOND_PICKAXE)
+                .name("&bOne-Click Pick")
+                .lore("&7Breaks placed blocks instantly on left-click", "",
+                        ocpStatus, "", "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins")).build());
 
         player.openInventory(inv);
     }
@@ -600,6 +614,56 @@ public class GuiManager implements Listener {
         player.openInventory(inv);
     }
 
+    public void openDeathSoundSelector(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title = ColorUtil.translate(guis.getString("death-sound-selector.name", "Death Sounds"));
+        int maxSlots = guis.getInt("death-sound-selector.max-slots", 27);
+        // Extend to 54 if more than 27 entries need to fit
+        int slotsNeeded = 0;
+        org.bukkit.configuration.ConfigurationSection soundsSection = guis.getConfigurationSection("death-sound-selector-slots");
+        if (soundsSection != null) slotsNeeded = soundsSection.getKeys(false).size() + 9;
+        if (slotsNeeded > maxSlots) maxSlots = (int) Math.ceil(slotsNeeded / 9.0) * 9;
+        if (maxSlots > 54) maxSlots = 54;
+        Inventory inv = Bukkit.createInventory(null, maxSlots, title);
+
+        if (soundsSection == null) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNo death sounds configured."));
+            return;
+        }
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String currentSound = data != null ? data.getSelectedDeathSound() : "NONE";
+
+        for (String slotKey : soundsSection.getKeys(false)) {
+            try {
+                int slotIndex = Integer.parseInt(slotKey) - 1;
+                if (slotIndex < 0 || slotIndex >= maxSlots) continue;
+                String name = soundsSection.getString(slotKey + ".name", "Sound");
+                String mat = soundsSection.getString(slotKey + ".material", "NOTE_BLOCK:0");
+                String soundId = soundsSection.getString(slotKey + ".sound", "NONE");
+                int price = soundsSection.getInt(slotKey + ".price", 0);
+                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("sound:" + soundId));
+                boolean selected = soundId.equalsIgnoreCase(currentSound);
+                java.util.List<String> loreTemplate = soundsSection.getStringList(slotKey + ".lore");
+                java.util.List<String> lore = new java.util.ArrayList<>();
+                for (String line : loreTemplate) {
+                    lore.add(line.replace("%price%", price == 0 ? "Free" : String.valueOf(price)));
+                }
+                if (!owned) lore.add(ColorUtil.translate("&cNot purchased"));
+                if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                ItemStack it = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
+                if (selected) {
+                    org.bukkit.inventory.meta.ItemMeta im = it.getItemMeta();
+                    if (im != null) { im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true); it.setItemMeta(im); }
+                }
+                inv.setItem(slotIndex, it);
+            } catch (NumberFormatException ignored) {}
+        }
+
+        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        player.openInventory(inv);
+    }
+
     // ===== Stats GUI =====
 
     public void openStatsGui(Player viewer, PlayerData data) {
@@ -650,7 +714,14 @@ public class GuiManager implements Listener {
             int rate = stats.totalAttempts > 0 ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
             List<String> lore = new ArrayList<>();
-            lore.add(ColorUtil.translate("&7Best Time: &f" + bestTime));
+            // Global percentile for this map
+            String topPercent = "";
+            if (stats.hasBestTime() && plugin.getHologramManager() != null) {
+                topPercent = plugin.getHologramManager().calculateTopPercent(mapName, stats.bestTime);
+            }
+            String bestTimeDisplay = bestTime + (topPercent.isEmpty() ? "" : " &7" + topPercent);
+
+            lore.add(ColorUtil.translate("&7Best Time: &f" + bestTimeDisplay));
             lore.add(ColorUtil.translate("&7Average Time: &f" + avgTime));
             lore.add(ColorUtil.translate("&7Total Attempts: &f" + stats.totalAttempts));
             lore.add(ColorUtil.translate("&7Successful: &f" + stats.successfulAttempts));
@@ -726,6 +797,9 @@ public class GuiManager implements Listener {
         } else if (stripped.startsWith(ANIMATION_SELECTOR_PREFIX)) {
             event.setCancelled(true);
             handleAnimationSelectorClick(event);
+        } else if (stripped.startsWith(DEATH_SOUND_SELECTOR_PREFIX)) {
+            event.setCancelled(true);
+            handleDeathSoundSelectorClick(event);
         } else if (stripped.startsWith(STATS_PREFIX)) {
             event.setCancelled(true);
             // Stats GUI is read-only; no action needed
@@ -862,12 +936,12 @@ public class GuiManager implements Listener {
                 if (plugin.getHotbarManager() != null) {
                     plugin.getHotbarManager().updateBlockSlot(player);
                 }
-                // If block type changed and player has blocks placed, clear them
+                // Block type changed — always reset the current track and clear all placed blocks
                 if (oldBlockOnPurchase != null && !oldBlockOnPurchase.equals(mat)
                         && plugin.getGameplayManager() != null) {
                     net.gravijet.fastbuilder.gameplay.RunSession swapSession =
                             plugin.getGameplayManager().getSession(player.getUniqueId());
-                    if (swapSession != null && !swapSession.getPlacedBlocks().isEmpty()) {
+                    if (swapSession != null) {
                         plugin.getGameplayManager().resetRun(player);
                     }
                 }
@@ -891,11 +965,11 @@ public class GuiManager implements Listener {
             plugin.getHotbarManager().updateBlockSlot(player);
         }
 
-        // If block type changed and player has blocks placed, clear them instantly
+        // Block type changed — always reset the current track and clear all placed blocks instantly
         if (oldBlock != null && !oldBlock.equals(mat) && plugin.getGameplayManager() != null) {
             net.gravijet.fastbuilder.gameplay.RunSession swapSession =
                     plugin.getGameplayManager().getSession(player.getUniqueId());
-            if (swapSession != null && !swapSession.getPlacedBlocks().isEmpty()) {
+            if (swapSession != null) {
                 plugin.getGameplayManager().resetRun(player);
             }
         }
@@ -1188,7 +1262,37 @@ public class GuiManager implements Listener {
             openPickaxeSelector(player);
         } else if (name.equals("Reset Animations")) {
             openAnimationSelector(player);
+        } else if (name.equals("Death Sounds")) {
+            openDeathSoundSelector(player);
+        } else if (name.equals("One-Click Pick")) {
+            handleOneClickPickShopClick(player);
         }
+    }
+
+    private void handleOneClickPickShopClick(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int price = guis.getInt("one-click-pick.price", 5000);
+        String prefix = plugin.getConfigManager().getPrefix();
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        boolean purchased = data.hasPurchasedBlock("cosmetic:one_click_pick");
+        if (!purchased) {
+            if (data.getCoins() >= price) {
+                data.removeCoins(price);
+                data.purchaseBlock("cosmetic:one_click_pick");
+                data.setOneClickPick(true);
+                player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick &apurchased and enabled! &7(&f" + price + " coins&7)"));
+            } else {
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
+            }
+        } else {
+            // Toggle on/off if already owned
+            data.setOneClickPick(!data.hasOneClickPick());
+            player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick "
+                    + (data.hasOneClickPick() ? "&aenabled" : "&cdisabled") + "&f."));
+        }
+        openShop(player);
     }
 
     private void handlePickaxeSelectorClick(InventoryClickEvent event) {
@@ -1281,5 +1385,50 @@ public class GuiManager implements Listener {
         player.closeInventory();
         String aName = slotsSection.getString(slot + ".name", "Animation");
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected animation: &c" + aName));
+    }
+
+    private void handleDeathSoundSelectorClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        ItemStack item = event.getCurrentItem();
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        if (displayName.equals("Back to Shop")) {
+            player.closeInventory();
+            openShop(player);
+            return;
+        }
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("death-sound-selector-slots");
+        if (slotsSection == null) return;
+
+        int slot = event.getSlot() + 1;
+        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+
+        String soundId = slotsSection.getString(slot + ".sound", "NONE");
+        int price = slotsSection.getInt(slot + ".price", 0);
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        String prefix = plugin.getConfigManager().getPrefix();
+        boolean owned = price == 0 || data.hasPurchasedBlock("sound:" + soundId);
+        if (!owned) {
+            if (data.getCoins() >= price) {
+                data.removeCoins(price);
+                data.purchaseBlock("sound:" + soundId);
+                data.setSelectedDeathSound(soundId);
+                player.closeInventory();
+                String sName = slotsSection.getString(slot + ".name", "Sound");
+                player.sendMessage(ColorUtil.translate(prefix + "&fDeath sound purchased and selected: &c" + sName + " &7(&f" + price + " coins&7)"));
+            } else {
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
+            }
+            return;
+        }
+
+        data.setSelectedDeathSound(soundId);
+        player.closeInventory();
+        String sName = slotsSection.getString(slot + ".name", "Sound");
+        player.sendMessage(ColorUtil.translate(prefix + "&fSelected death sound: &c" + sName));
     }
 }

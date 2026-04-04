@@ -38,7 +38,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 3; // v3 adds headYaw, sneaking, sprinting, swingingArm per frame
+    private static final int VERSION = 4; // v4 adds handItemId, handItemData per frame
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -51,29 +51,43 @@ public class ReplayManager {
     // Recording
     // -------------------------------------------------------------------------
 
+    /**
+     * Returns the name to display on the replay NPC based on the configured player-name-mode.
+     * "recorded" = name as stored in the replay; "current" = current online name (if available).
+     */
+    public String getReplayDisplayName(ReplayData data) {
+        String mode = plugin.getConfigManager().getReplayPlayerNameMode();
+        if ("current".equalsIgnoreCase(mode)) {
+            // Try to resolve the current name from the online player list or Bukkit offline player
+            org.bukkit.OfflinePlayer op = org.bukkit.Bukkit.getOfflinePlayer(data.getPlayerUuid());
+            if (op.getName() != null && !op.getName().isEmpty()) {
+                return op.getName();
+            }
+        }
+        return data.getPlayerName();
+    }
+
     @SuppressWarnings("deprecation")
     public void startRecording(Player player, String mapName, int islandIndex) {
         stopRecording(player.getUniqueId(), false);
 
-        // Capture blocks already placed on the island (practice blocks, build-mode blocks) as initial state
+        // Capture the EXACT world state of the island — scan the full island bounds so that
+        // admin-placed blocks (via /build), practice blocks, and schematic blocks are all included.
+        // This is the only reliable way to capture build-mode changes which bypass session tracking.
         List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
-        if (plugin.getGameplayManager() != null) {
-            RunSession session = plugin.getGameplayManager().getSession(player.getUniqueId());
-            if (session != null) {
-                for (org.bukkit.Location loc : session.getPlacedBlocks()) {
-                    org.bukkit.block.Block b = loc.getBlock();
-                    if (b != null && b.getType() != org.bukkit.Material.AIR) {
-                        initialBlocks.add(new ReplayFrame.BlockPlacement(
-                                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-                                b.getTypeId(), b.getData()));
-                    }
-                }
-                for (org.bukkit.Location loc : session.getPracticeBlocks()) {
-                    org.bukkit.block.Block b = loc.getBlock();
-                    if (b != null && b.getType() != org.bukkit.Material.AIR) {
-                        initialBlocks.add(new ReplayFrame.BlockPlacement(
-                                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-                                b.getTypeId(), b.getData()));
+        net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(mapName);
+        if (mapData != null && mapData.getWorld() != null) {
+            Location islandMin = mapData.getIslandMin(islandIndex);
+            Location islandMax = mapData.getIslandMax(islandIndex);
+            org.bukkit.World world = mapData.getWorld();
+            for (int x = islandMin.getBlockX(); x <= islandMax.getBlockX(); x++) {
+                for (int y = islandMin.getBlockY(); y <= islandMax.getBlockY(); y++) {
+                    for (int z = islandMin.getBlockZ(); z <= islandMax.getBlockZ(); z++) {
+                        org.bukkit.block.Block b = world.getBlockAt(x, y, z);
+                        if (b.getType() != org.bukkit.Material.AIR) {
+                            initialBlocks.add(new ReplayFrame.BlockPlacement(
+                                    x, y, z, b.getTypeId(), b.getData()));
+                        }
                     }
                 }
             }
@@ -273,6 +287,9 @@ public class ReplayManager {
                 out.writeBoolean(frame.isSneaking());
                 out.writeBoolean(frame.isSprinting());
                 out.writeBoolean(frame.isSwingingArm());
+                // v4 additions
+                out.writeInt(frame.getHandItemId());
+                out.writeByte(frame.getHandItemData());
 
                 out.writeBoolean(frame.hasBlockPlacement());
                 if (frame.hasBlockPlacement()) {
@@ -300,6 +317,7 @@ public class ReplayManager {
 
             int version = in.readInt();
             if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version);
+
 
             UUID uuid        = UUID.fromString(in.readUTF());
             String name      = in.readUTF();
@@ -346,6 +364,14 @@ public class ReplayManager {
                     swingArm  = in.readBoolean();
                 }
 
+                // v4: hand item
+                int handItemId   = 0;
+                byte handItemData = 0;
+                if (version >= 4) {
+                    handItemId   = in.readInt();
+                    handItemData = in.readByte();
+                }
+
                 boolean hasBlock = in.readBoolean();
                 ReplayFrame.BlockPlacement placement = null;
                 if (hasBlock) {
@@ -358,7 +384,7 @@ public class ReplayManager {
                 }
 
                 frames.add(new ReplayFrame(tick, x, y, z, yaw, pitch, headYaw,
-                        sneaking, sprinting, swingArm, placement));
+                        sneaking, sprinting, swingArm, handItemId, handItemData, placement));
             }
 
             return new ReplayData(uuid, name, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);

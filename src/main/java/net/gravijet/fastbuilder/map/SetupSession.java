@@ -29,6 +29,8 @@ public class SetupSession {
     private final UUID playerUuid;
     private State state;
     private boolean forceSpawnLocation = false;
+    // Set during setup if the admin flags this as an infinite map (no finish zone)
+    private boolean infinite = false;
 
     // Map origin (where the admin was teleported)
     private Location setupOrigin;
@@ -83,6 +85,17 @@ public class SetupSession {
         if (state != State.SELECTING_HOLOGRAM) return false;
         if (hologramPoint == null) return false;
         state = State.SELECTING_FINISH;
+        return true;
+    }
+
+    /**
+     * Skips the finish zone selection step and advances directly to AWAITING_NAME.
+     * Used for infinite maps that have no end island.
+     */
+    public boolean advanceToName() {
+        if (state != State.SELECTING_HOLOGRAM) return false;
+        if (hologramPoint == null) return false;
+        state = State.AWAITING_NAME;
         return true;
     }
 
@@ -231,6 +244,9 @@ public class SetupSession {
 
     public boolean isForceSpawnLocation() { return forceSpawnLocation; }
     public void setForceSpawnLocation(boolean f) { this.forceSpawnLocation = f; }
+
+    public boolean isInfinite() { return infinite; }
+    public void setInfinite(boolean infinite) { this.infinite = infinite; }
 
     public boolean isSpawnFacingEast() {
         if (spawnPoint == null) return false;

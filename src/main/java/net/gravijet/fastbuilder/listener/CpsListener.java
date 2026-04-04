@@ -112,7 +112,7 @@ public class CpsListener implements Listener {
             return;
         }
 
-        // Schedule removal after 1 second (20 ticks) of no clicks
+        // Schedule removal after 0.5 seconds (10 ticks) of no clicks — twice as fast as before
         final eu.decentsoftware.holograms.api.holograms.Hologram finalHologram = activeHolograms.get(uuid);
         int taskId = new BukkitRunnable() {
             @Override
@@ -127,7 +127,7 @@ public class CpsListener implements Listener {
                 Deque<Long> d = clickTimes.get(uuid);
                 if (d != null) d.clear();
             }
-        }.runTaskLater(plugin, 20L).getTaskId(); // 20 ticks = 1 second
+        }.runTaskLater(plugin, 10L).getTaskId(); // 10 ticks = 0.5 seconds
 
         removalTasks.put(uuid, taskId);
     }

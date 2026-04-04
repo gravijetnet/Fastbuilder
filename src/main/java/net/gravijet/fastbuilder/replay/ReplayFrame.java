@@ -3,7 +3,7 @@ package net.gravijet.fastbuilder.replay;
 /**
  * A single tick frame in a replay recording.
  * Stores the player's full visual state: position, body/head rotation,
- * sneak/sprint flags, arm-swing, and any block placement this tick.
+ * sneak/sprint flags, arm-swing, hand item, and any block placement this tick.
  */
 public class ReplayFrame {
 
@@ -22,13 +22,18 @@ public class ReplayFrame {
     // True if the player swung their arm this tick (PacketPlayOutAnimation id=0)
     private final boolean swingingArm;
 
+    // Hand item (v4): item ID and data the player was holding this tick
+    private final int handItemId;
+    private final byte handItemData;
+
     // Block placement (null if none this tick)
     private final BlockPlacement blockPlacement;
 
-    /** Full constructor used by the recorder. */
+    /** Full constructor used by the recorder (v4+). */
     public ReplayFrame(int tick, double x, double y, double z,
                        float yaw, float pitch, float headYaw,
                        boolean sneaking, boolean sprinting, boolean swingingArm,
+                       int handItemId, byte handItemData,
                        BlockPlacement blockPlacement) {
         this.tick = tick;
         this.x = x; this.y = y; this.z = z;
@@ -37,13 +42,23 @@ public class ReplayFrame {
         this.sneaking = sneaking;
         this.sprinting = sprinting;
         this.swingingArm = swingingArm;
+        this.handItemId = handItemId;
+        this.handItemData = handItemData;
         this.blockPlacement = blockPlacement;
+    }
+
+    /** v3 constructor (no hand item — defaults to 0). */
+    public ReplayFrame(int tick, double x, double y, double z,
+                       float yaw, float pitch, float headYaw,
+                       boolean sneaking, boolean sprinting, boolean swingingArm,
+                       BlockPlacement blockPlacement) {
+        this(tick, x, y, z, yaw, pitch, headYaw, sneaking, sprinting, swingingArm, 0, (byte) 0, blockPlacement);
     }
 
     /** Legacy constructor for loading v1/v2 replay files (no new fields). */
     public ReplayFrame(int tick, double x, double y, double z, float yaw, float pitch,
                        BlockPlacement blockPlacement) {
-        this(tick, x, y, z, yaw, pitch, yaw, false, false, false, blockPlacement);
+        this(tick, x, y, z, yaw, pitch, yaw, false, false, false, 0, (byte) 0, blockPlacement);
     }
 
     public int getTick()              { return tick; }
@@ -56,6 +71,8 @@ public class ReplayFrame {
     public boolean isSneaking()       { return sneaking; }
     public boolean isSprinting()      { return sprinting; }
     public boolean isSwingingArm()    { return swingingArm; }
+    public int getHandItemId()        { return handItemId; }
+    public byte getHandItemData()     { return handItemData; }
     public BlockPlacement getBlockPlacement() { return blockPlacement; }
     public boolean hasBlockPlacement() { return blockPlacement != null; }
 

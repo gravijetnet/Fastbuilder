@@ -313,8 +313,11 @@ public class ReplaySession {
                 frame.getZ() + offsetZ,
                 frame.getYaw(), frame.getPitch()));
 
-        // Apply head rotation, sneak/sprint metadata, and arm-swing animation
+        // Apply head rotation, sneak/sprint metadata, arm-swing, and hand item
         applyNmsState(viewer, frame);
+        if (frame.getHandItemId() != 0) {
+            applyHandItem(viewer, frame.getHandItemId(), frame.getHandItemData());
+        }
 
         // Place block with offset applied
         if (frame.hasBlockPlacement()) {
@@ -387,6 +390,44 @@ public class ReplaySession {
                         .newInstance(nmsEntity, 0);
                 sendPacketViaConn(viewerConn, packetIface, animPacket);
             }
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Sends a PacketPlayOutEntityEquipment to the viewer so the NPC visually holds
+     * the correct item (the one the player had in hand during the recorded run).
+     */
+    @SuppressWarnings("deprecation")
+    private void applyHandItem(Player viewer, int itemId, byte itemData) {
+        if (npcId < 0) return;
+        try {
+            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
+            if (npc == null || !npc.isSpawned()) return;
+
+            org.bukkit.entity.Entity entity = npc.getEntity();
+            if (!(entity instanceof org.bukkit.entity.Player)) return;
+
+            String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+
+            Object nmsEntity = entity.getClass().getMethod("getHandle").invoke(entity);
+            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
+
+            // Build ItemStack NMS object
+            org.bukkit.Material mat = org.bukkit.Material.getMaterial(itemId);
+            if (mat == null || mat == org.bukkit.Material.AIR) return;
+            org.bukkit.inventory.ItemStack bukkit = new org.bukkit.inventory.ItemStack(mat, 1, itemData);
+
+            Class<?> craftItemStackClass = Class.forName("org.bukkit.craftbukkit." + ver + ".inventory.CraftItemStack");
+            Object nmsItem = craftItemStackClass.getMethod("asNMSCopy", org.bukkit.inventory.ItemStack.class)
+                    .invoke(null, bukkit);
+
+            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
+            Class<?> itemStackClass = nmsClass(ver, "ItemStack");
+            Object equipPacket = nmsClass(ver, "PacketPlayOutEntityEquipment")
+                    .getConstructor(int.class, int.class, itemStackClass)
+                    .newInstance(entityId, 0, nmsItem); // slot 0 = main hand in 1.8
+            sendPacketViaConn(viewerConn, nmsClass(ver, "Packet"), equipPacket);
         } catch (Exception ignored) {}
     }
 
@@ -499,10 +540,11 @@ public class ReplaySession {
 
     private void spawnReplayNpc(Player viewer) {
         try {
+            String displayName = plugin.getReplayManager().getReplayDisplayName(replayData);
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
             net.citizensnpcs.api.npc.NPC npc = registry.createNPC(
                     org.bukkit.entity.EntityType.PLAYER,
-                    ColorUtil.translate("&5" + replayData.getPlayerName())
+                    ColorUtil.translate("&5" + displayName)
             );
 
             npc.data().set("player-skin-uuid", replayData.getPlayerUuid().toString());

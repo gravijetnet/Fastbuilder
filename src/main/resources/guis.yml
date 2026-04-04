@@ -565,6 +565,34 @@ block-selector-slots:
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
+    33:
+      name: "Stone Bricks"
+      material: SMOOTH_BRICK:0
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    34:
+      name: "Mossy Stone Bricks"
+      material: SMOOTH_BRICK:1
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    35:
+      name: "Cracked Stone Bricks"
+      material: SMOOTH_BRICK:2
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    36:
+      name: "Chiseled Stone Bricks"
+      material: SMOOTH_BRICK:3
+      price: 900
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
   3:
     1:
       name: "White Stained Glass"
@@ -720,6 +748,104 @@ block-selector-slots:
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
+    23:
+      name: "Diamond Block"
+      material: DIAMOND_BLOCK:0
+      price: 1500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    24:
+      name: "Glass"
+      material: GLASS:0
+      price: 1500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    25:
+      name: "Glowstone"
+      material: GLOWSTONE:0
+      price: 1500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    26:
+      name: "Sea Lantern"
+      material: SEA_LANTERN:0
+      price: 1500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    27:
+      name: "Packed Ice"
+      material: PACKED_ICE:0
+      price: 1500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    28:
+      name: "Slime Block"
+      material: SLIME_BLOCK:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    29:
+      name: "Brick Block"
+      material: BRICK:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    30:
+      name: "Mossy Cobblestone"
+      material: MOSSY_COBBLESTONE:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    31:
+      name: "Oak Log"
+      material: LOG:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    32:
+      name: "Spruce Log"
+      material: LOG:1
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    33:
+      name: "Birch Log"
+      material: LOG:2
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    34:
+      name: "Jungle Log"
+      material: LOG:3
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    35:
+      name: "Acacia Log"
+      material: LOG_2:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    36:
+      name: "Dark Oak Log"
+      material: LOG_2:1
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
 
 # Shop GUI
 shop:
@@ -728,6 +854,13 @@ shop:
   blocks-slot: 11
   pickaxes-slot: 13
   animations-slot: 15
+  death-sounds-slot: 10
+  one-click-pick-slot: 16
+
+# Death Sound Selector GUI
+death-sound-selector:
+  name: "Death Sounds"
+  max-slots: 27
 
 # Pickaxe Selector GUI
 pickaxe-selector:
@@ -794,3 +927,200 @@ animation-selector-slots:
     lore:
       - "&7Blocks explode outward on reset"
       - "&ePrice: 2000"
+  4:
+    name: "&bItem Drop"
+    material: "CHEST:0"
+    animation: "ITEM_DROP"
+    price: 1500
+    lore:
+      - "&7Blocks turn into items and fall"
+      - "&ePrice: 1500"
+  5:
+    name: "&6Creative NPC"
+    material: "DIAMOND_PICKAXE:0"
+    animation: "CREATIVE_NPC"
+    price: 3000
+    lore:
+      - "&7A builder NPC rapidly mines your blocks"
+      - "&ePrice: 3000"
+  6:
+    name: "&3Ice Melt"
+    material: "ICE:0"
+    animation: "ICE_MELT"
+    price: 1000
+    lore:
+      - "&7Blocks freeze then instantly melt"
+      - "&ePrice: 1000"
+
+# Death Sound Selector GUI
+# Follows the same pattern as animation-selector-slots.
+death-sound-selector-slots:
+  1:
+    name: "&fNone"
+    material: "STAINED_GLASS_PANE:0"
+    sound: "NONE"
+    price: 0
+    lore:
+      - "&7No sound on death/reset"
+      - "&ePrice: Free"
+  2:
+    name: "&aCreeper"
+    material: "SULPHUR:0"
+    sound: "Creeper"
+    price: 500
+    lore:
+      - "&7Classic creeper explosion sound"
+      - "&ePrice: 500"
+  3:
+    name: "&cAnvil"
+    material: "ANVIL:0"
+    sound: "Anvil"
+    price: 500
+    lore:
+      - "&7Anvil falling sound"
+      - "&ePrice: 500"
+  4:
+    name: "&9Ghast"
+    material: "GHAST_TEAR:0"
+    sound: "Ghast"
+    price: 750
+    lore:
+      - "&7Ghast death scream"
+      - "&ePrice: 750"
+  5:
+    name: "&0Wither"
+    material: "SKULL_ITEM:1"
+    sound: "Wither"
+    price: 1000
+    lore:
+      - "&7Wither death sound"
+      - "&ePrice: 1000"
+  6:
+    name: "&7Iron Golem"
+    material: "IRON_INGOT:0"
+    sound: "IronGolem"
+    price: 750
+    lore:
+      - "&7Iron Golem death sound"
+      - "&ePrice: 750"
+  7:
+    name: "&dEnderman"
+    material: "ENDER_PEARL:0"
+    sound: "Enderman"
+    price: 750
+    lore:
+      - "&7Enderman scream"
+      - "&ePrice: 750"
+  8:
+    name: "&2Zombie"
+    material: "ROTTEN_FLESH:0"
+    sound: "Zombie"
+    price: 500
+    lore:
+      - "&7Zombie hurt sound"
+      - "&ePrice: 500"
+  9:
+    name: "&6Piglin"
+    material: "PORK:0"
+    sound: "Piglin"
+    price: 500
+    lore:
+      - "&7Angry zombie pigman"
+      - "&ePrice: 500"
+  10:
+    name: "&cBlaze"
+    material: "BLAZE_ROD:0"
+    sound: "Blaze"
+    price: 750
+    lore:
+      - "&7Blaze death sound"
+      - "&ePrice: 750"
+  11:
+    name: "&eWolf"
+    material: "BONE:0"
+    sound: "Wolf"
+    price: 500
+    lore:
+      - "&7Wolf death sound"
+      - "&ePrice: 500"
+  12:
+    name: "&aFirework"
+    material: "FIREWORK:0"
+    sound: "Firework"
+    price: 300
+    lore:
+      - "&7Firework blast"
+      - "&ePrice: 300"
+  13:
+    name: "&5Portal"
+    material: "ENDER_PORTAL_FRAME:0"
+    sound: "Portal"
+    price: 300
+    lore:
+      - "&7Portal ambient sound"
+      - "&ePrice: 300"
+  14:
+    name: "&eSplash"
+    material: "WATER_BUCKET:0"
+    sound: "Splash"
+    price: 200
+    lore:
+      - "&7Splash sound"
+      - "&ePrice: 200"
+  15:
+    name: "&6LevelUp"
+    material: "EXP_BOTTLE:0"
+    sound: "LevelUp"
+    price: 300
+    lore:
+      - "&7Level up sound"
+      - "&ePrice: 300"
+  16:
+    name: "&cDragon"
+    material: "DRAGON_EGG:0"
+    sound: "DragonGrowl"
+    price: 2000
+    lore:
+      - "&7Ender Dragon growl"
+      - "&ePrice: 2000"
+  17:
+    name: "&8Bat"
+    material: "IRON_INGOT:0"
+    sound: "Bat"
+    price: 200
+    lore:
+      - "&7Bat death sound"
+      - "&ePrice: 200"
+  18:
+    name: "&bArrow Hit"
+    material: "ARROW:0"
+    sound: "ArrowHit"
+    price: 200
+    lore:
+      - "&7Arrow hit sound"
+      - "&ePrice: 200"
+  19:
+    name: "&eNote"
+    material: "NOTE_BLOCK:0"
+    sound: "Note"
+    price: 100
+    lore:
+      - "&7Note block pling"
+      - "&ePrice: 100"
+  20:
+    name: "&cWitherSpawn"
+    material: "COAL_BLOCK:0"
+    sound: "WitherSpawn"
+    price: 1500
+    lore:
+      - "&7Wither spawn sound"
+      - "&ePrice: 1500"
+
+# One-Click Pick cosmetic (single entry, toggle-style)
+one-click-pick:
+  name: "&bOne-Click Pick"
+  material: "DIAMOND_PICKAXE:0"
+  price: 5000
+  lore:
+    - "&7Breaks placed blocks instantly on left-click"
+    - "&ePrice: 5000"
