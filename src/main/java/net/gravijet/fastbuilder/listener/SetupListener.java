@@ -98,6 +98,7 @@ public class SetupListener implements Listener {
             Location loc = player.getLocation();
             session.setSpawnPoint(loc);
             String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-saved");
+            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
             player.sendMessage(ColorUtil.translate(raw));
             if (!session.isSpawnFacingEast()) {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()

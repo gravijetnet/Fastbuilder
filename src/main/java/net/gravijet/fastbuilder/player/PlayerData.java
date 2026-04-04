@@ -41,6 +41,9 @@ public class PlayerData {
     // Favorited replay file names (protected from deletion)
     private final Set<String> favoriteReplays = new HashSet<>();
 
+    // Tracks which rank names (per map) the player has already been notified about (one-time messages)
+    private final Map<String, Set<String>> notifiedRanks = new HashMap<>();
+
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
         this.name = name;
@@ -62,6 +65,7 @@ public class PlayerData {
             config.set(path + ".best-time", stats.bestTime);
             config.set(path + ".total-attempts", stats.totalAttempts);
             config.set(path + ".successful-attempts", stats.successfulAttempts);
+            config.set(path + ".total-success-time", stats.totalSuccessTime);
         }
 
         config.set("purchased-blocks", new java.util.ArrayList<>(purchasedBlocks));
@@ -71,6 +75,10 @@ public class PlayerData {
         config.set("favorite-replays", new java.util.ArrayList<>(favoriteReplays));
         config.set("selected-pickaxe", selectedPickaxe);
         config.set("selected-animation", selectedAnimation);
+        for (Map.Entry<String, Set<String>> e : notifiedRanks.entrySet()) {
+            config.set("notified-ranks." + e.getKey(),
+                    new java.util.ArrayList<>(e.getValue()));
+        }
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -88,6 +96,7 @@ public class PlayerData {
                 stats.bestTime = config.getLong(path + ".best-time", -1);
                 stats.totalAttempts = config.getInt(path + ".total-attempts", 0);
                 stats.successfulAttempts = config.getInt(path + ".successful-attempts", 0);
+                stats.totalSuccessTime = config.getLong(path + ".total-success-time", 0);
                 mapStats.put(mapName, stats);
             }
         }
@@ -107,6 +116,13 @@ public class PlayerData {
 
         selectedPickaxe = config.getString("selected-pickaxe", "DIAMOND_PICKAXE:0");
         selectedAnimation = config.getString("selected-animation", "NONE");
+        notifiedRanks.clear();
+        if (config.isConfigurationSection("notified-ranks")) {
+            for (String mapKey : config.getConfigurationSection("notified-ranks").getKeys(false)) {
+                java.util.List<String> rankList = config.getStringList("notified-ranks." + mapKey);
+                notifiedRanks.put(mapKey, new HashSet<>(rankList));
+            }
+        }
     }
 
     // --- Stats helpers ---
@@ -171,7 +187,10 @@ public class PlayerData {
 
     public int getCoins() { return coins; }
     public void setCoins(int coins) { this.coins = coins; }
-    public void addCoins(int amount) { this.coins += amount; }
+    public void addCoins(int amount) {
+        // Hard cap at Integer.MAX_VALUE to prevent overflow
+        this.coins = (int) Math.min((long) this.coins + amount, Integer.MAX_VALUE);
+    }
     public boolean removeCoins(int amount) {
         if (coins >= amount) { coins -= amount; return true; }
         return false;
@@ -200,11 +219,27 @@ public class PlayerData {
     public String getSelectedAnimation() { return selectedAnimation; }
     public void setSelectedAnimation(String selectedAnimation) { this.selectedAnimation = selectedAnimation; }
 
+    public boolean hasBeenNotifiedOfRank(String mapName, String rankName) {
+        Set<String> ranks = notifiedRanks.get(mapName.toLowerCase());
+        return ranks != null && ranks.contains(rankName);
+    }
+
+    public void markRankNotified(String mapName, String rankName) {
+        notifiedRanks.computeIfAbsent(mapName.toLowerCase(), k -> new HashSet<>()).add(rankName);
+    }
+
     public static class MapStats {
         public long bestTime = -1;
         public int totalAttempts = 0;
         public int successfulAttempts = 0;
+        // Sum of all successful completion times — used to compute average
+        public long totalSuccessTime = 0;
 
         public boolean hasBestTime() { return bestTime > 0; }
+
+        /** Average completion time in ms, or -1 if no successful runs. */
+        public long getAverageTime() {
+            return successfulAttempts > 0 ? totalSuccessTime / successfulAttempts : -1;
+        }
     }
 }

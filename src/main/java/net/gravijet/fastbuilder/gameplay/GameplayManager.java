@@ -40,6 +40,9 @@ public class GameplayManager {
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
 
+    // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
+    private final java.util.Set<UUID> animationEntities = new java.util.HashSet<>();
+
     // Global session bests: per-player best time this session (unique per player)
     private final java.util.LinkedHashMap<String, Long> globalSessionBests = new java.util.LinkedHashMap<>();
     // Kept for backward compat
@@ -71,6 +74,9 @@ public class GameplayManager {
      */
     @SuppressWarnings("deprecation")
     public void onBlockPlace(Player player, Block block, org.bukkit.block.BlockState replacedState) {
+        // Build mode: never track or modify session
+        if (buildModePlayers.contains(player.getUniqueId())) return;
+
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
@@ -181,6 +187,7 @@ public class GameplayManager {
             boolean isNewPB = !stats.hasBestTime() || time < stats.bestTime;
             long oldBest = stats.bestTime;
             if (isNewPB) stats.bestTime = time;
+            stats.totalSuccessTime += time;
 
             int coins = plugin.getCoinManager().awardCompletionCoins(player, time);
 
@@ -217,14 +224,29 @@ public class GameplayManager {
             }
 
             if (plugin.getHologramManager() != null) {
+                // Invalidate global percentile cache so the new PB is reflected immediately
+                plugin.getPlayerManager().invalidateGlobalBestTimesCache(session.getMapName());
+
                 plugin.getHologramManager().updateHologram(session.getMapName(), session.getIslandIndex(), player);
+
+                // Refresh holograms for all other online players on this map so their [Top x%] updates
+                final String finishedMapName = session.getMapName();
+                for (org.bukkit.entity.Player online : Bukkit.getOnlinePlayers()) {
+                    if (online.getUniqueId().equals(uuid)) continue;
+                    RunSession otherSession = activeSessions.get(online.getUniqueId());
+                    if (otherSession != null && otherSession.getMapName().equals(finishedMapName)) {
+                        plugin.getHologramManager().updateHologram(
+                                finishedMapName, otherSession.getIslandIndex(), online);
+                    }
+                }
             }
 
-            // Rank check: notify if player achieved a rank
+            // Rank check: notify only the FIRST time a player achieves a specific rank
             MapData rankMap = plugin.getMapManager().getMap(session.getMapName());
             if (rankMap != null) {
                 String rank = rankMap.getPlayerRank(stats.bestTime);
-                if (rank != null) {
+                if (rank != null && !data.hasBeenNotifiedOfRank(session.getMapName(), rank)) {
+                    data.markRankNotified(session.getMapName(), rank);
                     String rankMsg = plugin.getConfigManager().getMessage("rank-achieved");
                     if (rankMsg == null || rankMsg.isEmpty()) {
                         rankMsg = "%prefix%&fYou achieved the &6%rank% &frank on &c%map%&f!";
@@ -309,6 +331,9 @@ public class GameplayManager {
      * Called when a player falls off their island.
      */
     public void onFall(Player player) {
+        // Build mode: no falls, no resets
+        if (buildModePlayers.contains(player.getUniqueId())) return;
+
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
@@ -322,6 +347,11 @@ public class GameplayManager {
                 if (data != null) {
                     PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
                     stats.totalAttempts++;
+
+                    if (plugin.getHologramManager() != null) {
+                        plugin.getHologramManager().updateHologram(
+                                session.getMapName(), session.getIslandIndex(), player);
+                    }
                 }
             }
         }
@@ -386,7 +416,14 @@ public class GameplayManager {
                     for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
                         Location loc = toClear.get(idx[0]);
                         Block block = loc.getBlock();
-                        if (block != null) {
+                        if (block != null && block.getType() != Material.AIR) {
+                            int typeId = block.getTypeId();
+                            byte data = block.getData();
+                            spawnAnimationFallingBlock(loc, typeId, data,
+                                    new org.bukkit.util.Vector(
+                                            0.0,
+                                            -0.1 - Math.random() * 0.25,
+                                            0.0), null);
                             String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
                             int[] orig = origStates.get(key);
                             if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
@@ -399,11 +436,15 @@ public class GameplayManager {
         } else if ("EXPLODE".equalsIgnoreCase(animation)) {
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-                try {
-                    loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, loc.getBlock().getTypeId());
-                } catch (Exception ignored) {}
                 Block block = loc.getBlock();
-                if (block != null) {
+                if (block != null && block.getType() != Material.AIR) {
+                    int typeId = block.getTypeId();
+                    byte data = block.getData();
+                    double vx = (Math.random() - 0.5) * 1.0;
+                    double vy = 0.3 + Math.random() * 0.6;
+                    double vz = (Math.random() - 0.5) * 1.0;
+                    spawnAnimationFallingBlock(loc, typeId, data,
+                            new org.bukkit.util.Vector(vx, vy, vz), player.getUniqueId());
                     String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
                     int[] orig = origStates.get(key);
                     if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
@@ -423,6 +464,79 @@ public class GameplayManager {
                 }
             }
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void spawnAnimationFallingBlock(Location loc, int typeId, byte data,
+                                             org.bukkit.util.Vector velocity, UUID ownerUuid) {
+        try {
+            if (typeId == 0) return;
+            Material mat = Material.getMaterial(typeId);
+            if (mat == null || mat == Material.AIR) return;
+
+            // Spawn 1 block above the placed block's position so the entity has room to fall
+            // even for blocks placed directly on the map surface (ground-level blocks).
+            Location spawnLoc = loc.clone().add(0.5, 1.0, 0.5);
+            org.bukkit.entity.FallingBlock fb = loc.getWorld().spawnFallingBlock(spawnLoc, mat, data);
+            fb.setDropItem(false);
+            fb.setVelocity(velocity);
+
+            // Track this entity so the EntityChangeBlockEvent handler can cancel + remove it on impact
+            animationEntities.add(fb.getUniqueId());
+
+            // Prevent the falling block from placing when it lands (NMS 1.8.8 dontSetBlock field)
+            try {
+                Object handle = fb.getClass().getMethod("getHandle").invoke(fb);
+                java.lang.reflect.Field f = handle.getClass().getDeclaredField("dontSetBlock");
+                f.setAccessible(true);
+                f.set(handle, true);
+            } catch (Exception ignored) {}
+
+            final org.bukkit.entity.FallingBlock fbRef = fb;
+            final UUID fbEntityId = fb.getUniqueId();
+
+            // EXPLODE only: proximity cleanup — remove entity if any non-owner player is nearby
+            if (ownerUuid != null) {
+                final int[] checksLeft = {12};
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (fbRef.isDead() || checksLeft[0] <= 0) {
+                            this.cancel();
+                            return;
+                        }
+                        checksLeft[0]--;
+                        Location fbLoc = fbRef.getLocation();
+                        for (org.bukkit.entity.Player nearby : fbLoc.getWorld().getPlayers()) {
+                            if (nearby.getUniqueId().equals(ownerUuid)) continue;
+                            Location pLoc = nearby.getLocation();
+                            if (Math.abs(pLoc.getX() - fbLoc.getX()) <= 2.5
+                                    && Math.abs(pLoc.getY() - fbLoc.getY()) <= 4.0
+                                    && Math.abs(pLoc.getZ() - fbLoc.getZ()) <= 2.5) {
+                                animationEntities.remove(fbEntityId);
+                                fbRef.remove();
+                                this.cancel();
+                                return;
+                            }
+                        }
+                    }
+                }.runTaskTimer(plugin, 5L, 5L);
+            }
+
+            // Schedule removal after 3 seconds to clean up if still alive in the world
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                animationEntities.remove(fbEntityId);
+                if (!fbRef.isDead()) fbRef.remove();
+            }, 60L);
+        } catch (Exception ignored) {}
+    }
+
+    public boolean isAnimationEntity(UUID entityId) {
+        return animationEntities.contains(entityId);
+    }
+
+    public void removeAnimationEntity(UUID entityId) {
+        animationEntities.remove(entityId);
     }
 
     /**
@@ -506,6 +620,20 @@ public class GameplayManager {
             result.add(new String[]{entry.getKey(), String.valueOf(entry.getValue())});
         }
         return result;
+    }
+
+    public void removeGlobalSessionBest(String playerName) {
+        globalSessionBests.remove(playerName);
+        if (playerName.equals(globalSessionBestPlayer)) {
+            globalSessionBestTime = -1;
+            globalSessionBestPlayer = null;
+            for (Map.Entry<String, Long> e : globalSessionBests.entrySet()) {
+                if (globalSessionBestTime < 0 || e.getValue() < globalSessionBestTime) {
+                    globalSessionBestTime = e.getValue();
+                    globalSessionBestPlayer = e.getKey();
+                }
+            }
+        }
     }
 
     public void shutdown() {

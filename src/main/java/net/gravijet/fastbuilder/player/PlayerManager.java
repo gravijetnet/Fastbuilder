@@ -5,7 +5,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -19,6 +21,11 @@ public class PlayerManager {
     private final FastBuilder plugin;
     private final File dataDir;
     private final Map<UUID, PlayerData> cache = new HashMap<>();
+
+    // Cache for global best times per map (scanned from all playerdata files)
+    private final Map<String, long[]> globalBestTimesCache = new HashMap<>();
+    private final Map<String, Long> globalBestTimesCacheTimestamp = new HashMap<>();
+    private static final long GLOBAL_CACHE_TTL_MS = 60_000L; // 60 seconds
 
     public PlayerManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -98,6 +105,54 @@ public class PlayerManager {
     public void unload(UUID uuid) {
         savePlayerData(uuid);
         cache.remove(uuid);
+    }
+
+    /**
+     * Return all recorded personal best times for a given map, scanned from every
+     * playerdata file on disk. Results are cached for 60 seconds.
+     * Used by HologramManager to compute a true global [Top x%] percentile.
+     */
+    public long[] getGlobalBestTimesForMap(String mapName) {
+        Long cacheTime = globalBestTimesCacheTimestamp.get(mapName);
+        if (cacheTime != null && System.currentTimeMillis() - cacheTime < GLOBAL_CACHE_TTL_MS) {
+            long[] cached = globalBestTimesCache.get(mapName);
+            if (cached != null) return cached;
+        }
+
+        List<Long> times = new ArrayList<>();
+        File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files != null) {
+            // Also include online players from cache (in case they haven't been saved yet)
+            for (PlayerData pd : cache.values()) {
+                PlayerData.MapStats s = pd.getStats(mapName);
+                if (s != null && s.hasBestTime()) times.add(s.bestTime);
+            }
+            for (File file : files) {
+                // Skip files whose UUID is already in cache (already added above)
+                String fileName = file.getName().replace(".yml", "");
+                try {
+                    UUID fileUuid = UUID.fromString(fileName);
+                    if (cache.containsKey(fileUuid)) continue;
+                } catch (IllegalArgumentException ignored) { continue; }
+
+                try {
+                    YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                    long t = config.getLong("stats." + mapName + ".best-time", -1);
+                    if (t > 0) times.add(t);
+                } catch (Exception ignored) {}
+            }
+        }
+
+        long[] result = new long[times.size()];
+        for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
+        globalBestTimesCache.put(mapName, result);
+        globalBestTimesCacheTimestamp.put(mapName, System.currentTimeMillis());
+        return result;
+    }
+
+    /** Force-expire the global best times cache for a map (call after a new PB is recorded). */
+    public void invalidateGlobalBestTimesCache(String mapName) {
+        globalBestTimesCacheTimestamp.remove(mapName);
     }
 
     /**

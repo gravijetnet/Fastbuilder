@@ -4,6 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -19,6 +20,7 @@ public class ReplayRecorder {
     private final String mapName;
     private final int islandIndex;
     private final long startTimestamp;
+    private final List<ReplayFrame.BlockPlacement> initialBlocks;
 
     private int currentTick = 0;
     private final List<ReplayFrame> frames = new ArrayList<>();
@@ -27,11 +29,17 @@ public class ReplayRecorder {
     private final Queue<ReplayFrame.BlockPlacement> pendingPlacements = new LinkedList<>();
 
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex) {
+        this(playerUuid, playerName, mapName, islandIndex, Collections.emptyList());
+    }
+
+    public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex,
+                          List<ReplayFrame.BlockPlacement> initialBlocks) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.mapName = mapName;
         this.islandIndex = islandIndex;
         this.startTimestamp = System.currentTimeMillis();
+        this.initialBlocks = new ArrayList<>(initialBlocks);
     }
 
     /**
@@ -78,7 +86,8 @@ public class ReplayRecorder {
     public ReplayData build(boolean successful, long runTimeMillis) {
         return new ReplayData(
                 playerUuid, playerName, mapName, islandIndex,
-                startTimestamp, successful, runTimeMillis, new ArrayList<>(frames)
+                startTimestamp, successful, runTimeMillis, new ArrayList<>(frames),
+                new ArrayList<>(initialBlocks)
         );
     }
 

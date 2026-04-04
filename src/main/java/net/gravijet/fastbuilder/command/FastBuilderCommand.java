@@ -120,7 +120,24 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Free current island first
+        // Full cleanup of the player's current island before switching
+        PlayerData prevData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+        if (prevData != null && prevData.getLastMap() != null && plugin.getHologramManager() != null) {
+            plugin.getHologramManager().removeHologram(prevData.getLastMap(), prevData.getLastIsland());
+        }
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+        }
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        }
+
+        // Free all island slots
         mm.freeAllIslands(player.getUniqueId());
 
         // Assign a free island on the target map
@@ -137,6 +154,24 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         PlayerData data = plugin.getPlayerManager().getPlayerData(player.getUniqueId(), player.getName());
         data.setLastMap(map.getName());
         data.setLastIsland(island);
+
+        // Full island setup on the new island
+        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+        player.setFoodLevel(20);
+        player.setHealth(player.getMaxHealth());
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+        }
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().giveItems(player);
+        }
+        plugin.getScoreboardManager().createScoreboard(player);
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
+        }
+        if (plugin.getHologramManager() != null) {
+            plugin.getHologramManager().updateHologram(map.getName(), island, player);
+        }
 
         // Check autoscale
         mm.checkAutoscale(map);

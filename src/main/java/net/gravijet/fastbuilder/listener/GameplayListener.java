@@ -10,6 +10,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
 /**
@@ -69,7 +70,33 @@ public class GameplayListener implements Listener {
 
         Location to = event.getTo();
         if (isInFinishZone(map, session.getIslandIndex(), to)) {
+            // In touch mode, also require the player to be standing on a pressure plate
+            if (plugin.getConfigManager().isFinishTouchMode()) {
+                org.bukkit.block.Block below = to.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
+                if (below.getTypeId() != 70 && below.getTypeId() != 72) return; // 70=stone plate, 72=wood plate
+            }
             gm.onFinish(player);
+        }
+    }
+
+    /**
+     * Cancel animation FallingBlocks from landing and placing a block.
+     * This is the failsafe alongside the NMS dontSetBlock flag.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+        if (!(event.getEntity() instanceof org.bukkit.entity.FallingBlock)) return;
+        GameplayManager gm = plugin.getGameplayManager();
+        if (gm == null) return;
+
+        java.util.UUID entityId = event.getEntity().getUniqueId();
+        if (gm.isAnimationEntity(entityId)) {
+            event.setCancelled(true);
+            // Do NOT remove from animationEntities here — FallingBlocks can fire this event
+            // more than once (bounce on the same surface or hit multiple blocks). Keeping the
+            // UUID in the set ensures every subsequent landing attempt is also cancelled.
+            // The 60L cleanup task in GameplayManager.spawnAnimationFallingBlock handles removal.
+            event.getEntity().remove();
         }
     }
 

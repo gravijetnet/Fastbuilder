@@ -95,10 +95,16 @@ public class PlayerListener implements Listener {
             plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
         }
 
-        // STRICT BLOCK CLEANUP: remove all placed blocks before session is removed
+        // STRICT BLOCK CLEANUP: remove all placed blocks before session is removed.
+        // Build mode: exit first, but do NOT clear blocks — they persist by design.
         if (plugin.getGameplayManager() != null) {
-            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            if (plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
+                plugin.getGameplayManager().exitBuildMode(player.getUniqueId());
+            } else {
+                plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
 
         // Despawn NPC
@@ -135,7 +141,8 @@ public class PlayerListener implements Listener {
     }
 
     /**
-     * Clean up a player's current island: despawn NPC, remove hologram, clear placed blocks.
+     * Clean up a player's current island: despawn NPC, remove hologram, clear placed blocks,
+     * remove CPS hologram, and remove from session top 3.
      * Call this before switching the player to a new island or map.
      */
     public void cleanupCurrentIsland(Player player) {
@@ -151,6 +158,10 @@ public class PlayerListener implements Listener {
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+        }
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
         }
     }
 

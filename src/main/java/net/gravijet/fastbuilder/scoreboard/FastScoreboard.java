@@ -12,11 +12,14 @@ import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Per-player scoreboards. GraviJet branding, &c/&f/&7 color scheme.
- * Uses direct sidebar entries (≤40 chars each) — no team hacks needed for 1.8.8.
+ * Lines are fully config-driven via scoreboard.lines in config.yml.
  */
 public class FastScoreboard {
 
@@ -32,10 +35,11 @@ public class FastScoreboard {
         Scoreboard board = Bukkit.getScoreboardManager().getNewScoreboard();
         Objective obj = board.registerNewObjective("fb", "dummy");
         obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-        obj.setDisplayName(ColorUtil.translate("§c§lFASTBUILDER"));
+        String title = plugin.getConfigManager().getScoreboardTitle();
+        obj.setDisplayName(ColorUtil.translate(title));
 
-        String[] lines = buildLines(player);
-        int score = lines.length;
+        List<String> lines = buildLines(player);
+        int score = lines.size();
         for (String line : lines) {
             obj.getScore(line).setScore(score--);
         }
@@ -44,54 +48,65 @@ public class FastScoreboard {
     }
 
     /**
-     * Build the lines to display top → bottom.
-     * Each must be unique and ≤ 40 characters (1.8.8 sidebar limit).
+     * Build display lines from config, resolving all placeholders for this player.
      */
-    private String[] buildLines(Player player) {
+    private List<String> buildLines(Player player) {
+        Map<Integer, String> configLines = plugin.getConfigManager().getScoreboardLines();
+        if (configLines.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         RunSession session = plugin.getGameplayManager() != null
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
-        // ── Map ───────────────────────────────────────────────────────────────
+        // Resolve placeholder values once
         String mapName = (session != null) ? session.getMapName() : "§8None";
 
-        // ── Blocks Used ───────────────────────────────────────────────────────
-        int blocksPlaced = (session != null) ? session.getPlacedBlocks().size() : 0;
-        String blocksStr = "§f" + blocksPlaced;
+        String pb = "§8-";
+        if (data != null && session != null) {
+            PlayerData.MapStats stats = data.getStats(session.getMapName());
+            if (stats != null && stats.hasBestTime()) {
+                pb = "§f" + TimeUtil.formatTime(stats.bestTime);
+            }
+        }
 
-        // ── Fastbuilder Coins ─────────────────────────────────────────────────
-        String fbCoins = data != null ? String.valueOf(data.getCoins()) : "0";
+        String currentTime = "§700:00.000";
+        if (session != null && session.isRunning()) {
+            currentTime = "§f" + TimeUtil.formatTime(session.getElapsed());
+        }
 
-        // ── Global Top 3 Session Bests (unique per player) ────────────────────
-        List<String[]> top3 = (plugin.getGameplayManager() != null)
+        String coins = data != null ? String.valueOf(data.getCoins()) : "0";
+
+        List<String[]> top3list = (plugin.getGameplayManager() != null)
                 ? plugin.getGameplayManager().getGlobalSessionTop3()
-                : java.util.Collections.emptyList();
+                : Collections.emptyList();
 
-        String top1 = top3.size() >= 1
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(0)[1])) + " §7(" + top3.get(0)[0] + ")"
-                : "§8-";
-        String top2 = top3.size() >= 2
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(1)[1])) + " §7(" + top3.get(1)[0] + ")"
-                : "§8- ";
-        String top3str = top3.size() >= 3
-                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3.get(2)[1])) + " §7(" + top3.get(2)[0] + ")"
-                : "§8-  ";
+        String top1 = top3list.size() >= 1
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(0)[1]))
+                  + " §7(" + top3list.get(0)[0] + ")" : "§8-";
+        String top2 = top3list.size() >= 2
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(1)[1]))
+                  + " §7(" + top3list.get(1)[0] + ")" : "§8- ";
+        String top3 = top3list.size() >= 3
+                ? "§f" + TimeUtil.formatTime(Long.parseLong(top3list.get(2)[1]))
+                  + " §7(" + top3list.get(2)[0] + ")" : "§8-  ";
 
-        return new String[] {
-            ColorUtil.translate("§7§m─────────────────"),
-            ColorUtil.translate(" §7Map: §c" + mapName),
-            ColorUtil.translate(" §7Blocks: " + blocksStr),
-            ColorUtil.translate("§r"),
-            ColorUtil.translate(" §7Session Top 3:"),
-            ColorUtil.translate("  §8#1 " + top1),
-            ColorUtil.translate("  §8#2 " + top2),
-            ColorUtil.translate("  §8#3 " + top3str),
-            ColorUtil.translate("§r "),
-            ColorUtil.translate(" §8» §cCoins: §6" + fbCoins),
-            ColorUtil.translate("§r  "),
-            ColorUtil.translate("§7§ogravijet.net"),
-            ColorUtil.translate("§c§m─────────────────"),
-        };
+        List<String> result = new ArrayList<>();
+        // configLines is a TreeMap (sorted by key ascending) — display in ascending order
+        for (String raw : configLines.values()) {
+            String line = raw
+                    .replace("%map%", mapName)
+                    .replace("%pb%", pb)
+                    .replace("%current_time%", currentTime)
+                    .replace("%coins%", coins)
+                    .replace("%top1%", top1)
+                    .replace("%top2%", top2)
+                    .replace("%top3%", top3)
+                    .replace("%players%", "");  // removed per spec
+            result.add(ColorUtil.translate(line));
+        }
+        return result;
     }
 
     public void updateScoreboard(Player player) {
@@ -103,6 +118,7 @@ public class FastScoreboard {
     }
 
     private void startUpdateTask() {
+        long interval = plugin.getConfigManager().getScoreboardUpdateInterval();
         updateTaskId = new BukkitRunnable() {
             @Override
             public void run() {
@@ -112,7 +128,7 @@ public class FastScoreboard {
                     }
                 }
             }
-        }.runTaskTimer(plugin, 20L, 20L).getTaskId();
+        }.runTaskTimer(plugin, interval, interval).getTaskId();
     }
 
     public void shutdown() {

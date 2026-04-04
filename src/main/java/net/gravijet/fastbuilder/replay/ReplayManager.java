@@ -38,7 +38,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 1;
+    private static final int VERSION = 2; // v2 adds initialBlocks
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -51,10 +51,36 @@ public class ReplayManager {
     // Recording
     // -------------------------------------------------------------------------
 
+    @SuppressWarnings("deprecation")
     public void startRecording(Player player, String mapName, int islandIndex) {
         stopRecording(player.getUniqueId(), false);
+
+        // Capture blocks already placed on the island (practice blocks, build-mode blocks) as initial state
+        List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
+        if (plugin.getGameplayManager() != null) {
+            RunSession session = plugin.getGameplayManager().getSession(player.getUniqueId());
+            if (session != null) {
+                for (org.bukkit.Location loc : session.getPlacedBlocks()) {
+                    org.bukkit.block.Block b = loc.getBlock();
+                    if (b != null && b.getType() != org.bukkit.Material.AIR) {
+                        initialBlocks.add(new ReplayFrame.BlockPlacement(
+                                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
+                                b.getTypeId(), b.getData()));
+                    }
+                }
+                for (org.bukkit.Location loc : session.getPracticeBlocks()) {
+                    org.bukkit.block.Block b = loc.getBlock();
+                    if (b != null && b.getType() != org.bukkit.Material.AIR) {
+                        initialBlocks.add(new ReplayFrame.BlockPlacement(
+                                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
+                                b.getTypeId(), b.getData()));
+                    }
+                }
+            }
+        }
+
         activeRecorders.put(player.getUniqueId(),
-                new ReplayRecorder(player.getUniqueId(), player.getName(), mapName, islandIndex));
+                new ReplayRecorder(player.getUniqueId(), player.getName(), mapName, islandIndex, initialBlocks));
     }
 
     public void recordBlockPlace(UUID playerUuid, Location loc, int blockId, byte blockData) {
@@ -219,6 +245,16 @@ public class ReplayManager {
             out.writeBoolean(data.isSuccessful());
             out.writeLong(data.getRunTimeMillis());
 
+            // Initial blocks (v2)
+            out.writeInt(data.getInitialBlocks().size());
+            for (ReplayFrame.BlockPlacement bp : data.getInitialBlocks()) {
+                out.writeInt(bp.getBlockX());
+                out.writeInt(bp.getBlockY());
+                out.writeInt(bp.getBlockZ());
+                out.writeInt(bp.getBlockId());
+                out.writeByte(bp.getBlockData());
+            }
+
             out.writeInt(data.getFrames().size());
             for (ReplayFrame frame : data.getFrames()) {
                 out.writeInt(frame.getTick());
@@ -253,7 +289,7 @@ public class ReplayManager {
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 
             int version = in.readInt();
-            if (version != VERSION) throw new IOException("Unsupported replay version: " + version);
+            if (version != 1 && version != VERSION) throw new IOException("Unsupported replay version: " + version);
 
             UUID uuid        = UUID.fromString(in.readUTF());
             String name      = in.readUTF();
@@ -262,6 +298,20 @@ public class ReplayManager {
             long timestamp   = in.readLong();
             boolean success  = in.readBoolean();
             long runTime     = in.readLong();
+
+            // Read initial blocks (v2 only; v1 files have none)
+            List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
+            if (version >= 2) {
+                int initCount = in.readInt();
+                for (int i = 0; i < initCount; i++) {
+                    int bx       = in.readInt();
+                    int by       = in.readInt();
+                    int bz       = in.readInt();
+                    int blockId  = in.readInt();
+                    byte blockData = in.readByte();
+                    initialBlocks.add(new ReplayFrame.BlockPlacement(bx, by, bz, blockId, blockData));
+                }
+            }
 
             int frameCount = in.readInt();
             List<ReplayFrame> frames = new ArrayList<>(frameCount);
@@ -288,7 +338,7 @@ public class ReplayManager {
                 frames.add(new ReplayFrame(tick, x, y, z, yaw, pitch, placement));
             }
 
-            return new ReplayData(uuid, name, mapName, islandIndex, timestamp, success, runTime, frames);
+            return new ReplayData(uuid, name, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);
         }
     }
 

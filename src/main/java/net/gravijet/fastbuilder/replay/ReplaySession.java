@@ -124,12 +124,28 @@ public class ReplaySession {
                     public void run() {
                         Player v = Bukkit.getPlayer(viewerUuid);
                         if (v == null || !v.isOnline()) return;
+
+                        // Place initial blocks (blocks that were on the island at recording start)
+                        placeInitialBlocks(map.getWorld());
+
                         v.teleport(viewerWatchLocation);
                         spawnReplayNpc(v);
                         startPlaybackLoop();
                     }
                 }
         );
+    }
+
+    @SuppressWarnings("deprecation")
+    private void placeInitialBlocks(org.bukkit.World world) {
+        for (net.gravijet.fastbuilder.replay.ReplayFrame.BlockPlacement bp : replayData.getInitialBlocks()) {
+            int bx = bp.getBlockX() + offsetX;
+            int by = bp.getBlockY() + offsetY;
+            int bz = bp.getBlockZ() + offsetZ;
+            Block block = world.getBlockAt(bx, by, bz);
+            block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
+            placedBlocks.add(block.getLocation().clone());
+        }
     }
 
     private void startPlaybackLoop() {
@@ -262,6 +278,7 @@ public class ReplaySession {
                     new Runnable() {
                         @Override
                         public void run() {
+                            placeInitialBlocks(map.getWorld());
                             Player v = Bukkit.getPlayer(viewerUuid);
                             if (v != null) spawnReplayNpc(v);
                             startPlaybackLoop();

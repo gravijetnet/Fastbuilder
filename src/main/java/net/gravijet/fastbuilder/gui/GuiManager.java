@@ -646,22 +646,32 @@ public class GuiManager implements Listener {
                     : new ItemBuilder(Material.GRASS);
 
             String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "N/A";
+            String avgTime = stats.getAverageTime() >= 0 ? TimeUtil.formatTime(stats.getAverageTime()) : "N/A";
             int rate = stats.totalAttempts > 0 ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
             List<String> lore = new ArrayList<>();
             lore.add(ColorUtil.translate("&7Best Time: &f" + bestTime));
-            lore.add(ColorUtil.translate("&7Runs: &f" + stats.successfulAttempts + "/" + stats.totalAttempts + " &7(" + rate + "%)"));
+            lore.add(ColorUtil.translate("&7Average Time: &f" + avgTime));
+            lore.add(ColorUtil.translate("&7Total Attempts: &f" + stats.totalAttempts));
+            lore.add(ColorUtil.translate("&7Successful: &f" + stats.successfulAttempts));
+            lore.add(ColorUtil.translate("&7Success Rate: &f" + rate + "%"));
 
             // Rank display
-            if (mapData != null && stats.hasBestTime()) {
-                String rank = mapData.getPlayerRank(stats.bestTime);
-                if (rank != null) {
-                    String color = rank.equals("Gold") ? "&6" : rank.equals("Silver") ? "&7" : "&c";
-                    lore.add(ColorUtil.translate("&7Rank: " + color + "&l" + rank));
+            if (mapData != null) {
+                if (stats.hasBestTime()) {
+                    String rank = mapData.getPlayerRank(stats.bestTime);
+                    if (rank != null) {
+                        String color = rank.equals("Diamond") ? "&b"
+                                : rank.equals("Gold") ? "&6"
+                                : rank.equals("Silver") ? "&7" : "&c";
+                        lore.add(ColorUtil.translate("&7Rank: " + color + "&l" + rank));
+                    }
                 }
-                // Show configured rank thresholds
-                if (mapData.getGoldTime() > 0 || mapData.getSilverTime() > 0 || mapData.getBronzeTime() > 0) {
+                // Show ALL configured rank thresholds (including unachieved)
+                if (mapData.getDiamondTime() > 0 || mapData.getGoldTime() > 0
+                        || mapData.getSilverTime() > 0 || mapData.getBronzeTime() > 0) {
                     lore.add(ColorUtil.translate("&8---"));
+                    if (mapData.getDiamondTime() > 0) lore.add(ColorUtil.translate("&bDiamond: &f" + TimeUtil.formatTime(mapData.getDiamondTime())));
                     if (mapData.getGoldTime() > 0) lore.add(ColorUtil.translate("&6Gold: &f" + TimeUtil.formatTime(mapData.getGoldTime())));
                     if (mapData.getSilverTime() > 0) lore.add(ColorUtil.translate("&7Silver: &f" + TimeUtil.formatTime(mapData.getSilverTime())));
                     if (mapData.getBronzeTime() > 0) lore.add(ColorUtil.translate("&cBronze: &f" + TimeUtil.formatTime(mapData.getBronzeTime())));
@@ -846,10 +856,20 @@ public class GuiManager implements Listener {
                 data.removeCoins(price);
                 data.purchaseBlock(mat);
                 // Auto-equip on purchase
+                String oldBlockOnPurchase = data.getSelectedBlock();
                 data.setSelectedBlock(mat);
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) {
                     plugin.getHotbarManager().updateBlockSlot(player);
+                }
+                // If block type changed and player has blocks placed, clear them
+                if (oldBlockOnPurchase != null && !oldBlockOnPurchase.equals(mat)
+                        && plugin.getGameplayManager() != null) {
+                    net.gravijet.fastbuilder.gameplay.RunSession swapSession =
+                            plugin.getGameplayManager().getSession(player.getUniqueId());
+                    if (swapSession != null && !swapSession.getPlacedBlocks().isEmpty()) {
+                        plugin.getGameplayManager().resetRun(player);
+                    }
                 }
                 String blockName = pageSection.getString(blockIndex + ".name", "Block");
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
@@ -862,12 +882,22 @@ public class GuiManager implements Listener {
         }
 
         // Select the block
+        String oldBlock = data.getSelectedBlock();
         data.setSelectedBlock(mat);
         player.closeInventory();
 
         // Update hotbar block
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().updateBlockSlot(player);
+        }
+
+        // If block type changed and player has blocks placed, clear them instantly
+        if (oldBlock != null && !oldBlock.equals(mat) && plugin.getGameplayManager() != null) {
+            net.gravijet.fastbuilder.gameplay.RunSession swapSession =
+                    plugin.getGameplayManager().getSession(player.getUniqueId());
+            if (swapSession != null && !swapSession.getPlacedBlocks().isEmpty()) {
+                plugin.getGameplayManager().resetRun(player);
+            }
         }
 
         String blockName = pageSection.getString(blockIndex + ".name", "Block");

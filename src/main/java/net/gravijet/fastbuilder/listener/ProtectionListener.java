@@ -92,6 +92,11 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Build mode: unrestricted interaction anywhere in the world
+        if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
+            return;
+        }
+
         if (!isOnOwnIsland(player, event.getClickedBlock().getLocation())) {
             event.setCancelled(true);
         }
@@ -137,6 +142,11 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Build mode players move freely — no boundary enforcement
+        if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
+            return;
+        }
+
         // Handle replay viewer void protection
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
             if (event.getTo().getY() < 0) {
@@ -165,9 +175,15 @@ public class ProtectionListener implements Listener {
         int[] bounds = GridCalculator.getIslandBounds(map, session.getIslandIndex());
         int maxDist = plugin.getConfigManager().getMaxDistance();
 
-        boolean outOfBounds = to.getBlockX() < bounds[0] - maxDist
-                || to.getBlockZ() < bounds[2] - maxDist
-                || to.getBlockZ() > bounds[5] + maxDist;
+        // Z strictly identifies the player's island slot — rubber-band if they try to cross into
+        // another island's Z corridor instead of treating it as a fall/reset.
+        boolean zOutOfBounds = to.getBlockZ() < bounds[2] || to.getBlockZ() > bounds[5];
+        if (zOutOfBounds) {
+            event.setTo(event.getFrom());
+            return;
+        }
+
+        boolean outOfBounds = to.getBlockX() < bounds[0] - maxDist;
 
         boolean inVoid;
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
@@ -201,7 +217,8 @@ public class ProtectionListener implements Listener {
 
     /**
      * Check if a player can place a block at a given location.
-     * Only allows placement within the exact island bounds defined during map setup.
+     * Z-bounds strictly identify the island slot. X and Y use generous tolerances
+     * so players can bridge along the full schematic length and build above it.
      */
     private boolean canBuildAtLocation(Player player, Location blockLoc) {
         if (plugin.getGameplayManager() != null && plugin.getGameplayManager().isInBuildMode(player.getUniqueId())) {
@@ -224,14 +241,62 @@ public class ProtectionListener implements Listener {
             int by = blockLoc.getBlockY();
             int bz = blockLoc.getBlockZ();
 
-            if (bx >= islandMin.getBlockX() && bx <= islandMax.getBlockX()
-                    && by >= islandMin.getBlockY() && by <= islandMax.getBlockY()
-                    && bz >= islandMin.getBlockZ() && bz <= islandMax.getBlockZ()) {
+            // Z strictly identifies the player's island slot (not affected by distance setting)
+            boolean zInBounds = bz >= islandMin.getBlockZ() && bz <= islandMax.getBlockZ();
+
+            // Y: 2 blocks below the schematic base to 64 blocks above the schematic top
+            boolean yInBounds = by >= islandMin.getBlockY() - 2
+                    && by <= islandMax.getBlockY() + 64;
+
+            // X (build direction): schematic start to schematic end + 10 block buffer
+            boolean xInBounds = bx >= islandMin.getBlockX()
+                    && bx <= islandMax.getBlockX() + 10;
+
+            if (xInBounds && yInBounds && zInBounds) {
                 return true;
             }
         }
 
         return player.hasPermission("fastbuilder.admin");
+    }
+
+    // -------------------------------------------------------------------------
+    // Absolute build mode overrides (run at HIGHEST so they fire last and win)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Force-allow ALL block placements for build-mode players, regardless of what
+     * lower-priority listeners (including other plugins) decided.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockPlaceBuildModeOverride(BlockPlaceEvent event) {
+        if (plugin.getGameplayManager() != null
+                && plugin.getGameplayManager().isInBuildMode(event.getPlayer().getUniqueId())) {
+            event.setCancelled(false);
+        }
+    }
+
+    /**
+     * Force-allow ALL block breaks for build-mode players.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onBlockBreakBuildModeOverride(BlockBreakEvent event) {
+        if (plugin.getGameplayManager() != null
+                && plugin.getGameplayManager().isInBuildMode(event.getPlayer().getUniqueId())) {
+            event.setCancelled(false);
+        }
+    }
+
+    /**
+     * Force-allow ALL block interactions for build-mode players.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInteractBuildModeOverride(PlayerInteractEvent event) {
+        if (event.getClickedBlock() == null) return;
+        if (plugin.getGameplayManager() != null
+                && plugin.getGameplayManager().isInBuildMode(event.getPlayer().getUniqueId())) {
+            event.setCancelled(false);
+        }
     }
 
     /**
