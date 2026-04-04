@@ -17,9 +17,19 @@ public class ReplayData {
     private final boolean successful;
     private final long runTimeMillis;
     private final List<ReplayFrame> frames;
+    // Blocks that were already placed on the island when recording started
+    // (e.g. practice blocks, admin build-mode blocks)
+    private final List<ReplayFrame.BlockPlacement> initialBlocks;
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames) {
+        this(playerUuid, playerName, mapName, islandIndex, timestamp, successful, runTimeMillis,
+                frames, new ArrayList<>());
+    }
+
+    public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
+                      long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames,
+                      List<ReplayFrame.BlockPlacement> initialBlocks) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.mapName = mapName;
@@ -28,6 +38,7 @@ public class ReplayData {
         this.successful = successful;
         this.runTimeMillis = runTimeMillis;
         this.frames = frames;
+        this.initialBlocks = initialBlocks != null ? initialBlocks : new ArrayList<>();
     }
 
     public UUID getPlayerUuid() { return playerUuid; }
@@ -38,6 +49,7 @@ public class ReplayData {
     public boolean isSuccessful() { return successful; }
     public long getRunTimeMillis() { return runTimeMillis; }
     public List<ReplayFrame> getFrames() { return frames; }
+    public List<ReplayFrame.BlockPlacement> getInitialBlocks() { return initialBlocks; }
     public int getTotalTicks() { return frames.isEmpty() ? 0 : frames.get(frames.size() - 1).getTick(); }
 
     /**

@@ -94,31 +94,27 @@ public class HologramManager {
     }
 
     /**
-     * Calculate what percentage of online players have a SLOWER (worse) best time on this map.
-     * Returns a formatted string like "Top 9.8%" or "" if not enough data.
+     * Calculate the player's rank percentile among ALL players who have ever completed this map
+     * (loaded from disk, with 60-second cache).
+     * "Top X%" = the player is in the top X% fastest players (lower = better rank).
+     * Returns "" if fewer than 2 players have a recorded time.
      */
     private String calculateTopPercent(String mapName, long playerBestTime) {
         if (playerBestTime <= 0) return "";
 
-        int totalWithTime = 0;
-        int worseOrEqual = 0;
+        long[] allTimes = plugin.getPlayerManager().getGlobalBestTimesForMap(mapName);
+        int total = allTimes.length;
+        if (total < 2) return "";
 
-        for (org.bukkit.entity.Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
-            net.gravijet.fastbuilder.player.PlayerData od =
-                    plugin.getPlayerManager().getCachedData(online.getUniqueId());
-            if (od == null) continue;
-            PlayerData.MapStats s = od.getStats(mapName);
-            if (s == null || !s.hasBestTime()) continue;
-            totalWithTime++;
-            if (s.bestTime > playerBestTime) worseOrEqual++;
+        int betterCount = 0; // players with a strictly faster (lower) time
+        for (long t : allTimes) {
+            if (t < playerBestTime) betterCount++;
         }
 
-        if (totalWithTime < 2) return "";
-
-        double pct = (double) worseOrEqual / (totalWithTime - 1) * 100.0;
-        // Show as "Top X%" where X is how many percent you're better than
-        double topPct = 100.0 - pct;
-        if (topPct <= 0) topPct = 0;
+        // rank = betterCount + 1  (1 = best player, no one faster)
+        // topPct = rank / total * 100  →  smaller value = better rank
+        double topPct = ((double) (betterCount + 1) / total) * 100.0;
+        if (topPct > 100.0) topPct = 100.0;
         return String.format("[Top %.1f%%]", topPct);
     }
 

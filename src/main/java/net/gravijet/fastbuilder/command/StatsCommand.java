@@ -92,18 +92,36 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
             for (Map.Entry<String, PlayerData.MapStats> entry : allStats.entrySet()) {
                 PlayerData.MapStats stats = entry.getValue();
                 String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "N/A";
+                String avgTime = stats.getAverageTime() >= 0 ? TimeUtil.formatTime(stats.getAverageTime()) : "N/A";
                 int successRate = stats.totalAttempts > 0
                         ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
                 sender.sendMessage(ColorUtil.translate("  &c" + entry.getKey()));
                 sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime));
-                sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts
-                        + " &7/ &f" + stats.totalAttempts + " &7(" + successRate + "%)"));
+                sender.sendMessage(ColorUtil.translate("  &7Average Time: &f" + avgTime));
+                sender.sendMessage(ColorUtil.translate("  &7Total Attempts: &f" + stats.totalAttempts));
+                sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts));
+                sender.sendMessage(ColorUtil.translate("  &7Success Rate: &f" + successRate + "%"));
 
                 net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(entry.getKey());
-                if (mapData != null && stats.hasBestTime()) {
-                    String rank = mapData.getPlayerRank(stats.bestTime);
-                    if (rank != null) sender.sendMessage(ColorUtil.translate("  &7Rank: &6" + rank));
+                if (mapData != null) {
+                    if (stats.hasBestTime()) {
+                        String rank = mapData.getPlayerRank(stats.bestTime);
+                        if (rank != null) {
+                            String color = rank.equals("Diamond") ? "&b"
+                                    : rank.equals("Gold") ? "&6"
+                                    : rank.equals("Silver") ? "&7" : "&c";
+                            sender.sendMessage(ColorUtil.translate("  &7Rank: " + color + rank));
+                        }
+                    }
+                    if (mapData.getDiamondTime() > 0 || mapData.getGoldTime() > 0
+                            || mapData.getSilverTime() > 0 || mapData.getBronzeTime() > 0) {
+                        sender.sendMessage(ColorUtil.translate("  &7Rank Requirements:"));
+                        if (mapData.getDiamondTime() > 0) sender.sendMessage(ColorUtil.translate("    &bDiamond: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getDiamondTime())));
+                        if (mapData.getGoldTime() > 0) sender.sendMessage(ColorUtil.translate("    &6Gold: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getGoldTime())));
+                        if (mapData.getSilverTime() > 0) sender.sendMessage(ColorUtil.translate("    &7Silver: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getSilverTime())));
+                        if (mapData.getBronzeTime() > 0) sender.sendMessage(ColorUtil.translate("    &cBronze: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getBronzeTime())));
+                    }
                 }
                 sender.sendMessage("");
             }

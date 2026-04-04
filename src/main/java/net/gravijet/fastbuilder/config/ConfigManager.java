@@ -177,6 +177,14 @@ public class ConfigManager {
         return messagesConfig.getString("subtitle", "");
     }
 
+    public int getScoreboardUpdateInterval() {
+        return mainConfig.getInt("scoreboard.update-interval", 20);
+    }
+
+    public boolean isFinishTouchMode() {
+        return "touch".equalsIgnoreCase(mainConfig.getString("finish-trigger-mode", "zone"));
+    }
+
     // --- GUI Config Accessors ---
 
     public FileConfiguration getGuisConfig() {

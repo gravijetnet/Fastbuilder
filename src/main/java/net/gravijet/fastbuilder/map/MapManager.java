@@ -150,9 +150,11 @@ public class MapManager {
         data.setFinishMaxZ(session.getFinishMaxZ());
 
         // Default distance = islandLength + 3
-        data.setDistance(data.getIslandLength() + 3);
+        data.setDistance(data.getIslandLength() + 1);
         data.setScale(1);
         data.setEnabled(false);
+        // Default deathY: 3 blocks below the map's grid origin Y
+        data.setDeathY(gridOrigin.getBlockY() - 3);
         data.setTemplateFile(name.toLowerCase());
 
         maps.put(name.toLowerCase(), data);

@@ -39,7 +39,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "setup", "setname", "seticon", "enable", "disable", "scale", "distance", "autoscale", "setdeathy", "setmintime", "setrank"
     );
-    private static final List<String> RANK_TIERS = Arrays.asList("gold", "silver", "bronze");
+    private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "name");
     private static final List<String> BOOLEANS = Arrays.asList("true", "false");
 
@@ -332,7 +332,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.removeSetupSession(player.getUniqueId());
 
         String raw = plugin.getConfigManager().getAdminMessage("setup-complete");
-        raw = raw.replace("%map%", name);
+        raw = raw.replace("%map%", name)
+                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
 
         // Restore player to Survival and return to their island
@@ -650,7 +651,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     private void handleSetRank(Player player, String[] args, MapManager mm) {
         if (args.length < 4) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setrank <map> <gold|silver|bronze> <ms> &7(-1 to remove)");
+            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setrank <map> <diamond|gold|silver|bronze> <ms> &7(-1 to remove)");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -663,11 +664,12 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         switch (tier) {
-            case "gold":   map.setGoldTime(ms);   break;
-            case "silver": map.setSilverTime(ms); break;
-            case "bronze": map.setBronzeTime(ms); break;
+            case "diamond": map.setDiamondTime(ms); break;
+            case "gold":    map.setGoldTime(ms);    break;
+            case "silver":  map.setSilverTime(ms);  break;
+            case "bronze":  map.setBronzeTime(ms);  break;
             default:
-                msg(player, "&cInvalid rank tier. Use: gold, silver, bronze"); return;
+                msg(player, "&cInvalid rank tier. Use: diamond, gold, silver, bronze"); return;
         }
         mm.saveMap(map);
         String display = ms <= 0 ? "removed" : ms + "ms";
@@ -726,7 +728,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&4- &c/map autoscale <map> <true|false> &7- &fToggle autoscaling"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setdeathy <map> <Y> &7- &fSet fall death Y level (-1 to remove)"));
         player.sendMessage(ColorUtil.translate("&4- &c/map setmintime <map> <ms> &7- &fSet minimum valid run time (0 = global)"));
-        player.sendMessage(ColorUtil.translate("&4- &c/map setrank <map> <gold|silver|bronze> <ms> &7- &fSet rank time requirement"));
+        player.sendMessage(ColorUtil.translate("&4- &c/map setrank <map> <diamond|gold|silver|bronze> <ms> &7- &fSet rank time requirement"));
     }
 
     // --- Tab Completion ---

@@ -37,9 +37,11 @@ npcs:
   name: "&cMap Selector"
 
 # Scoreboard
-# Placeholders: %map%, %pb%, %current_time%, %top1%, %top2%, %top3%, %players%, %coins%
+# Placeholders: %map%, %pb%, %current_time%, %top1%, %top2%, %top3%, %coins%
+# update-interval: ticks between scoreboard refreshes (20 = 1 second)
 scoreboard:
   title: "&c&lFastbuilder"
+  update-interval: 20
   lines:
     13: "&7&m-------------------"
     12: "&8» &cMap: &f%map%"
@@ -51,9 +53,12 @@ scoreboard:
     6: "&8#2 &f%top2%"
     5: "&8#3 &f%top3%"
     4: "&f  "
-    3: "&8» &cPlayers: &f%players%"
+    3: "&8» &cCoins: &6%coins%"
     2: "&7&oexample.invalid"
     1: "&7&o&m-------------------"
+
+# Finish trigger mode: "zone" (enter finish area) or "touch" (step on pressure plate)
+finish-trigger-mode: "zone"
 
 # Autoscale defaults
 autoscale:

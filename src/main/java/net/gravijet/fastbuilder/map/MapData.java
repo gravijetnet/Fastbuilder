@@ -52,7 +52,8 @@ public class MapData {
     // Minimum valid run time (ms). Times faster than this are rejected. 0 = use global.
     private long minValidTime = 0;
 
-    // Time-based rank requirements (ms). -1 = not configured.
+    // Time-based rank requirements (ms). -1 = not configured. Diamond > Gold > Silver > Bronze.
+    private long diamondTime = -1;
     private long goldTime = -1;
     private long silverTime = -1;
     private long bronzeTime = -1;
@@ -103,6 +104,7 @@ public class MapData {
         config.set("template", templateFile);
         config.set("death-y", deathY == Integer.MIN_VALUE ? null : deathY);
         config.set("min-valid-time", minValidTime > 0 ? minValidTime : null);
+        config.set("rank.diamond", diamondTime > 0 ? diamondTime : null);
         config.set("rank.gold", goldTime > 0 ? goldTime : null);
         config.set("rank.silver", silverTime > 0 ? silverTime : null);
         config.set("rank.bronze", bronzeTime > 0 ? bronzeTime : null);
@@ -143,6 +145,7 @@ public class MapData {
         templateFile = config.getString("template");
         deathY = config.getInt("death-y", Integer.MIN_VALUE);
         minValidTime = config.getLong("min-valid-time", 0);
+        diamondTime = config.getLong("rank.diamond", -1);
         goldTime = config.getLong("rank.gold", -1);
         silverTime = config.getLong("rank.silver", -1);
         bronzeTime = config.getLong("rank.bronze", -1);
@@ -303,6 +306,9 @@ public class MapData {
     public long getMinValidTime() { return minValidTime; }
     public void setMinValidTime(long t) { this.minValidTime = t; }
 
+    public long getDiamondTime() { return diamondTime; }
+    public void setDiamondTime(long t) { this.diamondTime = t; }
+
     public long getGoldTime() { return goldTime; }
     public void setGoldTime(long t) { this.goldTime = t; }
 
@@ -314,10 +320,11 @@ public class MapData {
 
     /**
      * Returns the highest rank the player achieves with the given best time.
-     * Returns null if no rank requirement is configured or met.
+     * Order: Diamond > Gold > Silver > Bronze. Returns null if none met.
      */
     public String getPlayerRank(long bestTime) {
         if (bestTime <= 0) return null;
+        if (diamondTime > 0 && bestTime <= diamondTime) return "Diamond";
         if (goldTime > 0 && bestTime <= goldTime) return "Gold";
         if (silverTime > 0 && bestTime <= silverTime) return "Silver";
         if (bronzeTime > 0 && bestTime <= bronzeTime) return "Bronze";

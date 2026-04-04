@@ -31,6 +31,10 @@ public class CpsListener implements Listener {
     // Per-player: task ID of the scheduled hologram removal
     private final Map<UUID, Integer> removalTasks = new HashMap<>();
 
+    // Stores the actual Hologram object so we can update in-place without relying on DHAPI.getHologram()
+    // (DHAPI.getHologram() is unreliable on some server versions and causes duplicate creation bugs)
+    private final Map<UUID, eu.decentsoftware.holograms.api.holograms.Hologram> activeHolograms = new HashMap<>();
+
     // Hologram ID prefix
     private static final String HOLO_PREFIX = "fb_cps_";
 
@@ -76,43 +80,54 @@ public class CpsListener implements Listener {
 
         UUID uuid = player.getUniqueId();
         String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
+        String text = net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f" + cps);
 
-        // Remove existing hologram
-        try {
-            eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
-        } catch (Exception ignored) {}
-
-        // Create hologram above the sapling (lowered by 0.25 vs original position)
-        Location holoLoc = saplingLoc.clone().add(0.5, 1.55, 0.5);
-        List<String> lines = new ArrayList<>();
-        lines.add(net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f" + cps));
-
-        try {
-            eu.decentsoftware.holograms.api.DHAPI.createHologram(holoId, holoLoc, false, lines);
-        } catch (Exception e) {
-            plugin.getLogger().warning("CPS hologram error: " + e.getMessage());
-            return;
-        }
-
-        // Cancel any existing removal task for this player
+        // Cancel any existing removal task first
         Integer existingTask = removalTasks.remove(uuid);
         if (existingTask != null) {
             plugin.getServer().getScheduler().cancelTask(existingTask);
         }
 
-        // Schedule removal after 2 seconds of no clicks
+        try {
+            eu.decentsoftware.holograms.api.holograms.Hologram hologram = activeHolograms.get(uuid);
+
+            if (hologram != null) {
+                // Update text in-place using the stored object reference.
+                // This avoids DHAPI.getHologram() which can return null even for live holograms
+                // on certain server builds, causing the remove+create path to create duplicates.
+                eu.decentsoftware.holograms.api.DHAPI.setHologramLine(hologram, 0, text);
+            } else {
+                // No tracked hologram — clean any stale DHAPI entry then create fresh
+                try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
+                Location holoLoc = saplingLoc.clone().add(0.5, 1.55, 0.5);
+                List<String> lines = new ArrayList<>();
+                lines.add(text);
+                hologram = eu.decentsoftware.holograms.api.DHAPI.createHologram(holoId, holoLoc, false, lines);
+                if (hologram != null) {
+                    activeHolograms.put(uuid, hologram);
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("CPS hologram error: " + e.getMessage());
+            return;
+        }
+
+        // Schedule removal after 1 second (20 ticks) of no clicks
+        final eu.decentsoftware.holograms.api.holograms.Hologram finalHologram = activeHolograms.get(uuid);
         int taskId = new BukkitRunnable() {
             @Override
             public void run() {
-                try {
-                    eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
-                } catch (Exception ignored) {}
+                // Delete via stored reference first (bypasses registry lookup)
+                try { if (finalHologram != null) finalHologram.delete(); } catch (Exception ignored) {}
+                // Also remove by ID as a safety net for the DHAPI registry
+                try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
                 removalTasks.remove(uuid);
+                activeHolograms.remove(uuid);
                 saplingLocation.remove(uuid);
                 Deque<Long> d = clickTimes.get(uuid);
                 if (d != null) d.clear();
             }
-        }.runTaskLater(plugin, 40L).getTaskId(); // 40 ticks = 2 seconds
+        }.runTaskLater(plugin, 20L).getTaskId(); // 20 ticks = 1 second
 
         removalTasks.put(uuid, taskId);
     }
@@ -124,9 +139,9 @@ public class CpsListener implements Listener {
             plugin.getServer().getScheduler().cancelTask(taskId);
         }
         String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
-        try {
-            eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
-        } catch (Exception ignored) {}
+        eu.decentsoftware.holograms.api.holograms.Hologram hologram = activeHolograms.remove(uuid);
+        try { if (hologram != null) hologram.delete(); } catch (Exception ignored) {}
+        try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
         clickTimes.remove(uuid);
         saplingLocation.remove(uuid);
     }
@@ -134,12 +149,14 @@ public class CpsListener implements Listener {
     public void cleanup() {
         for (Map.Entry<UUID, Integer> entry : removalTasks.entrySet()) {
             plugin.getServer().getScheduler().cancelTask(entry.getValue());
-            String holoId = HOLO_PREFIX + entry.getKey().toString().substring(0, 8);
-            try {
-                eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId);
-            } catch (Exception ignored) {}
         }
         removalTasks.clear();
+        for (Map.Entry<UUID, eu.decentsoftware.holograms.api.holograms.Hologram> entry : activeHolograms.entrySet()) {
+            String holoId = HOLO_PREFIX + entry.getKey().toString().substring(0, 8);
+            try { if (entry.getValue() != null) entry.getValue().delete(); } catch (Exception ignored) {}
+            try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
+        }
+        activeHolograms.clear();
         clickTimes.clear();
         saplingLocation.clear();
     }
