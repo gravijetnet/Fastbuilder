@@ -38,7 +38,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 2; // v2 adds initialBlocks
+    private static final int VERSION = 3; // v3 adds headYaw, sneaking, sprinting, swingingArm per frame
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -86,6 +86,11 @@ public class ReplayManager {
     public void recordBlockPlace(UUID playerUuid, Location loc, int blockId, byte blockData) {
         ReplayRecorder recorder = activeRecorders.get(playerUuid);
         if (recorder != null) recorder.recordBlockPlace(loc, blockId, blockData);
+    }
+
+    public void recordArmSwing(UUID playerUuid) {
+        ReplayRecorder recorder = activeRecorders.get(playerUuid);
+        if (recorder != null) recorder.recordArmSwing();
     }
 
     public void stopRecording(UUID playerUuid, boolean successful) {
@@ -263,8 +268,13 @@ public class ReplayManager {
                 out.writeDouble(frame.getZ());
                 out.writeFloat(frame.getYaw());
                 out.writeFloat(frame.getPitch());
-                out.writeBoolean(frame.hasBlockPlacement());
+                // v3 additions
+                out.writeFloat(frame.getHeadYaw());
+                out.writeBoolean(frame.isSneaking());
+                out.writeBoolean(frame.isSprinting());
+                out.writeBoolean(frame.isSwingingArm());
 
+                out.writeBoolean(frame.hasBlockPlacement());
                 if (frame.hasBlockPlacement()) {
                     ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
                     out.writeInt(bp.getBlockX());
@@ -289,7 +299,7 @@ public class ReplayManager {
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 
             int version = in.readInt();
-            if (version != 1 && version != VERSION) throw new IOException("Unsupported replay version: " + version);
+            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version);
 
             UUID uuid        = UUID.fromString(in.readUTF());
             String name      = in.readUTF();
@@ -323,19 +333,32 @@ public class ReplayManager {
                 double z    = in.readDouble();
                 float yaw   = in.readFloat();
                 float pitch = in.readFloat();
-                boolean hasBlock = in.readBoolean();
 
+                // v3: extended state fields
+                float headYaw    = yaw;
+                boolean sneaking = false;
+                boolean sprinting = false;
+                boolean swingArm = false;
+                if (version >= 3) {
+                    headYaw   = in.readFloat();
+                    sneaking  = in.readBoolean();
+                    sprinting = in.readBoolean();
+                    swingArm  = in.readBoolean();
+                }
+
+                boolean hasBlock = in.readBoolean();
                 ReplayFrame.BlockPlacement placement = null;
                 if (hasBlock) {
-                    int bx       = in.readInt();
-                    int by       = in.readInt();
-                    int bz       = in.readInt();
-                    int blockId  = in.readInt();
+                    int bx         = in.readInt();
+                    int by         = in.readInt();
+                    int bz         = in.readInt();
+                    int blockId    = in.readInt();
                     byte blockData = in.readByte();
                     placement = new ReplayFrame.BlockPlacement(bx, by, bz, blockId, blockData);
                 }
 
-                frames.add(new ReplayFrame(tick, x, y, z, yaw, pitch, placement));
+                frames.add(new ReplayFrame(tick, x, y, z, yaw, pitch, headYaw,
+                        sneaking, sprinting, swingArm, placement));
             }
 
             return new ReplayData(uuid, name, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);

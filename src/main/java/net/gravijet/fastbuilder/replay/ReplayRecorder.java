@@ -28,6 +28,9 @@ public class ReplayRecorder {
     // Queued block placements to be attached to the next tick
     private final Queue<ReplayFrame.BlockPlacement> pendingPlacements = new LinkedList<>();
 
+    // Arm-swing flag: set by the animation event, consumed once per tick
+    private boolean pendingArmSwing = false;
+
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex) {
         this(playerUuid, playerName, mapName, islandIndex, Collections.emptyList());
     }
@@ -47,12 +50,18 @@ public class ReplayRecorder {
      */
     public void recordTick(Player player) {
         Location loc = player.getLocation();
+        boolean sneaking   = player.isSneaking();
+        boolean sprinting  = player.isSprinting();
+        boolean swingArm   = pendingArmSwing;
+        pendingArmSwing = false;
+
         ReplayFrame.BlockPlacement placement = pendingPlacements.poll();
 
         frames.add(new ReplayFrame(
                 currentTick,
                 loc.getX(), loc.getY(), loc.getZ(),
-                loc.getYaw(), loc.getPitch(),
+                loc.getYaw(), loc.getPitch(), loc.getYaw(),
+                sneaking, sprinting, swingArm,
                 placement
         ));
 
@@ -62,12 +71,21 @@ public class ReplayRecorder {
             frames.add(new ReplayFrame(
                     currentTick,
                     loc.getX(), loc.getY(), loc.getZ(),
-                    loc.getYaw(), loc.getPitch(),
+                    loc.getYaw(), loc.getPitch(), loc.getYaw(),
+                    sneaking, sprinting, false,
                     extra
             ));
         }
 
         currentTick++;
+    }
+
+    /**
+     * Flag an arm swing for this tick. Called by PlayerAnimationEvent.
+     * The flag is consumed on the next recordTick() call.
+     */
+    public void recordArmSwing() {
+        pendingArmSwing = true;
     }
 
     /**
