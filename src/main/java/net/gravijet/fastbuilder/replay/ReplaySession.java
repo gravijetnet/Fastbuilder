@@ -306,12 +306,15 @@ public class ReplaySession {
         World world = map.getWorld();
         if (world == null) return;
 
-        // Move NPC with offset applied
+        // Move NPC with offset applied (handles position + body/look via EntityTeleport)
         moveReplayNpc(new Location(world,
                 frame.getX() + offsetX,
                 frame.getY() + offsetY,
                 frame.getZ() + offsetZ,
                 frame.getYaw(), frame.getPitch()));
+
+        // Apply head rotation, sneak/sprint metadata, and arm-swing animation
+        applyNmsState(viewer, frame);
 
         // Place block with offset applied
         if (frame.hasBlockPlacement()) {
@@ -323,6 +326,77 @@ public class ReplaySession {
             block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
             placedBlocks.add(block.getLocation().clone());
         }
+    }
+
+    /**
+     * Sends NMS packets to the viewer to reflect the full visual state of the NPC:
+     * head yaw, sneak/sprint metadata, and arm-swing animation.
+     *
+     * Uses reflection (same pattern as GameplayManager) so NMS classes are never
+     * imported directly, keeping the compile dependency on spigot-api only.
+     * Wrapped defensively — any failure silently no-ops so playback continues.
+     */
+    private void applyNmsState(Player viewer, ReplayFrame frame) {
+        if (npcId < 0) return;
+        try {
+            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
+            if (npc == null || !npc.isSpawned()) return;
+
+            org.bukkit.entity.Entity entity = npc.getEntity();
+            if (!(entity instanceof org.bukkit.entity.Player)) return;
+
+            String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+
+            // Resolve NMS entity and viewer connection via reflection
+            Object nmsEntity = entity.getClass().getMethod("getHandle").invoke(entity);
+            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
+
+            Class<?> packetIface = nmsClass(ver, "Packet");
+            Class<?> entityClass = nmsClass(ver, "Entity");
+
+            // --- Head yaw ---
+            byte headYawByte = (byte) (frame.getHeadYaw() * 256.0F / 360.0F);
+            Object headPacket = nmsClass(ver, "PacketPlayOutEntityHeadRotation")
+                    .getConstructor(entityClass, byte.class)
+                    .newInstance(nmsEntity, headYawByte);
+            sendPacketViaConn(viewerConn, packetIface, headPacket);
+
+            // --- Sneak / sprint metadata (DataWatcher index 0, entity flags byte) ---
+            // bit 1 (0x02) = crouching, bit 3 (0x08) = sprinting
+            Object dw = nmsEntity.getClass().getMethod("getDataWatcher").invoke(nmsEntity);
+            byte flags = 0;
+            try {
+                flags = ((Number) dw.getClass().getMethod("getByte", int.class).invoke(dw, 0)).byteValue();
+            } catch (Exception ignored) {}
+            if (frame.isSneaking())  flags |= 0x02; else flags &= ~0x02;
+            if (frame.isSprinting()) flags |= 0x08; else flags &= ~0x08;
+            dw.getClass().getMethod("watch", int.class, Object.class).invoke(dw, 0, flags);
+
+            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
+            Class<?> dwClass = nmsClass(ver, "DataWatcher");
+            Object metaPacket = nmsClass(ver, "PacketPlayOutEntityMetadata")
+                    .getConstructor(int.class, dwClass, boolean.class)
+                    .newInstance(entityId, dw, false);
+            sendPacketViaConn(viewerConn, packetIface, metaPacket);
+
+            // --- Arm-swing animation (type 0) ---
+            if (frame.isSwingingArm()) {
+                Object animPacket = nmsClass(ver, "PacketPlayOutAnimation")
+                        .getConstructor(entityClass, int.class)
+                        .newInstance(nmsEntity, 0);
+                sendPacketViaConn(viewerConn, packetIface, animPacket);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static Class<?> nmsClass(String version, String name) throws ClassNotFoundException {
+        return Class.forName("net.minecraft.server." + version + "." + name);
+    }
+
+    private static void sendPacketViaConn(Object conn, Class<?> packetIface, Object packet)
+            throws Exception {
+        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, packet);
     }
 
     public void rewind(int ticks) {
