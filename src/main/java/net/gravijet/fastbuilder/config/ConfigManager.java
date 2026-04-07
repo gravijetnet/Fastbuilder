@@ -162,8 +162,22 @@ public class ConfigManager {
 
     // --- Messages Config Accessors ---
 
+    /**
+     * Returns the actionbar format string.
+     * Priority: config.yml actionbar.format → messages.yml action-bar
+     * Placeholders: %time% / %timer%
+     */
     public String getActionBar() {
+        String cfg = mainConfig.getString("actionbar.format", "");
+        if (cfg != null && !cfg.isEmpty()) return cfg;
         return messagesConfig.getString("action-bar", "");
+    }
+
+    /**
+     * If true, the actionbar is only shown when a run is actively timing.
+     */
+    public boolean isActionBarOnlyWhenRunning() {
+        return mainConfig.getBoolean("actionbar.only-when-running", true);
     }
 
     public List<String> getEndTimeMessages() {

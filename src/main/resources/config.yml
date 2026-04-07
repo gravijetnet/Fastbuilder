@@ -10,6 +10,7 @@ default-map: "SuperShort"
 reset-stats-cost: 2000
 # Playtime reward: coins awarded per hour of active playtime
 coins-per-hour: 150
+# Base coins awarded per completion (scales dynamically with time — faster = more)
 coins-per-completion: 10
 
 # Maximum distance from island edge before teleport to spawn (blocks)
@@ -37,9 +38,9 @@ npcs:
   name: "&cMap Selector"
 
 # Scoreboard
-# Placeholders: %map%, %pb%, %current_time%, %coins%
-#   Combined top-3: %top1%, %top2%, %top3%  (format: "time (name)")
-#   Granular top-3: %top_name_1/2/3% (name only), %top_time_1/2/3% (time only)
+# Placeholders: %map%, %pb%, %current_time%, %coins%, %blocks%
+#   Granular top-10: %top_name_N% (name), %top_time_N% (time), N = 1..10
+#   PlaceholderAPI: any %papi_placeholder% is supported
 # update-interval: ticks between scoreboard refreshes (20 = 1 second)
 scoreboard:
   title: "&c&lFastbuilder"
@@ -60,6 +61,14 @@ scoreboard:
     - "&7&oexample.invalid"
     - "&7&m-------------------"
 
+# Action bar settings
+actionbar:
+  # Format shown during an active run. Leave empty to disable.
+  # Placeholder: %timer%
+  format: "&7Time &8» &c%time%"
+  # Only show when a run is active (timer has started). If false, always shown on island.
+  only-when-running: true
+
 # Replay settings
 replay:
   # How the player's name is shown on the replay NPC.
@@ -67,7 +76,9 @@ replay:
   # "current"  = update to the player's current username (if resolvable).
   player-name-mode: "recorded"
 
-# Finish trigger mode: "zone" (enter finish area) or "touch" (step on pressure plate)
+# Finish trigger mode:
+#   "zone"  - enter the finish zone bounding box (default, works with any blocks)
+#   "touch" - step on a pressure plate inside the finish zone
 finish-trigger-mode: "zone"
 
 # Autoscale defaults

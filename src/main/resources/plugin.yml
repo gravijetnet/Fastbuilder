@@ -1,5 +1,5 @@
 name: FastBuilder
-version: 2.0.0
+version: 2.1.0
 main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
@@ -28,14 +28,150 @@ commands:
     usage: /<command> [blocks|reset]
 permissions:
   fastbuilder.admin:
-    description: Access to all admin commands
+    description: Access to all admin commands and features
     default: op
+    children:
+      fastbuilder.command.map: true
+      fastbuilder.command.map.setup: true
+      fastbuilder.command.map.rename: true
+      fastbuilder.command.map.regen: true
+      fastbuilder.command.map.seticon: true
+      fastbuilder.command.map.enable: true
+      fastbuilder.command.map.disable: true
+      fastbuilder.command.map.scale: true
+      fastbuilder.command.map.distance: true
+      fastbuilder.command.map.autoscale: true
+      fastbuilder.command.map.setdeathy: true
+      fastbuilder.command.map.setmintime: true
+      fastbuilder.command.map.setmaxtime: true
+      fastbuilder.command.map.setrank: true
+      fastbuilder.command.map.adddesign: true
+      fastbuilder.command.map.removedesign: true
+      fastbuilder.command.map.setinfinite: true
+      fastbuilder.command.map.setcustomlength: true
+      fastbuilder.command.fb.reload: true
+      fastbuilder.command.fb.dump: true
+      fastbuilder.coins.admin: true
+      fastbuilder.bypass.border: true
   fastbuilder.play:
     description: Permission to play FastBuilder
     default: true
+    children:
+      fastbuilder.command.fb.join: true
+      fastbuilder.command.fb.leave: true
+      fastbuilder.command.fb.reset: true
+      fastbuilder.command.fb.list: true
+      fastbuilder.command.stats: true
+      fastbuilder.command.length: true
+      fastbuilder.command.build: true
+  fastbuilder.command.map:
+    description: Access to /map command
+    default: op
+  fastbuilder.command.map.setup:
+    description: Start a map setup session
+    default: op
+  fastbuilder.command.map.rename:
+    description: Rename an existing map
+    default: op
+  fastbuilder.command.map.regen:
+    description: Regenerate islands for a map
+    default: op
+  fastbuilder.command.map.seticon:
+    description: Set the display icon for a map
+    default: op
+  fastbuilder.command.map.enable:
+    description: Enable a map
+    default: op
+  fastbuilder.command.map.disable:
+    description: Disable a map
+    default: op
+  fastbuilder.command.map.scale:
+    description: Set island count for a map
+    default: op
+  fastbuilder.command.map.distance:
+    description: Set island spacing for a map
+    default: op
+  fastbuilder.command.map.autoscale:
+    description: Toggle autoscaling for a map
+    default: op
+  fastbuilder.command.map.setdeathy:
+    description: Set fall death Y level for a map
+    default: op
+  fastbuilder.command.map.setmintime:
+    description: Set minimum valid run time for a map
+    default: op
+  fastbuilder.command.map.setmaxtime:
+    description: Set max completion time for a map
+    default: op
+  fastbuilder.command.map.setrank:
+    description: Set rank time thresholds for a map
+    default: op
+  fastbuilder.command.map.adddesign:
+    description: Add an alternative island design
+    default: op
+  fastbuilder.command.map.removedesign:
+    description: Remove an alternative island design
+    default: op
+  fastbuilder.command.map.setinfinite:
+    description: Toggle infinite mode for a map
+    default: op
+  fastbuilder.command.map.setcustomlength:
+    description: Set custom run length range for a map
+    default: op
+  fastbuilder.command.fb.join:
+    description: Join a map with /fb join
+    default: true
+  fastbuilder.command.fb.leave:
+    description: Leave to lobby with /fb leave
+    default: true
+  fastbuilder.command.fb.reset:
+    description: Reset island with /fb reset
+    default: true
+  fastbuilder.command.fb.list:
+    description: List maps with /fb list
+    default: true
+  fastbuilder.command.fb.reload:
+    description: Reload plugin configuration with /fb reload
+    default: op
+  fastbuilder.command.fb.dump:
+    description: Generate a diagnostic dump with /fb dump
+    default: op
+  fastbuilder.command.stats:
+    description: View statistics with /stats
+    default: true
+  fastbuilder.command.length:
+    description: Set custom run length with /length
+    default: true
+  fastbuilder.command.build:
+    description: Toggle build mode with /build
+    default: true
+  fastbuilder.command.coins:
+    description: View your coin balance with /coins
+    default: true
+  fastbuilder.coins.admin:
+    description: Modify other players' coins
+    default: op
   fastbuilder.blocks.*:
     description: Access to all building blocks
     default: false
-  fastbuilder.coins.admin:
-    description: "Modify other players' coins"
+  fastbuilder.shop.pickaxe:
+    description: Access to the pickaxe shop
+    default: true
+  fastbuilder.shop.animation:
+    description: Access to reset animations shop
+    default: true
+  fastbuilder.shop.deathsound:
+    description: Access to death sounds shop
+    default: true
+  fastbuilder.shop.design:
+    description: Access to island design selection
+    default: true
+  fastbuilder.cosmetic.autofill:
+    description: Purchase and use the auto-refill perk
+    default: true
+  fastbuilder.cosmetic.oneclickpick:
+    description: Purchase and use the one-click pick cosmetic
+    default: true
+  fastbuilder.bypass.border:
+    description: Bypass island border restrictions
     default: op

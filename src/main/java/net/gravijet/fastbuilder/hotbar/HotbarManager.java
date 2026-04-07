@@ -68,8 +68,14 @@ public class HotbarManager implements Listener {
         }
 
         // Slot 2: Pickaxe (selected by player, unbreakable)
-        String pickaxeMat = (data != null && data.getSelectedPickaxe() != null && !data.getSelectedPickaxe().isEmpty())
-                ? data.getSelectedPickaxe() : "DIAMOND_PICKAXE:0";
+        // One-Click Pick overrides the tool to a Diamond Axe
+        String pickaxeMat;
+        if (data != null && data.hasOneClickPick()) {
+            pickaxeMat = "DIAMOND_AXE:0";
+        } else {
+            pickaxeMat = (data != null && data.getSelectedPickaxe() != null && !data.getSelectedPickaxe().isEmpty())
+                    ? data.getSelectedPickaxe() : "DIAMOND_PICKAXE:0";
+        }
         ItemStack pickaxe = ItemBuilder.fromString(pickaxeMat).name("&r&bPickaxe").build();
         org.bukkit.inventory.meta.ItemMeta picMeta = pickaxe.getItemMeta();
         if (picMeta != null) {

@@ -82,10 +82,12 @@ public class GameplayListener implements Listener {
 
         Location to = event.getTo();
         if (isInFinishZone(map, session.getIslandIndex(), to, player)) {
-            // In touch mode, also require the player to be standing on a pressure plate
+            // In "touch" mode the player must be standing on a pressure plate inside the zone.
+            // In "zone" mode (default) any block — including regular blocks — triggers the finish.
             if (plugin.getConfigManager().isFinishTouchMode()) {
                 org.bukkit.block.Block below = to.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
-                if (below.getTypeId() != 70 && below.getTypeId() != 72) return; // 70=stone plate, 72=wood plate
+                // Allow both stone plates (70), wood plates (72), AND any solid non-air block
+                if (below.getType() == org.bukkit.Material.AIR) return;
             }
             gm.onFinish(player);
         }

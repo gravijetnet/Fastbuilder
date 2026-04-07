@@ -1,8 +1,9 @@
 # FastBuilder Messages
 
-# Action bar timer display (empty string = disabled)
-# Placeholders: %timer%
-action-bar: "&c&lTimer: &f%timer%"
+# Action bar timer display — overridden by actionbar.format in config.yml.
+# This field is kept for backward compatibility but the config.yml actionbar section takes priority.
+# Placeholders: %timer% / %time%
+action-bar: "&7Time &8» &c%time%"
 
 # Completion messages
 # Placeholders: %time%, %pb%, %difference%

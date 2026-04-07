@@ -49,6 +49,7 @@ public class GuiManager implements Listener {
     private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
     private static final String DEATH_SOUND_SELECTOR_PREFIX = "Death Sounds";
     private static final String STATS_PREFIX = "Stats";
+    private static final String DESIGN_SELECTOR_PREFIX = "Island Designs";
 
     // Track which block selector page a player is on
     private final Map<UUID, Integer> blockSelectorPages = new HashMap<>();
@@ -301,6 +302,17 @@ public class GuiManager implements Listener {
                                 (data != null && data.hasInfiniteBlocks()) ? "&aEnabled" : "&cDisabled");
                         line = line.replace("%infinite_blocks_unlocked%",
                                 (data != null && data.hasInfiniteBlocksUnlocked()) ? "&aUnlocked" : "&cLocked");
+                        // Custom length placeholder
+                        String customLengthStr = "&cNot available";
+                        if (run != null) {
+                            net.gravijet.fastbuilder.map.MapData clMap =
+                                    plugin.getMapManager().getMap(run.getMapName());
+                            if (clMap != null && clMap.hasCustomLength()) {
+                                int cl = data != null ? data.getCustomLength(run.getMapName()) : 0;
+                                customLengthStr = cl > 0 ? "&f" + cl + " blocks" : "&7Default";
+                            }
+                        }
+                        line = line.replace("%custom_length%", customLengthStr);
                         lore[i] = line;
                     }
 
@@ -497,32 +509,102 @@ public class GuiManager implements Listener {
     public void openShop(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         String title = ColorUtil.translate(guis.getString("shop.name", "Shop"));
-        int size = guis.getInt("shop.max-slots", 27);
+        int size = guis.getInt("shop.max-slots", 54);
+        if (size < 27) size = 27;
         Inventory inv = Bukkit.createInventory(null, size, title);
 
         // Category: Blocks
-        inv.setItem(guis.getInt("shop.blocks-slot", 11), new ItemBuilder(Material.SANDSTONE)
-                .name("&eBlocks").lore("&7Click to open the Block Selector", "", "&aClick to browse").build());
+        inv.setItem(guis.getInt("shop.blocks-slot", 10), new ItemBuilder(Material.SANDSTONE)
+                .name("&eBlocks").lore("&7Click to browse building blocks", "", "&aClick to browse").build());
         // Category: Pickaxes
-        inv.setItem(guis.getInt("shop.pickaxes-slot", 13), new ItemBuilder(Material.DIAMOND_PICKAXE)
-                .name("&bPickaxes").lore("&7Click to browse pickaxes", "", "&aClick to browse").build());
+        inv.setItem(guis.getInt("shop.pickaxes-slot", 12), new ItemBuilder(Material.DIAMOND_PICKAXE)
+                .name("&bPickaxes &7& Tools").lore("&7Click to browse pickaxes and tools", "", "&aClick to browse").build());
         // Category: Reset Animations
-        inv.setItem(guis.getInt("shop.animations-slot", 15), new ItemBuilder(Material.FIREWORK)
+        inv.setItem(guis.getInt("shop.animations-slot", 14), new ItemBuilder(Material.FIREWORK)
                 .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
         // Category: Death Sounds
-        inv.setItem(guis.getInt("shop.death-sounds-slot", 10), new ItemBuilder(Material.NOTE_BLOCK)
+        inv.setItem(guis.getInt("shop.death-sounds-slot", 16), new ItemBuilder(Material.NOTE_BLOCK)
                 .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
+
+        // Category: Island Designs (only shown if the player's current map has alt designs)
+        net.gravijet.fastbuilder.player.PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        boolean hasDesigns = false;
+        String currentMapForDesign = shopData != null ? shopData.getLastMap() : null;
+        if (currentMapForDesign != null) {
+            net.gravijet.fastbuilder.map.MapData designMap = plugin.getMapManager().getMap(currentMapForDesign);
+            hasDesigns = designMap != null && !designMap.getAlternativeTemplates().isEmpty();
+        }
+        int designsSlot = guis.getInt("shop.designs-slot", 13);
+        if (hasDesigns) {
+            inv.setItem(designsSlot, new ItemBuilder(Material.PAINTING)
+                    .name("&aIsland Designs").lore("&7Choose a design for your island", "", "&aClick to browse").build());
+        } else {
+            inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7)
+                    .name("&7Island Designs").lore("&cNo designs available for this map").build());
+        }
+
         // One-Click Pick (toggle purchase)
-        PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         boolean hasOcp = shopData != null && shopData.hasOneClickPick();
         boolean ocpPurchased = shopData != null && shopData.hasPurchasedBlock("cosmetic:one_click_pick");
         int ocpPrice = guis.getInt("one-click-pick.price", 5000);
         String ocpStatus = ocpPurchased ? (hasOcp ? "&a&lACTIVE" : "&7Owned - Click to enable") : "&cNot owned - Click to buy";
-        inv.setItem(guis.getInt("shop.one-click-pick-slot", 16), new ItemBuilder(Material.DIAMOND_PICKAXE)
+        inv.setItem(guis.getInt("shop.one-click-pick-slot", 11), new ItemBuilder(Material.DIAMOND_AXE)
                 .name("&bOne-Click Pick")
-                .lore("&7Breaks placed blocks instantly on left-click", "",
+                .lore("&7Breaks placed blocks instantly on left-click",
+                        "&7Uses a &cDiamond Axe &7as the tool",
+                        "",
                         ocpStatus, "", "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins")).build());
 
+        player.openInventory(inv);
+    }
+
+    /**
+     * Open the island design selector for the player's current map.
+     */
+    public void openDesignSelector(Player player) {
+        net.gravijet.fastbuilder.player.PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null) return;
+        String mapName = pData.getLastMap();
+        if (mapName == null) return;
+        net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(mapName);
+        if (map == null) return;
+
+        List<String> templates = map.getAllTemplates();
+        String title = ColorUtil.translate("&aIsland Designs &7- &f" + map.getName());
+        int size = Math.min(54, ((templates.size() / 9) + 1) * 9);
+        if (size < 9) size = 9;
+
+        Inventory inv = Bukkit.createInventory(null, size, title);
+
+        String selectedDesign = pData.getSelectedDesign(mapName);
+        // The default template key is the map's template file
+        String defaultKey = map.getTemplateFile();
+        if (selectedDesign == null) selectedDesign = defaultKey;
+
+        for (int i = 0; i < templates.size(); i++) {
+            String key = templates.get(i);
+            boolean isDefault = key.equals(defaultKey);
+            boolean selected = key.equalsIgnoreCase(selectedDesign);
+            String displayName = isDefault ? "&fDefault Design" : "&aDesign #" + (i + 1);
+
+            List<String> lore = new ArrayList<>();
+            lore.add(ColorUtil.translate("&7Template: &f" + key));
+            if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
+            else lore.add(ColorUtil.translate("&eClick to select"));
+
+            ItemStack item = new ItemBuilder(Material.BOOK_AND_QUILL).name(displayName).lore(lore.toArray(new String[0])).build();
+            if (selected) {
+                org.bukkit.inventory.meta.ItemMeta im = item.getItemMeta();
+                if (im != null) {
+                    im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true);
+                    item.setItemMeta(im);
+                }
+            }
+            inv.setItem(i, item);
+        }
+
+        // Back button
+        inv.setItem(size - 1, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
         player.openInventory(inv);
     }
 
@@ -803,6 +885,9 @@ public class GuiManager implements Listener {
         } else if (stripped.startsWith(STATS_PREFIX)) {
             event.setCancelled(true);
             // Stats GUI is read-only; no action needed
+        } else if (stripped.startsWith(DESIGN_SELECTOR_PREFIX)) {
+            event.setCancelled(true);
+            handleDesignSelectorClick(event);
         }
     }
 
@@ -1019,6 +1104,31 @@ public class GuiManager implements Listener {
                 player.closeInventory();
                 openConfirmStatsReset(player);
                 break;
+            case "custom_length": {
+                player.closeInventory();
+                net.gravijet.fastbuilder.gameplay.RunSession clRun = plugin.getGameplayManager() != null
+                        ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+                if (clRun == null) {
+                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                            + "&cYou must be on an island to configure custom length."));
+                    break;
+                }
+                net.gravijet.fastbuilder.map.MapData clMap = plugin.getMapManager().getMap(clRun.getMapName());
+                if (clMap == null || !clMap.hasCustomLength()) {
+                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                            + "&cCustom length is not enabled on your current map."));
+                    break;
+                }
+                PlayerData clData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                int currentCl = clData != null ? clData.getCustomLength(clRun.getMapName()) : 0;
+                String currentClStr = currentCl > 0 ? currentCl + " blocks" : "default";
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        + "&fCurrent length: &c" + currentClStr
+                        + "  &7(allowed: &f" + clMap.getMinCustomLength()
+                        + " &7- &f" + clMap.getMaxCustomLength() + " blocks&7)"));
+                player.sendMessage(ColorUtil.translate("&7Use &f/length <blocks> &7to set, or &f/length reset &7to restore default."));
+                break;
+            }
             case "practice_mode":
                 net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
@@ -1258,7 +1368,7 @@ public class GuiManager implements Listener {
         player.closeInventory();
         if (name.equals("Blocks")) {
             openBlockSelector(player, 1);
-        } else if (name.equals("Pickaxes")) {
+        } else if (name.startsWith("Pickaxes")) {
             openPickaxeSelector(player);
         } else if (name.equals("Reset Animations")) {
             openAnimationSelector(player);
@@ -1266,6 +1376,8 @@ public class GuiManager implements Listener {
             openDeathSoundSelector(player);
         } else if (name.equals("One-Click Pick")) {
             handleOneClickPickShopClick(player);
+        } else if (name.equals("Island Designs")) {
+            openDesignSelector(player);
         }
     }
 
@@ -1430,5 +1542,50 @@ public class GuiManager implements Listener {
         player.closeInventory();
         String sName = slotsSection.getString(slot + ".name", "Sound");
         player.sendMessage(ColorUtil.translate(prefix + "&fSelected death sound: &c" + sName));
+    }
+
+    private void handleDesignSelectorClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        ItemStack item = event.getCurrentItem();
+        if (item == null || !item.hasItemMeta()) return;
+
+        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        if (displayName.equals("Back to Shop")) {
+            player.closeInventory();
+            openShop(player);
+            return;
+        }
+
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null) return;
+        String mapName = pData.getLastMap();
+        if (mapName == null) return;
+        net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(mapName);
+        if (map == null) return;
+
+        // Extract the template key from the lore ("Template: <key>")
+        if (!item.getItemMeta().hasLore()) return;
+        String templateKey = null;
+        for (String loreLine : item.getItemMeta().getLore()) {
+            String stripped = ColorUtil.strip(loreLine);
+            if (stripped.startsWith("Template: ")) {
+                templateKey = stripped.substring("Template: ".length()).trim();
+                break;
+            }
+        }
+        if (templateKey == null) return;
+
+        // Validate template exists
+        if (!map.getAllTemplates().contains(templateKey)) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    + "&cDesign not found: &f" + templateKey));
+            return;
+        }
+
+        pData.setSelectedDesign(mapName, templateKey);
+        player.closeInventory();
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                + "&fIsland design selected: &c" + templateKey
+                + "&f. It will apply on your next island reset."));
     }
 }

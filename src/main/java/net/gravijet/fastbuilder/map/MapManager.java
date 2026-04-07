@@ -39,6 +39,20 @@ public class MapManager {
     // --- Load/Save ---
 
     public void loadMaps() {
+        // Preserve island assignments so active player sessions survive a /fb reload.
+        // Key: mapNameLower -> (islandIndex -> [occupantUuid, occupantName])
+        Map<String, Map<Integer, String[]>> preserved = new HashMap<>();
+        for (Map.Entry<String, List<IslandInstance>> entry : islands.entrySet()) {
+            Map<Integer, String[]> assignments = new HashMap<>();
+            for (IslandInstance island : entry.getValue()) {
+                if (island.isOccupied()) {
+                    assignments.put(island.getIndex(),
+                            new String[]{island.getOccupantUuid().toString(), island.getOccupantName()});
+                }
+            }
+            preserved.put(entry.getKey(), assignments);
+        }
+
         maps.clear();
         islands.clear();
 
@@ -61,6 +75,25 @@ public class MapManager {
                         + ", enabled=" + data.isEnabled() + ")");
             } catch (Exception e) {
                 plugin.getLogger().log(Level.WARNING, "Failed to load map file: " + file.getName(), e);
+            }
+        }
+
+        // Re-apply island assignments for players who were online during the reload.
+        for (Map.Entry<String, Map<Integer, String[]>> entry : preserved.entrySet()) {
+            String key = entry.getKey();
+            List<IslandInstance> list = islands.get(key);
+            if (list == null) continue;
+            for (Map.Entry<Integer, String[]> assign : entry.getValue().entrySet()) {
+                int idx = assign.getKey();
+                if (idx < 0 || idx >= list.size()) continue;
+                String[] info = assign.getValue();
+                try {
+                    UUID uuid = UUID.fromString(info[0]);
+                    // Only re-assign if the player is still online
+                    if (Bukkit.getPlayer(uuid) != null) {
+                        list.get(idx).setOccupant(uuid, info[1]);
+                    }
+                } catch (IllegalArgumentException ignored) {}
             }
         }
 
