@@ -6,7 +6,6 @@ import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,6 +15,11 @@ import org.bukkit.entity.Player;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,16 +31,16 @@ import java.util.List;
  *   leave         - Leave to lobby (BungeeCord) or world spawn
  *   reset         - Reset your current island
  *   list          - List available maps
- *   info          - Show info about your current map/island
  *   reload        - Reload plugin configuration (admin)
+ *   dump          - Upload diagnostic info to Bytebin (admin)
  */
 public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER_SUBS = Arrays.asList(
-            "join", "leave", "reset", "list", "info"
+            "join", "leave", "reset", "list"
     );
     private static final List<String> ALL_SUBS = Arrays.asList(
-            "join", "leave", "reset", "list", "info", "reload"
+            "join", "leave", "reset", "list", "reload", "dump"
     );
 
     private final FastBuilder plugin;
@@ -80,11 +84,11 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             case "list":
                 handleList(player, mm);
                 break;
-            case "info":
-                handleInfo(player, mm);
-                break;
             case "reload":
                 handleReload(player);
+                break;
+            case "dump":
+                handleDump(player);
                 break;
             default:
                 sendHelp(player);
@@ -96,6 +100,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- /fb join <map> ---
 
     private void handleJoin(Player player, String[] args, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.command.fb.join")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
         if (args.length < 2) {
             msg(player, plugin.getConfigManager().getMessage("usage")
                     .replace("%command%", "/fb join <map>")
@@ -187,11 +195,14 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- /fb leave ---
 
     private void handleLeave(Player player) {
+        if (!player.hasPermission("fastbuilder.command.fb.leave")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
         // Free all islands
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         if (plugin.getConfigManager().isBungeeEnabled()) {
-            // Send to lobby server via BungeeCord
             String lobbyServer = plugin.getConfigManager().getLobbyServer();
             try {
                 ByteArrayOutputStream b = new ByteArrayOutputStream();
@@ -213,7 +224,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- /fb reset ---
 
     private void handleReset(Player player, MapManager mm) {
-        // Find the player's current map and island
+        if (!player.hasPermission("fastbuilder.command.fb.reset")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
         String currentMap = null;
         int currentIsland = -1;
 
@@ -234,14 +248,11 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         MapData map = mm.getMap(currentMap);
         if (map == null) return;
 
-        // Clear and re-paste the island
-        Location min = map.getIslandMin(currentIsland);
-        Location max = map.getIslandMax(currentIsland);
+        org.bukkit.Location min = map.getIslandMin(currentIsland);
+        org.bukkit.Location max = map.getIslandMax(currentIsland);
 
-        // Teleport player to spawn first
         player.teleport(map.getIslandSpawn(currentIsland));
 
-        // Clear the island region, then paste the template
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
                 min.getBlockX(), min.getBlockY(), min.getBlockZ(),
@@ -265,6 +276,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- /fb list ---
 
     private void handleList(Player player, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.command.fb.list")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
         List<MapData> enabledMaps = new ArrayList<>();
         for (MapData map : mm.getAllMaps()) {
             if (map.isEnabled()) {
@@ -281,8 +296,9 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             for (MapData map : enabledMaps) {
                 int occupied = mm.getOccupiedCount(map.getName());
                 int total = mm.getIslands(map.getName()).size();
+                String mode = map.isInfinite() ? " &7[Infinite]" : map.hasCustomLength() ? " &7[Custom]" : "";
                 player.sendMessage(ColorUtil.translate(
-                        "&4- &c" + map.getName() + " &7(" + occupied + "/" + total + " players)"
+                        "&4- &c" + map.getName() + " &7(" + occupied + "/" + total + " players)" + mode
                 ));
             }
         }
@@ -291,45 +307,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&7Use &c/fb join <map> &7to join a map."));
     }
 
-    // --- /fb info ---
-
-    private void handleInfo(Player player, MapManager mm) {
-        String currentMap = null;
-        int currentIsland = -1;
-
-        for (String mapName : mm.getMapNames()) {
-            int idx = mm.getPlayerIsland(mapName, player.getUniqueId());
-            if (idx >= 0) {
-                currentMap = mapName;
-                currentIsland = idx;
-                break;
-            }
-        }
-
-        if (currentMap == null) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&cYou are not on any island.");
-            return;
-        }
-
-        MapData map = mm.getMap(currentMap);
-        if (map == null) return;
-
-        int occupied = mm.getOccupiedCount(currentMap);
-        int total = mm.getIslands(currentMap).size();
-
-        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &7- &fIsland Info"));
-        player.sendMessage(ColorUtil.translate("&8----------------------------------"));
-        player.sendMessage(ColorUtil.translate("&fMap: &c" + map.getName()));
-        player.sendMessage(ColorUtil.translate("&fIsland: &c#" + (currentIsland + 1)));
-        player.sendMessage(ColorUtil.translate("&fPlayers: &c" + occupied + "/" + total));
-        player.sendMessage(ColorUtil.translate("&fAutoscale: &c" + (map.isAutoscale() ? "enabled" : "disabled")));
-        player.sendMessage(ColorUtil.translate("&8----------------------------------"));
-    }
-
     // --- /fb reload ---
 
     private void handleReload(Player player) {
-        if (!player.hasPermission("fastbuilder.admin")) {
+        if (!player.hasPermission("fastbuilder.command.fb.reload")) {
             msg(player, plugin.getConfigManager().getMessage("no-permission"));
             return;
         }
@@ -337,7 +318,201 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         plugin.getConfigManager().reload();
         plugin.getMapManager().loadMaps();
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&fConfiguration reloaded.");
+        // Restart scoreboard and actionbar tasks with new config
+        if (plugin.getScoreboardManager() != null) {
+            plugin.getScoreboardManager().reload();
+        }
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().reloadActionbar();
+        }
+
+        msg(player, plugin.getConfigManager().getPrefix() + "&fConfiguration reloaded. Active sessions preserved.");
+    }
+
+    // --- /fb dump ---
+
+    private void handleDump(Player player) {
+        if (!player.hasPermission("fastbuilder.command.fb.dump")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
+
+        msg(player, plugin.getConfigManager().getPrefix() + "&7Generating diagnostic dump...");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                String dump = buildDump();
+                String url = uploadToBytebin(dump);
+
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (url != null) {
+                        // Clickable + copyable URL via chat component
+                        net.md_5.bungee.api.chat.TextComponent link =
+                                new net.md_5.bungee.api.chat.TextComponent(
+                                        ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                                + "&fDump uploaded: &a&n" + url));
+                        link.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                                net.md_5.bungee.api.chat.ClickEvent.Action.OPEN_URL, url));
+                        link.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                                new net.md_5.bungee.api.chat.ComponentBuilder(
+                                        ColorUtil.translate("&7Click to open in browser")).create()));
+                        player.spigot().sendMessage(link);
+
+                        net.md_5.bungee.api.chat.TextComponent copy =
+                                new net.md_5.bungee.api.chat.TextComponent(
+                                        ColorUtil.translate("&7[&eClick to copy URL&7]"));
+                        copy.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                                net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, url));
+                        copy.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                                new net.md_5.bungee.api.chat.ComponentBuilder(
+                                        ColorUtil.translate("&7Click to paste URL into chat")).create()));
+                        player.spigot().sendMessage(copy);
+                    } else {
+                        msg(player, plugin.getConfigManager().getPrefix()
+                                + "&cFailed to upload dump. Check console for the raw output.");
+                    }
+                });
+            } catch (Exception e) {
+                plugin.getLogger().severe("Failed to generate dump: " + e.getMessage());
+                Bukkit.getScheduler().runTask(plugin, () ->
+                        msg(player, plugin.getConfigManager().getPrefix() + "&cDump generation failed: " + e.getMessage()));
+            }
+        });
+    }
+
+    private String buildDump() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== FastBuilder Diagnostic Dump ===\n");
+        sb.append("Generated: ").append(new java.util.Date()).append("\n\n");
+
+        // Plugin version
+        sb.append("--- Plugin ---\n");
+        sb.append("Version: ").append(plugin.getDescription().getVersion()).append("\n");
+
+        // Server / Java / OS
+        sb.append("\n--- Environment ---\n");
+        sb.append("Server: ").append(Bukkit.getServer().getName())
+                .append(" ").append(Bukkit.getServer().getVersion()).append("\n");
+        sb.append("Bukkit API: ").append(Bukkit.getBukkitVersion()).append("\n");
+        sb.append("Java: ").append(System.getProperty("java.version"))
+                .append(" (").append(System.getProperty("java.vendor")).append(")\n");
+        sb.append("OS: ").append(System.getProperty("os.name"))
+                .append(" ").append(System.getProperty("os.version"))
+                .append(" (").append(System.getProperty("os.arch")).append(")\n");
+
+        // RAM usage
+        Runtime rt = Runtime.getRuntime();
+        long usedMB = (rt.totalMemory() - rt.freeMemory()) / 1024 / 1024;
+        long totalMB = rt.totalMemory() / 1024 / 1024;
+        long maxMB = rt.maxMemory() / 1024 / 1024;
+        sb.append("RAM: ").append(usedMB).append("MB used / ")
+                .append(totalMB).append("MB allocated / ")
+                .append(maxMB).append("MB max\n");
+        sb.append("CPU cores: ").append(rt.availableProcessors()).append("\n");
+
+        // Hooked plugins
+        sb.append("\n--- Hooked Plugins ---\n");
+        String[] hooks = {"WorldEdit", "FastAsyncWorldEdit", "Citizens", "DecentHolograms", "PlaceholderAPI"};
+        for (String h : hooks) {
+            org.bukkit.plugin.Plugin p = Bukkit.getPluginManager().getPlugin(h);
+            if (p != null) {
+                sb.append(h).append(": ").append(p.getDescription().getVersion()).append("\n");
+            } else {
+                sb.append(h).append(": NOT FOUND\n");
+            }
+        }
+
+        // Online players
+        sb.append("\n--- Players ---\n");
+        sb.append("Online: ").append(Bukkit.getOnlinePlayers().size())
+                .append("/").append(Bukkit.getMaxPlayers()).append("\n");
+
+        // Maps
+        sb.append("\n--- Maps ---\n");
+        for (net.gravijet.fastbuilder.map.MapData m : plugin.getMapManager().getAllMaps()) {
+            sb.append(m.getName())
+                    .append(": enabled=").append(m.isEnabled())
+                    .append(", scale=").append(m.getScale())
+                    .append(", distance=").append(m.getDistance())
+                    .append(", infinite=").append(m.isInfinite())
+                    .append(", customLength=").append(m.hasCustomLength())
+                    .append(", occupied=").append(plugin.getMapManager().getOccupiedCount(m.getName()))
+                    .append("\n");
+        }
+
+        // config.yml contents
+        sb.append("\n--- config.yml ---\n");
+        try {
+            java.io.File configFile = new java.io.File(plugin.getDataFolder(), "config.yml");
+            sb.append(new String(java.nio.file.Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            sb.append("[Could not read config.yml: ").append(e.getMessage()).append("]\n");
+        }
+
+        // messages.yml contents
+        sb.append("\n--- messages.yml ---\n");
+        try {
+            java.io.File msgFile = new java.io.File(plugin.getDataFolder(), "messages.yml");
+            sb.append(new String(java.nio.file.Files.readAllBytes(msgFile.toPath()), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            sb.append("[Could not read messages.yml: ").append(e.getMessage()).append("]\n");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Upload content to Bytebin (https://bytebin.lucko.me) and return the URL.
+     * Returns null on failure.
+     */
+    private String uploadToBytebin(String content) {
+        try {
+            URL url = new URL("https://bytebin.lucko.me/post");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
+            conn.setConnectTimeout(10000);
+            conn.setReadTimeout(10000);
+
+            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+            conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(bytes);
+            }
+
+            int status = conn.getResponseCode();
+            if (status == 201 || status == 200) {
+                // Read the key from the response
+                try (InputStream is = conn.getInputStream()) {
+                    byte[] resp = is.readAllBytes();
+                    String json = new String(resp, StandardCharsets.UTF_8);
+                    // Response is {"key":"XXXX"}
+                    int keyStart = json.indexOf("\"key\":");
+                    if (keyStart >= 0) {
+                        int q1 = json.indexOf('"', keyStart + 6);
+                        int q2 = json.indexOf('"', q1 + 1);
+                        if (q1 >= 0 && q2 > q1) {
+                            String key = json.substring(q1 + 1, q2);
+                            return "https://bytebin.lucko.me/" + key;
+                        }
+                    }
+                    // Fallback: just return the raw response if it looks like a key
+                    String trimmed = json.trim().replaceAll("[^a-zA-Z0-9]", "");
+                    if (!trimmed.isEmpty()) return "https://bytebin.lucko.me/" + trimmed;
+                }
+            } else {
+                plugin.getLogger().warning("Bytebin upload returned HTTP " + status);
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to upload to Bytebin: " + e.getMessage());
+            // Log the dump to console as fallback
+            plugin.getLogger().info("=== DUMP OUTPUT ===\n" + content);
+        }
+        return null;
     }
 
     // --- Help ---
@@ -348,9 +523,11 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("&4- &c/fb leave &7- &fLeave to lobby"));
         player.sendMessage(ColorUtil.translate("&4- &c/fb reset &7- &fReset your island"));
         player.sendMessage(ColorUtil.translate("&4- &c/fb list &7- &fList available maps"));
-        player.sendMessage(ColorUtil.translate("&4- &c/fb info &7- &fShow island info"));
-        if (player.hasPermission("fastbuilder.admin")) {
+        if (player.hasPermission("fastbuilder.command.fb.reload")) {
             player.sendMessage(ColorUtil.translate("&4- &c/fb reload &7- &fReload configuration"));
+        }
+        if (player.hasPermission("fastbuilder.command.fb.dump")) {
+            player.sendMessage(ColorUtil.translate("&4- &c/fb dump &7- &fUpload diagnostic report"));
         }
     }
 

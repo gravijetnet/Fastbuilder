@@ -115,11 +115,11 @@ public class FastScoreboard {
                 }
             }
 
-            // Apply color codes before PAPI so PAPI can also use color codes
-            line = ColorUtil.translate(line);
-
-            // Apply PlaceholderAPI expansions (e.g. %phoenix_player_rank_color%, %online%, etc.)
+            // Apply PlaceholderAPI first so its output (which may contain &codes) gets translated next
             line = applyPapi(player, line);
+
+            // Translate all color/format codes including those introduced by PAPI placeholders
+            line = ColorUtil.translate(line);
 
             result.add(line);
         }
@@ -167,6 +167,14 @@ public class FastScoreboard {
                 }
             }
         }.runTaskTimer(plugin, interval, interval).getTaskId();
+    }
+
+    /**
+     * Called on /fb reload — restarts the update task with the (possibly new) interval from config.
+     */
+    public void reload() {
+        shutdown();
+        startUpdateTask();
     }
 
     public void shutdown() {

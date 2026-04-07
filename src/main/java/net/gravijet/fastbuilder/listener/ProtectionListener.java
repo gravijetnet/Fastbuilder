@@ -7,6 +7,7 @@ import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.replay.ReplaySession;
 import net.gravijet.fastbuilder.util.ColorUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -234,11 +235,23 @@ public class ProtectionListener implements Listener {
         int[] bounds = GridCalculator.getIslandBounds(map, session.getIslandIndex());
         int maxDist = plugin.getConfigManager().getMaxDistance();
 
-        // Z strictly identifies the player's island slot — rubber-band if they try to cross into
-        // another island's Z corridor instead of treating it as a fall/reset.
+        // Z strictly identifies the player's island slot — teleport back to island spawn
+        // if the player tries to cross into another island's Z corridor.
         boolean zOutOfBounds = to.getBlockZ() < bounds[2] || to.getBlockZ() > bounds[5];
         if (zOutOfBounds) {
-            event.setTo(event.getFrom());
+            // Use a small cooldown to prevent rapid successive teleports causing jitter
+            long now = System.currentTimeMillis();
+            Long lastZ = fallCooldown.get(player.getUniqueId());
+            if (lastZ == null || now - lastZ > 500) {
+                fallCooldown.put(player.getUniqueId(), now);
+                event.setCancelled(true);
+                Location safeSpawn = map.getIslandSpawn(session.getIslandIndex());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline()) player.teleport(safeSpawn);
+                });
+            } else {
+                event.setTo(event.getFrom());
+            }
             return;
         }
 

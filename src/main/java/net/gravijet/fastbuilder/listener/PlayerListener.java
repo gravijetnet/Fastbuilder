@@ -7,6 +7,7 @@ import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.player.PlayerManager;
 import net.gravijet.fastbuilder.util.ColorUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -37,48 +38,51 @@ public class PlayerListener implements Listener {
 
         PlayerData data = pm.getPlayerData(player.getUniqueId(), player.getName());
 
-        // Route to last played map or default map
-        String targetMap = data.getLastMap();
-        if (targetMap == null || targetMap.isEmpty() || mm.getMap(targetMap) == null) {
-            targetMap = plugin.getConfigManager().getDefaultMap();
-        }
-
-        if (targetMap != null && !targetMap.isEmpty()) {
-            MapData map = mm.getMap(targetMap);
-            if (map != null && map.isEnabled()) {
-                int island = mm.assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
+        // 1. Try the default map first
+        String defaultMapName = plugin.getConfigManager().getDefaultMap();
+        if (defaultMapName != null && !defaultMapName.isEmpty()) {
+            MapData defMap = mm.getMap(defaultMapName);
+            if (defMap != null && defMap.isEnabled()) {
+                int island = mm.assignFreeIsland(defMap.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
-                    player.teleport(map.getIslandSpawn(island));
-                    data.setLastMap(map.getName());
-                    data.setLastIsland(island);
-
-                    String raw = plugin.getConfigManager().getMessage("joined-mode");
-                    if (raw != null && !raw.isEmpty()) {
-                        raw = raw.replace("%map%", map.getName())
-                                .replace("%prefix%", plugin.getConfigManager().getPrefix());
-                        player.sendMessage(ColorUtil.translate(raw));
-                    }
-
-                    setupPlayerOnIsland(player, map, island);
-                    mm.checkAutoscale(map);
+                    finalizeJoin(player, data, mm, defMap, island);
                     return;
                 }
+                // Default map is full — fall through to find the next available map
             }
         }
 
-        // Fallback: relocate to any available map
-        mm.relocatePlayer(player, "");
-
-        data = pm.getCachedData(player.getUniqueId());
-        if (data != null && data.getLastMap() != null) {
-            MapData map = mm.getMap(data.getLastMap());
-            if (map != null) {
-                int island = mm.getPlayerIsland(map.getName(), player.getUniqueId());
-                if (island >= 0) {
-                    setupPlayerOnIsland(player, map, island);
-                }
+        // 2. Try any other enabled map (skip the full default map)
+        for (MapData map : mm.getAllMaps()) {
+            if (!map.isEnabled()) continue;
+            if (defaultMapName != null && map.getName().equalsIgnoreCase(defaultMapName)) continue; // already tried
+            int island = mm.assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
+            if (island >= 0) {
+                finalizeJoin(player, data, mm, map, island);
+                return;
             }
         }
+
+        // 3. Absolute fallback: world spawn
+        player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+                .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+    }
+
+    private void finalizeJoin(Player player, PlayerData data, MapManager mm, MapData map, int island) {
+        player.teleport(map.getIslandSpawn(island));
+        data.setLastMap(map.getName());
+        data.setLastIsland(island);
+
+        String raw = plugin.getConfigManager().getMessage("joined-mode");
+        if (raw != null && !raw.isEmpty()) {
+            raw = raw.replace("%map%", map.getName())
+                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
+            player.sendMessage(ColorUtil.translate(raw));
+        }
+
+        setupPlayerOnIsland(player, map, island);
+        mm.checkAutoscale(map);
     }
 
     @EventHandler(priority = EventPriority.NORMAL)

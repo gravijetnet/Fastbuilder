@@ -73,6 +73,15 @@ settings-gui-slots:
       - ""
       - "&7Blocks stay on fall"
       - "&7Time is not recorded"
+  17:
+    name: "&6Custom Length"
+    material: STICK:0
+    gui: "custom_length"
+    lore:
+      - "&7Current: %custom_length%"
+      - ""
+      - "&7Set a custom run distance"
+      - "&7Click to configure"
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
@@ -850,12 +859,13 @@ block-selector-slots:
 # Shop GUI
 shop:
   name: "Shop"
-  max-slots: 27
-  blocks-slot: 11
-  pickaxes-slot: 13
-  animations-slot: 15
-  death-sounds-slot: 10
-  one-click-pick-slot: 16
+  max-slots: 54
+  blocks-slot: 10
+  pickaxes-slot: 12
+  animations-slot: 14
+  death-sounds-slot: 16
+  one-click-pick-slot: 21
+  designs-slot: 23
 
 # Death Sound Selector GUI
 death-sound-selector:
@@ -864,8 +874,8 @@ death-sound-selector:
 
 # Pickaxe Selector GUI
 pickaxe-selector:
-  name: "Pickaxe Selector"
-  max-slots: 27
+  name: "Pickaxes &7& Tools"
+  max-slots: 54
 
 pickaxe-selector-slots:
   1:
@@ -896,6 +906,125 @@ pickaxe-selector-slots:
     lore:
       - "&ePrice: 1000"
       - "%block_status%"
+  5:
+    name: "Wooden Pickaxe"
+    material: "WOOD_PICKAXE:0"
+    price: 100
+    lore:
+      - "&ePrice: 100"
+      - "%block_status%"
+  6:
+    name: "Shears"
+    material: "SHEARS:0"
+    price: 400
+    lore:
+      - "&ePrice: 400"
+      - "%block_status%"
+  7:
+    name: "Wooden Axe"
+    material: "WOOD_AXE:0"
+    price: 200
+    lore:
+      - "&ePrice: 200"
+      - "%block_status%"
+  8:
+    name: "Stone Axe"
+    material: "STONE_AXE:0"
+    price: 300
+    lore:
+      - "&ePrice: 300"
+      - "%block_status%"
+  9:
+    name: "Iron Axe"
+    material: "IRON_AXE:0"
+    price: 600
+    lore:
+      - "&ePrice: 600"
+      - "%block_status%"
+  10:
+    name: "Gold Axe"
+    material: "GOLD_AXE:0"
+    price: 800
+    lore:
+      - "&ePrice: 800"
+      - "%block_status%"
+  11:
+    name: "Diamond Axe"
+    material: "DIAMOND_AXE:0"
+    price: 1200
+    lore:
+      - "&ePrice: 1200"
+      - "%block_status%"
+  12:
+    name: "Wooden Shovel"
+    material: "WOOD_SPADE:0"
+    price: 100
+    lore:
+      - "&ePrice: 100"
+      - "%block_status%"
+  13:
+    name: "Stone Shovel"
+    material: "STONE_SPADE:0"
+    price: 200
+    lore:
+      - "&ePrice: 200"
+      - "%block_status%"
+  14:
+    name: "Iron Shovel"
+    material: "IRON_SPADE:0"
+    price: 400
+    lore:
+      - "&ePrice: 400"
+      - "%block_status%"
+  15:
+    name: "Gold Shovel"
+    material: "GOLD_SPADE:0"
+    price: 600
+    lore:
+      - "&ePrice: 600"
+      - "%block_status%"
+  16:
+    name: "Diamond Shovel"
+    material: "DIAMOND_SPADE:0"
+    price: 800
+    lore:
+      - "&ePrice: 800"
+      - "%block_status%"
+  17:
+    name: "Wooden Hoe"
+    material: "WOOD_HOE:0"
+    price: 100
+    lore:
+      - "&ePrice: 100"
+      - "%block_status%"
+  18:
+    name: "Stone Hoe"
+    material: "STONE_HOE:0"
+    price: 200
+    lore:
+      - "&ePrice: 200"
+      - "%block_status%"
+  19:
+    name: "Iron Hoe"
+    material: "IRON_HOE:0"
+    price: 300
+    lore:
+      - "&ePrice: 300"
+      - "%block_status%"
+  20:
+    name: "Gold Hoe"
+    material: "GOLD_HOE:0"
+    price: 500
+    lore:
+      - "&ePrice: 500"
+      - "%block_status%"
+  21:
+    name: "Diamond Hoe"
+    material: "DIAMOND_HOE:0"
+    price: 800
+    lore:
+      - "&ePrice: 800"
+      - "%block_status%"
 
 # Animation Selector GUI
 animation-selector:
@@ -912,12 +1041,12 @@ animation-selector-slots:
       - "&7Standard instant reset"
       - "&ePrice: Free"
   2:
-    name: "&aSlide Down"
+    name: "&aFall Down"
     material: "SLIME_BALL:0"
-    animation: "SLIDE_DOWN"
+    animation: "FALL_DOWN"
     price: 1000
     lore:
-      - "&7Blocks slide downward on reset"
+      - "&7Blocks fall downward on reset"
       - "&ePrice: 1000"
   3:
     name: "&cExplode"
@@ -1119,8 +1248,9 @@ death-sound-selector-slots:
 # One-Click Pick cosmetic (single entry, toggle-style)
 one-click-pick:
   name: "&bOne-Click Pick"
-  material: "DIAMOND_PICKAXE:0"
+  material: "DIAMOND_AXE:0"
   price: 5000
   lore:
     - "&7Breaks placed blocks instantly on left-click"
+    - "&7Uses a &cDiamond Axe &7as the tool"
     - "&ePrice: 5000"

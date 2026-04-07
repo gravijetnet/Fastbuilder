@@ -42,44 +42,28 @@ public class GameplayManager {
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
 
     // -------------------------------------------------------------------------
-    // Death Sounds: display name → Bukkit Sound enum name
+    // Death Sounds: display name → Bukkit Sound enum name (1.8.8)
+    // Curated to short, punchy sounds only — no long ambient clips.
     // -------------------------------------------------------------------------
     public static final Map<String, String> DEATH_SOUNDS = new LinkedHashMap<>();
     static {
-        DEATH_SOUNDS.put("NONE",        null);
-        DEATH_SOUNDS.put("Creeper",     "EXPLODE");
-        DEATH_SOUNDS.put("Anvil",       "ANVIL_LAND");
-        DEATH_SOUNDS.put("Ghast",       "GHAST_DEATH");
-        DEATH_SOUNDS.put("Wither",      "WITHER_DEATH");
-        DEATH_SOUNDS.put("IronGolem",   "IRONGOLEM_DEATH");
-        DEATH_SOUNDS.put("Enderman",    "ENDERMAN_SCREAM");
-        DEATH_SOUNDS.put("Zombie",      "ZOMBIE_HURT");
-        DEATH_SOUNDS.put("Piglin",      "ZOMBIE_PIG_ANGRY");
-        DEATH_SOUNDS.put("Blaze",       "BLAZE_DEATH");
-        DEATH_SOUNDS.put("Wolf",        "WOLF_DEATH");
-        DEATH_SOUNDS.put("GhastShoot",  "GHAST_FIREBALL");
-        DEATH_SOUNDS.put("Slime",       "SLIME_ATTACK");
-        DEATH_SOUNDS.put("Portal",      "PORTAL");
-        DEATH_SOUNDS.put("Firework",    "FIREWORK_BLAST");
-        DEATH_SOUNDS.put("LevelUp",     "LEVEL_UP");
-        DEATH_SOUNDS.put("Splash",      "SPLASH");
-        DEATH_SOUNDS.put("WitherShoot", "WITHER_SHOOT");
-        DEATH_SOUNDS.put("Villager",    "VILLAGER_DEATH");
-        DEATH_SOUNDS.put("ArrowHit",    "ARROW_HIT");
-        DEATH_SOUNDS.put("Fizz",        "FIZZ");
-        DEATH_SOUNDS.put("Bat",         "BAT_DEATH");
-        DEATH_SOUNDS.put("Lava",        "LAVA_POP");
-        DEATH_SOUNDS.put("Cave",        "AMBIENCE_CAVE");
-        DEATH_SOUNDS.put("Thunder",     "AMBIENCE_THUNDER");
-        DEATH_SOUNDS.put("Note",        "NOTE_PLING");
-        DEATH_SOUNDS.put("Skeleton",    "SKELETON_HURT");
-        DEATH_SOUNDS.put("Spider",      "SPIDER_IDLE");
-        DEATH_SOUNDS.put("WolfHowl",    "WOLF_HOWL");
-        DEATH_SOUNDS.put("Enderman2",   "ENDERMAN_STARE");
-        DEATH_SOUNDS.put("DragonGrowl", "ENDERDRAGON_GROWL");
-        DEATH_SOUNDS.put("WitherSpawn", "WITHER_SPAWN");
-        DEATH_SOUNDS.put("ItemBreak",   "ITEM_BREAK");
-        DEATH_SOUNDS.put("Chest",       "CHEST_OPEN");
+        DEATH_SOUNDS.put("NONE",           null);
+        DEATH_SOUNDS.put("CreeperPrime",   "CREEPER_PRIME");   // short, punchy fuse ignition
+        DEATH_SOUNDS.put("AnvilLand",      "ANVIL_LAND");      // sharp metallic thud
+        DEATH_SOUNDS.put("Explode",        "EXPLODE");         // crisp explosion pop
+        DEATH_SOUNDS.put("LevelUp",        "LEVEL_UP");        // bright ascending chime
+        DEATH_SOUNDS.put("ArrowHit",       "ARROW_HIT");       // clean impact click
+        DEATH_SOUNDS.put("Fizz",           "FIZZ");            // short sizzle
+        DEATH_SOUNDS.put("Note",           "NOTE_PLING");      // clean single note
+        DEATH_SOUNDS.put("Splash",         "SPLASH");          // short water slap
+        DEATH_SOUNDS.put("ItemBreak",      "ITEM_BREAK");      // crisp crack
+        DEATH_SOUNDS.put("Zombie",         "ZOMBIE_HURT");     // short impact grunt
+        DEATH_SOUNDS.put("Skeleton",       "SKELETON_HURT");   // short rattle
+        DEATH_SOUNDS.put("BlazeDeath",     "BLAZE_DEATH");     // fast airy pop
+        DEATH_SOUNDS.put("FireworkBlast",  "FIREWORK_BLAST");  // punchy burst
+        DEATH_SOUNDS.put("Enderman",       "ENDERMAN_SCREAM"); // short screech
+        DEATH_SOUNDS.put("Portal",         "PORTAL");          // short whoosh
+        DEATH_SOUNDS.put("AnvilBreak",     "ANVIL_BREAK");     // crunchy snap
     }
 
     // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
@@ -229,7 +213,12 @@ public class GameplayManager {
             globalSessionBestPlayer = player.getName();
         }
 
-        if (!session.isPracticeMode()) {
+        // Disable stats for Infinite mode and Custom Length mode (no record-keeping)
+        MapData statsMap = plugin.getMapManager().getMap(session.getMapName());
+        boolean statsDisabled = session.isPracticeMode()
+                || (statsMap != null && (statsMap.isInfinite() || statsMap.hasCustomLength()));
+
+        if (!statsDisabled) {
             PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
             stats.totalAttempts++;
             stats.successfulAttempts++;
@@ -308,8 +297,13 @@ public class GameplayManager {
                 }
             }
         } else {
-            String practiceTitle = "&6&lPractice: &f" + TimeUtil.formatTime(time);
-            player.sendTitle(ColorUtil.translate(practiceTitle), ColorUtil.translate("&7Time not saved"));
+            // Practice or stats-disabled mode: show time but note it's not saved
+            String modeLabel = session.isPracticeMode() ? "&6&lPractice: " : "&a&lFinish: ";
+            String noteSuffix = (statsMap != null && statsMap.isInfinite()) ? "&7Infinite mode"
+                    : (statsMap != null && statsMap.hasCustomLength()) ? "&7Custom length"
+                    : "&7Time not saved";
+            player.sendTitle(ColorUtil.translate(modeLabel + "&f" + TimeUtil.formatTime(time)),
+                    ColorUtil.translate(noteSuffix));
         }
 
         // Massive celebration
@@ -392,7 +386,11 @@ public class GameplayManager {
                 plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
             }
 
-            if (!session.isPracticeMode()) {
+            // Only record fall attempts for normal (non-practice, non-infinite, non-custom) maps
+            MapData fallMap = plugin.getMapManager().getMap(session.getMapName());
+            boolean fallStatsDisabled = session.isPracticeMode()
+                    || (fallMap != null && (fallMap.isInfinite() || fallMap.hasCustomLength()));
+            if (!fallStatsDisabled) {
                 PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (data != null) {
                     PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
@@ -469,7 +467,8 @@ public class GameplayManager {
                                            List<Location> practiceBlocks,
                                            Map<String, int[]> origStates,
                                            boolean isPracticeMode, String animation) {
-        if ("SLIDE_DOWN".equalsIgnoreCase(animation)) {
+        if ("FALL_DOWN".equalsIgnoreCase(animation) || "SLIDE_DOWN".equalsIgnoreCase(animation)) {
+            // Sequential top-to-bottom falling blocks
             List<Location> toClear = new ArrayList<>();
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
@@ -526,54 +525,87 @@ public class GameplayManager {
         } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
             clearBlocksCreativeNpc(blocks, practiceBlocks, origStates, isPracticeMode);
         } else {
-            // NONE: instant clear
+            // NONE: fast sequential clear (one-by-one, 5 blocks per tick)
+            List<Location> toClear = new ArrayList<>();
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-                Block block = loc.getBlock();
-                if (block != null) {
+                toClear.add(loc);
+            }
+            final int[] idx = {0};
+            new org.bukkit.scheduler.BukkitRunnable() {
+                @Override
+                public void run() {
+                    int batch = 5;
+                    for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                        Location loc = toClear.get(idx[0]);
+                        Block block = loc.getBlock();
+                        if (block != null) {
+                            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                            int[] orig = origStates.get(key);
+                            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                            else block.setType(Material.AIR);
+                        }
+                    }
+                    if (idx[0] >= toClear.size()) this.cancel();
+                }
+            }.runTaskTimer(plugin, 0L, 1L);
+        }
+    }
+
+    /**
+     * ITEM_DROP animation: blocks drop one-by-one as item entities with no enchantments.
+     */
+    @SuppressWarnings("deprecation")
+    private void clearBlocksItemDrop(List<Location> blocks, List<Location> practiceBlocks,
+                                      Map<String, int[]> origStates, boolean isPracticeMode) {
+        List<Location> toClear = new ArrayList<>();
+        for (Location loc : blocks) {
+            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
+            Block block = loc.getBlock();
+            if (block == null || block.getType() == Material.AIR) continue;
+            toClear.add(loc);
+        }
+
+        final int[] idx = {0};
+        new BukkitRunnable() {
+            @Override
+            @SuppressWarnings("deprecation")
+            public void run() {
+                int batch = 3;
+                for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                    Location loc = toClear.get(idx[0]);
+                    Block block = loc.getBlock();
+                    if (block == null || block.getType() == Material.AIR) continue;
+
+                    Material mat = block.getType();
+                    short durability = block.getData();
+                    Location center = loc.clone().add(0.5, 0.5, 0.5);
+                    try {
+                        // Create a plain item stack with NO enchantments
+                        org.bukkit.inventory.ItemStack stack = new org.bukkit.inventory.ItemStack(mat, 1, durability);
+                        org.bukkit.entity.Item item = loc.getWorld().dropItem(center, stack);
+                        item.setPickupDelay(32767);
+                        item.setVelocity(new org.bukkit.util.Vector(
+                                (Math.random() - 0.5) * 0.25,
+                                0.15 + Math.random() * 0.25,
+                                (Math.random() - 0.5) * 0.25));
+                        final org.bukkit.entity.Item ref = item;
+                        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!ref.isDead()) ref.remove(); }, 40L);
+                    } catch (Exception ignored) {}
+
+                    // Clear block
                     String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
                     int[] orig = origStates.get(key);
                     if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
                     else block.setType(Material.AIR);
                 }
+                if (idx[0] >= toClear.size()) this.cancel();
             }
-        }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     /**
-     * ITEM_DROP animation: blocks turn into dropped item entities and fall down.
-     */
-    @SuppressWarnings("deprecation")
-    private void clearBlocksItemDrop(List<Location> blocks, List<Location> practiceBlocks,
-                                      Map<String, int[]> origStates, boolean isPracticeMode) {
-        for (Location loc : blocks) {
-            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-            Block block = loc.getBlock();
-            if (block == null || block.getType() == Material.AIR) continue;
-            Material mat = block.getType();
-            short durability = block.getData();
-            Location center = loc.clone().add(0.5, 0.5, 0.5);
-            try {
-                org.bukkit.entity.Item item = loc.getWorld().dropItem(
-                        center, new org.bukkit.inventory.ItemStack(mat, 1, durability));
-                item.setPickupDelay(32767); // prevent pickup
-                item.setVelocity(new org.bukkit.util.Vector(
-                        (Math.random() - 0.5) * 0.25,
-                        0.15 + Math.random() * 0.25,
-                        (Math.random() - 0.5) * 0.25));
-                final org.bukkit.entity.Item ref = item;
-                Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!ref.isDead()) ref.remove(); }, 40L);
-            } catch (Exception ignored) {}
-            // Clear block
-            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-            int[] orig = origStates.get(key);
-            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-            else block.setType(Material.AIR);
-        }
-    }
-
-    /**
-     * ICE_MELT animation: replace blocks with ice, then melt (remove) after a few ticks.
+     * ICE_MELT animation: blocks turn to ice one-by-one, each "melting" away with a FIZZ sound.
      */
     @SuppressWarnings("deprecation")
     private void clearBlocksIceMelt(List<Location> blocks, List<Location> practiceBlocks,
@@ -583,20 +615,42 @@ public class GameplayManager {
             if (isPracticeMode && practiceBlocks.contains(loc)) continue;
             Block block = loc.getBlock();
             if (block == null || block.getType() == Material.AIR) continue;
-            block.setTypeIdAndData(79, (byte) 0, false); // ICE (ID 79)
             toClear.add(loc);
         }
-        // Remove ice after 4 ticks (~0.2 s) — fast melt
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            for (Location loc : toClear) {
-                Block block = loc.getBlock();
-                if (block == null) continue;
-                String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                int[] orig = origStates.get(key);
-                if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                else block.setType(Material.AIR);
+        if (toClear.isEmpty()) return;
+
+        final int[] idx = {0};
+        new BukkitRunnable() {
+            @Override
+            @SuppressWarnings("deprecation")
+            public void run() {
+                int batch = 3;
+                for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                    Location loc = toClear.get(idx[0]);
+                    Block block = loc.getBlock();
+                    if (block == null || block.getType() == Material.AIR) continue;
+
+                    // Turn block to ice
+                    block.setTypeIdAndData(79, (byte) 0, false);
+
+                    // Play ice-melting sound at this location
+                    try {
+                        loc.getWorld().playSound(loc, org.bukkit.Sound.FIZZ, 0.4f, 1.8f);
+                    } catch (Exception ignored) {}
+
+                    // Schedule melt (remove ice) after 3 ticks
+                    final Location frozenLoc = loc.clone();
+                    final int[] origArr = origStates.get(loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ());
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        Block b = frozenLoc.getBlock();
+                        if (b == null) return;
+                        if (origArr != null && origArr[0] != 0) b.setTypeIdAndData(origArr[0], (byte) origArr[1], false);
+                        else b.setType(Material.AIR);
+                    }, 3L);
+                }
+                if (idx[0] >= toClear.size()) this.cancel();
             }
-        }, 4L);
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     /**
@@ -750,11 +804,12 @@ public class GameplayManager {
     }
 
     private void startActionbarTask() {
-        String actionBarFormat = plugin.getConfigManager().getActionBar();
-
         actionbarTaskId = new BukkitRunnable() {
             @Override
             public void run() {
+                String actionBarFormat = plugin.getConfigManager().getActionBar();
+                boolean onlyWhenRunning = plugin.getConfigManager().isActionBarOnlyWhenRunning();
+
                 for (Map.Entry<UUID, RunSession> entry : new HashMap<>(activeSessions).entrySet()) {
                     Player player = Bukkit.getPlayer(entry.getKey());
                     if (player == null || !player.isOnline()) continue;
@@ -770,9 +825,14 @@ public class GameplayManager {
                                 plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
                             }
                             PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-                            if (pData != null && !session.isPracticeMode()) {
-                                PlayerData.MapStats stats = pData.getOrCreateStats(session.getMapName());
-                                stats.totalAttempts++;
+                            if (pData != null) {
+                                MapData timerMap = plugin.getMapManager().getMap(session.getMapName());
+                                boolean timerStatsOk = !session.isPracticeMode()
+                                        && (timerMap == null || (!timerMap.isInfinite() && !timerMap.hasCustomLength()));
+                                if (timerStatsOk) {
+                                    PlayerData.MapStats stats = pData.getOrCreateStats(session.getMapName());
+                                    stats.totalAttempts++;
+                                }
                             }
                             String limitMsg = plugin.getConfigManager().getMessage("max-time-exceeded");
                             if (limitMsg == null || limitMsg.isEmpty()) {
@@ -787,14 +847,31 @@ public class GameplayManager {
 
                     if (actionBarFormat == null || actionBarFormat.isEmpty()) continue;
 
+                    // Respect the only-when-running setting
+                    if (onlyWhenRunning && !session.isRunning()) continue;
+
                     String timer = session.isRunning()
                             ? TimeUtil.formatTime(session.getElapsed()) : "00:00.000";
 
-                    String msg = actionBarFormat.replace("%timer%", timer);
+                    // Support both %time% and %timer% placeholders
+                    String msg = actionBarFormat
+                            .replace("%time%", timer)
+                            .replace("%timer%", timer);
                     sendActionBar(player, ColorUtil.translate(msg));
                 }
             }
         }.runTaskTimer(plugin, 1L, 1L).getTaskId();
+    }
+
+    /**
+     * Called on /fb reload — restarts the actionbar task so new config values take effect.
+     */
+    public void reloadActionbar() {
+        if (actionbarTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(actionbarTaskId);
+            actionbarTaskId = -1;
+        }
+        startActionbarTask();
     }
 
     @SuppressWarnings("deprecation")

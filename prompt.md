@@ -1,72 +1,19 @@
-Please implement the following extensive list of bug fixes, features, and system overhauls. This is a comprehensive update; ensure all logic is strictly reviewed and everything is strictly in English.
-🛠️ Command & Setup Overhaul
-
-    New Setup Workflow: * To set up an infinite map, use /map setup --infinite.
-
-        Combine naming and finishing: Change /map setup finish to /map setup finish <name>. The separate name command is no longer needed.
-
-    New Commands: * /map rename <newname>: To rename an existing map.
-
-        /map regen: To regenerate the map's schematic/islands.
-
-        /fb dump: Create a diagnostic log including plugin version, hooked plugins, server/Java/OS versions, all configs, and RAM/CPU usage. Upload this to Bytebin and return a clickable, copyable URL to the admin.
-
-        Remove Command: Delete the /fb info command entirely.
-
-    Help Menu: Paginate the /map help message (maximum 10 commands per page).
-
-    Permissions: Add a unique permission node for every single command and feature in the plugin.
-
-🎮 Game Modes & Join Logic
-
-    Infinite & Custom Length: * Ensure "Custom Length" is fully configurable in the settings menu (it is currently non-functional).
-
-        No Stats: Disable statistics tracking (successes, times, etc.) for Infinite and Custom Length modes.
-
-    Server Join Logic: When a player joins, they must be sent to the "default" map. If the default map is full, automatically move them to the next available free map.
-
-💄 Cosmetics, Shop & Animations
-
-    Pickaxe Shop Expansion:
-
-        One-Click Pick: This should be a Diamond Axe that allows instant block breaking.
-
-        Additions: Add Shears, all types of Axes, a Wooden Pickaxe, all types of Shovels, and all types of Hoes to the shop.
-
-    Island Designs: Players must be able to select their preferred island design/style directly within the Shop menu.
-
-    Reset Animations (Must be sequential and fast):
-
-        Rename "Slide Down" to "Fall Down".
-
-        Sequential Destruction: For "Item Drop", "Ice Melt", and "No Animation", blocks must be destroyed one-by-one in a fast sequence (not all at once).
-
-        Ice Melt Details: Blocks turn to ice and "melt" away sequentially with a proper ice-melting sound effect.
-
-        Timing: Animations must start the exact moment the goal is reached.
-
-        Cleanup: Ensure "Item Drop" does not apply Unbreaking I to the dropped items.
-
-    Death Sounds: Use high-quality, short, "punchy" sounds (e.g., Creeper prime, Anvil land) rather than long, annoying clips.
-
-📊 Scoreboard, Actionbar & Placeholders
-
-    Scoreboard Logic: * Support up to 15 lines (the Minecraft maximum) without cutting off lines.
-
-        Ensure color codes (e.g., &a) work perfectly for placeholders (e.g., if %blocks% is just a number, it should be formattable like &a%blocks%).
-
-    Actionbar: * Default format: &7Time &8» &c%time%.
-
-        Visibility: Only show during an active run. Make the timing and general visibility fully configurable.
-
-    Economy Scaling: Coins rewarded for a success must scale dynamically based on the completion time (faster = significantly more coins). This scaling should be internal logic and not rely on static config values.
-
-⚙️ System, Config & Bug Fixes
-
-    Reload System (/fb reload): Fix the reload logic. Currently, after a reload, players are often removed from their islands and can no longer place blocks. This must be 100% stable.
-
-    100% Configurability: Every detail of the Actionbar, Scoreboard, and Item names/lore must be configurable and update instantly upon /fb reload.
-
-    Boundary Reset: If a player crosses the map boundaries, reset them immediately. Ensure they do not get "stuck" in a reset loop or in blocks.
-
-    Finish Zone: Ensure regular blocks (not just pressure plates) can be used as the finish detection zone.
+bitte füge bei der helpmessage wenn es mehr als zehn einträge gibt, sowas dazu, wo man auf die seite 2 kommt: "Showing page 1 of 2 (17 results). »", auch rückwärts: "« Showing page 2 of 2 (17 results). "
+Bitte verbessere die helpmessages bei /map setup, damit sie besser lesbar und und augenfreundlicher etc. aussehen.
+wenn man auf /map setup finish drückt, soll bitte der command in seinen minecraft chat eingefügt werden (man muss dann nur noch den namen eingeben (bitte bei der letzten nachricht mit finish soll dann auch /map setup finish <name> stehen, aktuell steht kein <name> da.))
+wenn man dem server standard beitritt und admin rechte oder setup rechte hat etc. oder nach einem setup fertig ist soll man bitte im gamemode creative sein und nicht im survival sein.
+die one click pick soll bitte im pickaxe menü sein und nicht woanders drinnen.
+im pickaxe menü kann man, wenn man schon alle pickaxes hat oder irgendeine permission einfach die items bewegen und es buggt extrem.
+für jede sache die es im shop gibt bitte eine permission hinzufügen.
+das shop menü bitte 3*9 groß machen und keine glasscheibe für das islandsdesign verwenden.
+das island design soll bitte sofort angewandt werden. es soll bitte kein verzaubertes buch sondern eher irgendein toller block sein ohne unbreaking I enchantment
+wenn man im scoreboard eine leere zeile - "" macht, dann soll die bitte auch angezeigt werden.
+im settings menü bitte die items alle eins weiter nach links machen damit sie mittig sind.
+bei /map setcustomlength soll es nur ein true oder false geben, distance ist immer unendlich und mindestens kann man es aber schon einstellen. (vom spawnpunkt bis endplatten)
+bei der custom length verändert sich die map überhaupt nicht und beweggt sich kein stück. außerdem soll es keinen befehl dafür geben.
+wenn man die custom length finished soll auch die block distance dastehen der map im titel.
+bei statsresets soll das hologramm sofort verändert werden und nicht erst nach inselwechsel.
+bei der itemdrop animation spawnen manchmal so lila-schwarze blöcke, also keine echten blöcke also bitte fixen.
+die resetanimation soll starten sobald man stirbt (wie jetzt schon) oder sobald man das ziel erreicht hat (ist noch nicht so, startet erst wenn man neu gespawnt ist)
+die resetanimation mit dem creative npc soll bitte länger dauern damit man den npc wirklich sieht und der soll das wirklich auch abbauen bitte (in creative mode natürlich)
+der item drop animation button (die truhe) 
