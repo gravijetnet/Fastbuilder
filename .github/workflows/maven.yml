@@ -29,18 +29,28 @@ jobs:
 
     - name: Run BuildTools with Java 8
       run: |
-        mkdir buildtools && cd buildtools
-        wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-        $JAVA_HOME_8_X64/bin/java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
-        # bungeecord-chat JAR suchen und installieren
-        CHAT_JAR=$(find ~/.m2 . -type f -name "*.jar" | grep -i "bungeecord-chat\|BungeeCord-Chat" | grep -v ".lastUpdated" | head -n 1)
-        echo "Found bungeecord-chat at: $CHAT_JAR"
-        mvn install:install-file \
-          -Dfile="$CHAT_JAR" \
-          -DgroupId=net.md-5 \
-          -DartifactId=bungeecord-chat \
-          -Dversion=1.8-SNAPSHOT \
-          -Dpackaging=jar
+            mkdir buildtools && cd buildtools
+            wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+            # Run BuildTools (1.8.8 requires Java 8)
+            $JAVA_HOME_8_X64/bin/java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
+            
+            # Search specifically within the buildtools directory for the shaded chat jar
+            # 1.8.8 often shades bungeecord-chat inside the Spigot-API target folder
+            CHAT_JAR=$(find . -type f -name "bungeecord-chat*.jar" | head -n 1)
+            
+            if [ -z "$CHAT_JAR" ]; then
+              echo "Error: bungeecord-chat JAR not found!"
+              exit 1
+            fi
+            
+            echo "Found bungeecord-chat at: $CHAT_JAR"
+            
+            mvn install:install-file \
+              -Dfile="$CHAT_JAR" \
+              -DgroupId=net.md-5 \
+              -DartifactId=bungeecord-chat \
+              -Dversion=1.8-SNAPSHOT \
+              -Dpackaging=jar
 
     - name: Switch back to JDK 21
       uses: actions/setup-java@v4
