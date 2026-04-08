@@ -27,16 +27,21 @@ jobs:
       run: |
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-        
-        # We use --rev 1.8.8 to ensure the full Spigot API and Chat components are built
         java -jar BuildTools.jar --rev 1.8.8
         
-        # AGGRESSIVE SEARCH: Search every folder for the chat jar
-        echo "Locating bungeecord-chat JAR..."
-        CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" ! -name "*-sources.jar" | head -n 1)
+        # BuildTools usually installs everything to the local ~/.m2 repository.
+        # We will find the chat jar there and force-install it under the name your POM expects.
+        echo "Searching local Maven repo for bungeecord-chat..."
+        CHAT_JAR=$(find ~/.m2/repository/net/md-5/bungeecord-chat -name "*.jar" ! -name "*-sources.jar" | head -n 1)
         
         if [ -z "$CHAT_JAR" ]; then
-          echo "Error: bungeecord-chat JAR still not found."
+          echo "Not in M2, searching BuildTools folder..."
+          CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" ! -name "*-sources.jar" | head -n 1)
+        fi
+
+        if [ -z "$CHAT_JAR" ]; then
+          echo "Still not found. Listing all JARs found to identify the issue:"
+          find . -name "*.jar"
           exit 1
         fi
         
@@ -85,5 +90,3 @@ jobs:
         files: fastbuilder-latest.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      
