@@ -62,7 +62,6 @@ public class GameplayManager {
         DEATH_SOUNDS.put("BlazeDeath",     "BLAZE_DEATH");     // fast airy pop
         DEATH_SOUNDS.put("FireworkBlast",  "FIREWORK_BLAST");  // punchy burst
         DEATH_SOUNDS.put("Enderman",       "ENDERMAN_SCREAM"); // short screech
-        DEATH_SOUNDS.put("Portal",         "PORTAL");          // short whoosh
         DEATH_SOUNDS.put("AnvilBreak",     "ANVIL_BREAK");     // crunchy snap
     }
 
@@ -215,8 +214,11 @@ public class GameplayManager {
 
         // Disable stats for Infinite mode and Custom Length mode (no record-keeping)
         MapData statsMap = plugin.getMapManager().getMap(session.getMapName());
+        boolean playerCustomLengthActive = statsMap != null && statsMap.hasCustomLength()
+                && data.isCustomLengthEnabled(session.getMapName());
         boolean statsDisabled = session.isPracticeMode()
-                || (statsMap != null && (statsMap.isInfinite() || statsMap.hasCustomLength()));
+                || (statsMap != null && statsMap.isInfinite())
+                || playerCustomLengthActive;
 
         if (!statsDisabled) {
             PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
@@ -299,9 +301,16 @@ public class GameplayManager {
         } else {
             // Practice or stats-disabled mode: show time but note it's not saved
             String modeLabel = session.isPracticeMode() ? "&6&lPractice: " : "&a&lFinish: ";
-            String noteSuffix = (statsMap != null && statsMap.isInfinite()) ? "&7Infinite mode"
-                    : (statsMap != null && statsMap.hasCustomLength()) ? "&7Custom length"
-                    : "&7Time not saved";
+            String noteSuffix;
+            if (statsMap != null && statsMap.isInfinite()) {
+                noteSuffix = "&7Infinite mode";
+            } else if (playerCustomLengthActive) {
+                // Display exact block distance bridged for custom length runs
+                int blocksBridged = session.getPlacedBlocks().size();
+                noteSuffix = "&7Custom length &8- &f" + blocksBridged + " blocks";
+            } else {
+                noteSuffix = "&7Time not saved";
+            }
             player.sendTitle(ColorUtil.translate(modeLabel + "&f" + TimeUtil.formatTime(time)),
                     ColorUtil.translate(noteSuffix));
         }
@@ -311,11 +320,15 @@ public class GameplayManager {
 
         plugin.getScoreboardManager().updateScoreboard(player);
 
+        // Start the reset animation IMMEDIATELY (spec: "trigger instantly")
+        startResetAnimation(player);
+
+        // Finalize reset (teleport + hotbar) after 2 seconds so player sees celebration
         new BukkitRunnable() {
             @Override
             public void run() {
                 finishCooldown.remove(uuid);
-                if (player.isOnline()) resetRun(player);
+                if (player.isOnline()) finalizeReset(player);
             }
         }.runTaskLater(plugin, 40L);
     }
@@ -405,33 +418,78 @@ public class GameplayManager {
         }
 
         playDeathSound(player);
-        resetRun(player);
+        // Trigger animation instantly on death (spec requirement)
+        startResetAnimation(player);
+        // Finalize on next tick so teleport happens after animation starts
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) finalizeReset(player);
+        }, 2L);
     }
 
     /**
-     * Reset a player's current run: clear placed blocks (keep practice blocks),
-     * teleport to spawn.
+     * Start the block-clearing animation immediately (for instant death/finish response).
+     * Does NOT teleport the player — call finalizeReset() after the delay.
      */
-    public void resetRun(Player player) {
+    public void startResetAnimation(Player player) {
+        RunSession session = activeSessions.get(player.getUniqueId());
+        if (session == null) return;
+
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
+
+        // Snapshot blocks NOW — before session.reset() clears them
+        List<Location> blocksCopy = new ArrayList<>(session.getPlacedBlocks());
+        List<Location> practiceBlocksCopy = new ArrayList<>(session.getPracticeBlocks());
+        Map<String, int[]> origStatesCopy = new HashMap<>(session.getOriginalBlockStates());
+        boolean practice = session.isPracticeMode();
+
+        clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
+    }
+
+    /**
+     * Finalize the run reset: reset session state, teleport to spawn, give hotbar items.
+     * Call this after the animation delay (typically 2 seconds after finish/death).
+     */
+    public void finalizeReset(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
-        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
-
-        // Capture copies BEFORE reset clears the session data
-        List<Location> blocksCopy = new ArrayList<>(session.getPlacedBlocks());
-        List<Location> practiceBlocksCopy = new ArrayList<>(session.getPracticeBlocks());
-        Map<String, int[]> origStatesCopy = new HashMap<>(session.getOriginalBlockStates());
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
 
         session.reset();
 
-        clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
+        for (Long best : bests) session.addSessionBest(best);
+        session.setPracticeMode(practice);
+
+        player.teleport(map.getIslandSpawn(session.getIslandIndex()));
+
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().giveItems(player);
+        }
+
+        plugin.getScoreboardManager().updateScoreboard(player);
+    }
+
+    /**
+     * Full reset in one shot (used by GUI/command resets that don't need animation/delay split).
+     */
+    public void resetRun(Player player) {
+        startResetAnimation(player);
+        // For synchronous callers (e.g. island switch), finalize immediately
+        RunSession session = activeSessions.get(player.getUniqueId());
+        if (session == null) return;
+
+        MapData map = plugin.getMapManager().getMap(session.getMapName());
+        if (map == null) return;
+
+        java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
+        boolean practice = session.isPracticeMode();
+
+        session.reset();
 
         for (Long best : bests) session.addSessionBest(best);
         session.setPracticeMode(practice);
@@ -582,6 +640,23 @@ public class GameplayManager {
                     if (block == null || block.getType() == Material.AIR) continue;
 
                     Material mat = block.getType();
+                    // Skip materials that don't have valid item representations (avoids purple-black missing texture).
+                    // mat.isItem() does not exist in 1.8.8; instead try creating an ItemStack and catch the exception.
+                    boolean hasItem;
+                    try {
+                        new org.bukkit.inventory.ItemStack(mat, 1);
+                        hasItem = mat != Material.AIR && mat.getId() < 256;
+                    } catch (Exception ex) {
+                        hasItem = false;
+                    }
+                    if (!hasItem) {
+                        // Restore block directly without dropping item
+                        String skipKey = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                        int[] skipOrig = origStates.get(skipKey);
+                        if (skipOrig != null && skipOrig[0] != 0) block.setTypeIdAndData(skipOrig[0], (byte) skipOrig[1], false);
+                        else block.setType(Material.AIR);
+                        continue;
+                    }
                     short durability = block.getData();
                     Location center = loc.clone().add(0.5, 0.5, 0.5);
                     try {
@@ -684,7 +759,9 @@ public class GameplayManager {
             npcRef[0] = npc;
         } catch (NoClassDefFoundError | Exception ignored) {}
 
-        final int BLOCKS_PER_TICK = 10;
+        // Slower pace for more visible NPC animation (3 blocks/tick, every 2 ticks = visible swing)
+        final int BLOCKS_PER_TICK = 3;
+        final long TICK_INTERVAL = 2L;
         final int[] idx = {0};
         new BukkitRunnable() {
             @Override
@@ -693,14 +770,30 @@ public class GameplayManager {
                     Location loc = toClear.get(idx[0]);
                     Block block = loc.getBlock();
                     if (block == null || block.getType() == Material.AIR) continue;
-                    // Teleport NPC to block
+                    // Teleport NPC to block so it appears to be mining it
                     if (npcRef[0] != null && npcRef[0].isSpawned()) {
-                        try { npcRef[0].getEntity().teleport(loc.clone().add(0.5, 0, 0.5)); }
-                        catch (Exception ignored) {}
+                        try {
+                            org.bukkit.entity.Entity e = npcRef[0].getEntity();
+                            e.teleport(loc.clone().add(0.5, 0, 0.5));
+                            // Arm swing animation — swingMainHand() is 1.9+; broadcast NMS packet for 1.8.8
+                            try {
+                                Object nmsEntity = e.getClass().getMethod("getHandle").invoke(e);
+                                Object packet = Class.forName(nmsEntity.getClass().getPackage().getName() + ".PacketPlayOutAnimation")
+                                        .getConstructor(nmsEntity.getClass(), int.class).newInstance(nmsEntity, 0);
+                                for (org.bukkit.entity.Player viewer : e.getWorld().getPlayers()) {
+                                    Object conn = viewer.getClass().getMethod("getHandle").invoke(viewer);
+                                    Object playerConn = conn.getClass().getField("playerConnection").get(conn);
+                                    playerConn.getClass().getMethod("sendPacket", Class.forName(
+                                            nmsEntity.getClass().getPackage().getName() + ".Packet")).invoke(playerConn, packet);
+                                }
+                            } catch (Exception ignored) {}
+                        } catch (Exception ignored) {}
                     }
-                    // Block break effect
-                    try { loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, block.getTypeId()); }
-                    catch (Exception ignored) {}
+                    // Block-breaking step sound and dig effect
+                    try {
+                        loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, block.getTypeId());
+                        loc.getWorld().playSound(loc, org.bukkit.Sound.DIG_STONE, 0.5f, 1.0f + (float)(Math.random() * 0.4f));
+                    } catch (Exception ignored) {}
                     // Remove block
                     String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
                     int[] orig = origStates.get(key);
@@ -714,7 +807,7 @@ public class GameplayManager {
                     this.cancel();
                 }
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        }.runTaskTimer(plugin, 0L, TICK_INTERVAL);
     }
 
     @SuppressWarnings("deprecation")

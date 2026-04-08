@@ -11,6 +11,8 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Manages replay recording, storage, and playback.
@@ -35,6 +37,7 @@ public class ReplayManager {
 
     private int recordingTaskId = -1;
 
+    // Default fallback; actual value read from config at runtime
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
@@ -128,15 +131,16 @@ public class ReplayManager {
 
     private int getReplayLimit(UUID playerUuid) {
         Player player = Bukkit.getPlayer(playerUuid);
-        if (player == null) return MAX_REPLAYS_PER_MAP;
+        int configDefault = plugin.getConfigManager().getMaxReplaysPerMap();
+        if (player == null) return configDefault;
 
         if (player.hasPermission("fastbuilder.replays.unlimited")) return Integer.MAX_VALUE;
 
-        // Check fastbuilder.replays.N, highest wins
-        for (int i = 100; i >= 1; i--) {
+        // Check fastbuilder.replays.N (highest permission wins, checked 1000 → 1)
+        for (int i = 1000; i >= 1; i--) {
             if (player.hasPermission("fastbuilder.replays." + i)) return i;
         }
-        return MAX_REPLAYS_PER_MAP;
+        return configDefault;
     }
 
     // -------------------------------------------------------------------------
@@ -252,8 +256,9 @@ public class ReplayManager {
         if (!playerDir.exists()) playerDir.mkdirs();
 
         File file = new File(playerDir, data.getFileName());
+        // Wrap with GZIP for significant space savings on replay binary data
         try (DataOutputStream out = new DataOutputStream(
-                new BufferedOutputStream(new FileOutputStream(file)))) {
+                new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(file))))) {
             out.writeInt(MAGIC);
             out.writeInt(VERSION);
             out.writeUTF(data.getPlayerUuid().toString());
@@ -310,8 +315,18 @@ public class ReplayManager {
     }
 
     private ReplayData loadReplay(File file) throws IOException {
-        try (DataInputStream in = new DataInputStream(
-                new BufferedInputStream(new FileInputStream(file)))) {
+        // Detect GZIP vs. raw: check first two bytes for the GZIP magic (0x1f 0x8b)
+        InputStream rawStream = new BufferedInputStream(new FileInputStream(file));
+        rawStream.mark(2);
+        int b1 = rawStream.read(), b2 = rawStream.read();
+        rawStream.reset();
+        InputStream decompressed;
+        if (b1 == 0x1f && b2 == 0x8b) {
+            decompressed = new GZIPInputStream(rawStream);
+        } else {
+            decompressed = rawStream; // legacy uncompressed format
+        }
+        try (DataInputStream in = new DataInputStream(decompressed)) {
             int magic = in.readInt();
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 

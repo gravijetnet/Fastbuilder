@@ -178,6 +178,8 @@ public class FastScoreboard {
     /**
      * Split a line across team prefix + suffix (32-char budget).
      * Colour carry-over is preserved via {@link ChatColor#getLastColors(String)}.
+     * The split point is adjusted backwards if it would land inside a § colour sequence
+     * (e.g. splitting "§6" between § and 6 would produce a visible "6c"-style artefact).
      */
     @SuppressWarnings("deprecation")
     private void setTeamLine(Team team, String line) {
@@ -185,8 +187,13 @@ public class FastScoreboard {
             team.setPrefix(line);
             team.setSuffix("");
         } else {
-            String prefix = line.substring(0, 16);
-            String rest   = line.substring(16);
+            // Avoid splitting mid-colour-sequence: if char at position 15 is §, back up by 1
+            int splitAt = 16;
+            if (splitAt > 0 && line.charAt(splitAt - 1) == '\u00a7') {
+                splitAt = 15;
+            }
+            String prefix = line.substring(0, splitAt);
+            String rest   = line.substring(splitAt);
             // Carry last colour from prefix into suffix so rendering is seamless
             String carry  = ChatColor.getLastColors(prefix);
             String suffix;
@@ -217,27 +224,30 @@ public class FastScoreboard {
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
         // --- Resolve common placeholders once ---
+        // IMPORTANT: Do NOT add hardcoded colour codes to placeholder values.
+        // The config lines supply their own colour prefix (e.g. "&c%pb%"), so
+        // injecting §f here would override whatever colour the admin chose.
         String pb;
         if (data != null && session != null) {
             PlayerData.MapStats stats = data.getStats(session.getMapName());
             pb = (stats != null && stats.hasBestTime())
-                    ? "§f" + TimeUtil.formatTime(stats.bestTime)
-                    : "§8" + TimeUtil.EMPTY;
+                    ? TimeUtil.formatTime(stats.bestTime)
+                    : TimeUtil.EMPTY;
         } else {
-            pb = "§8" + TimeUtil.EMPTY;
+            pb = TimeUtil.EMPTY;
         }
 
         String currentTime;
         if (session != null && session.isRunning()) {
-            currentTime = "§f" + TimeUtil.formatTime(session.getElapsed());
+            currentTime = TimeUtil.formatTime(session.getElapsed());
         } else {
-            currentTime = "§800:00,000";
+            currentTime = "00:00,000";
         }
 
         String coins  = data != null ? String.valueOf(data.getCoins()) : "0";
 
-        String blocks = "§80";
-        if (session != null) blocks = "§f" + session.getPlacedBlocks().size();
+        String blocks = "0";
+        if (session != null) blocks = String.valueOf(session.getPlacedBlocks().size());
 
         // Session top-10
         List<String[]> topList = (plugin.getGameplayManager() != null)
@@ -255,14 +265,20 @@ public class FastScoreboard {
 
             // top_name_N / top_time_N (N = 1..10)
             for (int n = 1; n <= 10; n++) {
+                String namePh = "%top_name_" + n + "%";
+                String timePh = "%top_time_" + n + "%";
                 if (topList.size() >= n) {
                     String[] entry = topList.get(n - 1);
-                    line = line.replace("%top_name_" + n + "%", "§f" + entry[0]);
-                    line = line.replace("%top_time_" + n + "%", "§f" + TimeUtil.formatTime(Long.parseLong(entry[1])));
+                    // Return raw values — let the config control colours
+                    line = line.replace(namePh, entry[0]);
+                    line = line.replace(timePh, TimeUtil.formatTime(Long.parseLong(entry[1])));
                 } else {
-                    // Use unique invisible padding so duplicate-empty lines don't collapse
-                    line = line.replace("%top_name_" + n + "%", "§8" + TimeUtil.EMPTY + invisPad(n));
-                    line = line.replace("%top_time_" + n + "%", "§8" + TimeUtil.EMPTY + invisPad(n));
+                    // Empty entry: if this line references either placeholder, replace the
+                    // ENTIRE line with a single "-,---" so no colon ever appears.
+                    if (line.contains(namePh) || line.contains(timePh)) {
+                        line = "§8-,---" + invisPad(n);
+                        break; // done processing placeholders for this line
+                    }
                 }
             }
 
