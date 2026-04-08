@@ -28,22 +28,19 @@ jobs:
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
         
-        # Build Spigot 1.8.8
-        java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
+        # We use --rev 1.8.8 to ensure the full Spigot API and Chat components are built
+        java -jar BuildTools.jar --rev 1.8.8
         
-        # BROAD SEARCH: Look for bungeecord-chat anywhere in the buildtools folder
-        echo "Searching for bungeecord-chat..."
-        CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" | grep -v "sources" | head -n 1)
+        # AGGRESSIVE SEARCH: Search every folder for the chat jar
+        echo "Locating bungeecord-chat JAR..."
+        CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" ! -name "*-sources.jar" | head -n 1)
         
         if [ -z "$CHAT_JAR" ]; then
-          echo "Error: bungeecord-chat JAR not found!"
-          echo "Listing directory structure for debugging:"
-          ls -R
+          echo "Error: bungeecord-chat JAR still not found."
           exit 1
         fi
         
-        echo "Found chat jar at: $CHAT_JAR. Installing to local repository..."
-        
+        echo "Found: $CHAT_JAR"
         mvn install:install-file \
           -Dfile="$CHAT_JAR" \
           -DgroupId=net.md-5 \
@@ -51,7 +48,7 @@ jobs:
           -Dversion=1.8-SNAPSHOT \
           -Dpackaging=jar
 
-    - name: Set up JDK 21 (for Maven Build)
+    - name: Set up JDK 21 (for Plugin Compilation)
       uses: actions/setup-java@v4
       with:
         java-version: '21'
@@ -88,3 +85,5 @@ jobs:
         files: fastbuilder-latest.jar
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      
