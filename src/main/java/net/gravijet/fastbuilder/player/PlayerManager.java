@@ -1,171 +1,188 @@
 package net.gravijet.fastbuilder.player;
 
 import net.gravijet.fastbuilder.FastBuilder;
-import org.bukkit.configuration.file.YamlConfiguration;
+import net.gravijet.fastbuilder.storage.MySqlStorageProvider;
+import net.gravijet.fastbuilder.storage.SqliteStorageProvider;
+import net.gravijet.fastbuilder.storage.StorageProvider;
+import net.gravijet.fastbuilder.storage.YamlStorageProvider;
+import org.bukkit.Bukkit;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.logging.Level;
 
 /**
- * Manages player data loading, caching, and persistence.
- * Player data files are stored in plugins/FastBuilder/playerdata/<uuid>.yml
+ * Central player-data layer.
+ *
+ * Manages the in-memory cache and delegates all persistence to the configured
+ * {@link StorageProvider}. The backend is chosen from {@code config.yml}
+ * under {@code storage.type}: {@code yaml} (default), {@code sqlite}, or
+ * {@code mysql}.
+ *
+ * <p>All disk/database I/O is dispatched to async threads; the cache is always
+ * mutated on the calling thread (safe as long as callers use the Bukkit main
+ * thread for mutations).
  */
 public class PlayerManager {
 
     private final FastBuilder plugin;
-    private final File dataDir;
-    private final Map<UUID, PlayerData> cache = new HashMap<>();
+    private final StorageProvider provider;
 
-    // Cache for global best times per map (scanned from all playerdata files)
-    private final Map<String, long[]> globalBestTimesCache = new HashMap<>();
-    private final Map<String, Long> globalBestTimesCacheTimestamp = new HashMap<>();
-    private static final long GLOBAL_CACHE_TTL_MS = 60_000L; // 60 seconds
+    /** Live in-memory cache — main-thread access only for mutations. */
+    private final Map<UUID, PlayerData> cache = Collections.synchronizedMap(new HashMap<>());
 
     public PlayerManager(FastBuilder plugin) {
         this.plugin = plugin;
-        this.dataDir = new File(plugin.getDataFolder(), "playerdata");
-        if (!dataDir.exists()) {
-            dataDir.mkdirs();
-        }
+        this.provider = buildProvider();
     }
 
+    // -------------------------------------------------------------------------
+    // Provider bootstrap
+    // -------------------------------------------------------------------------
+
+    private StorageProvider buildProvider() {
+        String type = plugin.getConfigManager().getStorageType();
+        StorageProvider p;
+
+        switch (type.toLowerCase()) {
+            case "sqlite":
+                p = new SqliteStorageProvider(plugin);
+                break;
+            case "mysql":
+                p = new MySqlStorageProvider(plugin);
+                break;
+            default:
+                p = new YamlStorageProvider(plugin, cache);
+                break;
+        }
+
+        try {
+            p.init();
+            plugin.getLogger().info("[PlayerManager] Storage backend: " + type.toUpperCase());
+        } catch (Exception e) {
+            plugin.getLogger().severe("[PlayerManager] Failed to init '" + type
+                    + "' backend — falling back to YAML. Cause: " + e.getMessage());
+            p = new YamlStorageProvider(plugin, cache);
+            try { p.init(); } catch (Exception ignored) {}
+        }
+
+        return p;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
     /**
-     * Get or load player data. Creates new data if none exists.
+     * Get or load player data. Always returns a non-null object.
+     * If the data is not in cache, loads synchronously (call from main thread or
+     * accept the brief I/O block).
      */
     public PlayerData getPlayerData(UUID uuid, String name) {
         PlayerData data = cache.get(uuid);
         if (data != null) {
-            data.setName(name);
+            data.setName(name); // keep name fresh
             return data;
         }
-
-        data = loadPlayerData(uuid, name);
+        // Load (potentially blocking — call only from async join handler or early startup)
+        data = provider.loadPlayerData(uuid, name);
         cache.put(uuid, data);
         return data;
     }
 
-    /**
-     * Get cached player data (no disk load).
-     */
+    /** Load player data asynchronously, running {@code callback} on the main thread when done. */
+    public void getPlayerDataAsync(UUID uuid, String name, java.util.function.Consumer<PlayerData> callback) {
+        PlayerData cached = cache.get(uuid);
+        if (cached != null) {
+            cached.setName(name);
+            callback.accept(cached);
+            return;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            PlayerData data = provider.loadPlayerData(uuid, name);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                cache.put(uuid, data);
+                callback.accept(data);
+            });
+        });
+    }
+
+    /** Get cached data without loading. Returns null if not in cache. */
     public PlayerData getCachedData(UUID uuid) {
         return cache.get(uuid);
     }
 
-    /**
-     * Load player data from disk, or create new.
-     */
-    private PlayerData loadPlayerData(UUID uuid, String name) {
-        File file = new File(dataDir, uuid.toString() + ".yml");
-        PlayerData data = new PlayerData(uuid, name);
-
-        if (file.exists()) {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            data.loadFrom(config);
-        }
-
-        return data;
-    }
-
-    /**
-     * Save a single player's data to disk.
-     */
+    /** Save a single player's data asynchronously. */
     public void savePlayerData(UUID uuid) {
         PlayerData data = cache.get(uuid);
         if (data == null) return;
-
-        File file = new File(dataDir, uuid.toString() + ".yml");
-        YamlConfiguration config = new YamlConfiguration();
-        data.saveTo(config);
-
-        try {
-            config.save(file);
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to save player data: " + uuid, e);
-        }
+        final PlayerData snapshot = data; // reference is safe — only fields mutated on main thread
+        Bukkit.getScheduler().runTaskAsynchronously(plugin,
+                () -> provider.savePlayerData(snapshot));
     }
 
-    /**
-     * Save all cached player data.
-     */
+    /** Save all cached player data synchronously (called on plugin disable). */
     public void saveAll() {
-        for (UUID uuid : cache.keySet()) {
-            savePlayerData(uuid);
+        for (PlayerData data : cache.values()) {
+            provider.savePlayerData(data);
         }
     }
 
     /**
-     * Unload a player from cache (typically on quit).
+     * Save the player's data and remove from cache (on player quit).
+     * Save is asynchronous.
      */
     public void unload(UUID uuid) {
         savePlayerData(uuid);
         cache.remove(uuid);
     }
 
+    // -------------------------------------------------------------------------
+    // Global best times (delegated to provider)
+    // -------------------------------------------------------------------------
+
     /**
-     * Return all recorded personal best times for a given map, scanned from every
-     * playerdata file on disk. Results are cached for 60 seconds.
-     * Used by HologramManager to compute a true global [Top x%] percentile.
+     * Return all recorded personal-best times for {@code mapName} globally.
+     * Result is cached; see {@link StorageProvider#getGlobalBestTimesForMap}.
      */
     public long[] getGlobalBestTimesForMap(String mapName) {
-        Long cacheTime = globalBestTimesCacheTimestamp.get(mapName);
-        if (cacheTime != null && System.currentTimeMillis() - cacheTime < GLOBAL_CACHE_TTL_MS) {
-            long[] cached = globalBestTimesCache.get(mapName);
-            if (cached != null) return cached;
-        }
-
-        List<Long> times = new ArrayList<>();
-        File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files != null) {
-            // Also include online players from cache (in case they haven't been saved yet)
-            for (PlayerData pd : cache.values()) {
-                PlayerData.MapStats s = pd.getStats(mapName);
-                if (s != null && s.hasBestTime()) times.add(s.bestTime);
-            }
-            for (File file : files) {
-                // Skip files whose UUID is already in cache (already added above)
-                String fileName = file.getName().replace(".yml", "");
-                try {
-                    UUID fileUuid = UUID.fromString(fileName);
-                    if (cache.containsKey(fileUuid)) continue;
-                } catch (IllegalArgumentException ignored) { continue; }
-
-                try {
-                    YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-                    long t = config.getLong("stats." + mapName + ".best-time", -1);
-                    if (t > 0) times.add(t);
-                } catch (Exception ignored) {}
-            }
-        }
-
-        long[] result = new long[times.size()];
-        for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
-        globalBestTimesCache.put(mapName, result);
-        globalBestTimesCacheTimestamp.put(mapName, System.currentTimeMillis());
-        return result;
-    }
-
-    /** Force-expire the global best times cache for a map (call after a new PB is recorded). */
-    public void invalidateGlobalBestTimesCache(String mapName) {
-        globalBestTimesCacheTimestamp.remove(mapName);
+        return provider.getGlobalBestTimesForMap(mapName);
     }
 
     /**
-     * Load player data from disk by UUID only (for offline lookups).
-     * Does not cache the result.
+     * Force-expire the global best-times cache for {@code mapName}.
+     * Call after a new personal best is recorded so percentile updates instantly.
+     */
+    public void invalidateGlobalBestTimesCache(String mapName) {
+        provider.invalidateBestTimesCache(mapName);
+    }
+
+    // -------------------------------------------------------------------------
+    // Offline lookup (no cache)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Load a player's data from the backend by UUID without caching.
+     * Returns null if no record exists (provider will return empty-name data when
+     * the backend has no entry for this UUID — we treat that as "not found").
      */
     public PlayerData loadOfflineData(UUID uuid) {
-        File file = new File(dataDir, uuid.toString() + ".yml");
-        if (!file.exists()) return null;
+        // First check live cache
+        PlayerData cached = cache.get(uuid);
+        if (cached != null) return cached;
 
-        PlayerData data = new PlayerData(uuid, "");
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        data.loadFrom(config);
-        return data;
+        PlayerData data = provider.loadPlayerData(uuid, "");
+        // All providers return a fresh PlayerData with name="" when no record exists
+        return data.getName().isEmpty() ? null : data;
+    }
+
+    // -------------------------------------------------------------------------
+    // Shutdown
+    // -------------------------------------------------------------------------
+
+    public void shutdown() {
+        saveAll();
+        provider.shutdown();
     }
 }

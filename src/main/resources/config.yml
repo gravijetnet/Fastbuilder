@@ -1,5 +1,22 @@
 # FastBuilder Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+# Storage backend
+# ──────────────────────────────────────────────────────────────────────────────
+storage:
+  # Backend: yaml | sqlite | mysql
+  # yaml   → one .yml file per player (default, no extra setup)
+  # sqlite → single fastbuilder.db file (faster reads, concurrent-safe)
+  # mysql  → external database (best for multi-server / high player counts)
+  type: yaml
 
+  mysql:
+    host:     localhost
+    port:     3306
+    database: fastbuilder
+    user:     root
+    password: ""
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Plugin prefix for messages (include trailing space)
 prefix: "&c&lFastbuilder &7» &f"
 
@@ -94,6 +111,35 @@ default-y: 20
 
 # Auto-refill perk cost (coins)
 auto-refill-cost: 1000
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Reset animations
+# ──────────────────────────────────────────────────────────────────────────────
+animation:
+  # Blocks processed per tick in sequential animations (FALL_DOWN, ITEM_DROP, etc.)
+  # Lower = slower/smoother; higher = faster clear. Recommended: 2-5.
+  blocks-per-tick: 3
+  # Ticks between batches (1 = every tick). Increase for slower dramatic effects.
+  tick-interval: 1
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Shop permission overrides
+# Leave a value empty ("") to always show that category.
+# ──────────────────────────────────────────────────────────────────────────────
+shop:
+  permissions:
+    blocks:     ""
+    pickaxes:   ""
+    animations: ""
+    sounds:     ""
+    designs:    ""
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Admin UX
+# ──────────────────────────────────────────────────────────────────────────────
+admin:
+  # Send interactive SUGGEST_COMMAND chat hints after /map setup steps
+  hints: true
 
 # BungeeCord
 bungee:
