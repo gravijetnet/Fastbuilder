@@ -65,3 +65,5 @@ replay_pid*
 
 # Claude
 .claude
+CLAUDE.md
+prompt.md
