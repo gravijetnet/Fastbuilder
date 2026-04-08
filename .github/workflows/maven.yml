@@ -3,7 +3,7 @@ name: Build and Permanent Release Fastbuilder
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,81 +12,81 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout Source
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up JDK 8 (for BuildTools)
-      uses: actions/setup-java@v4
-      with:
-        java-version: '8'
-        distribution: 'temurin'
+      - name: Set up JDK 8 (for BuildTools)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
 
-    - name: Run BuildTools
-      run: |
-        mkdir buildtools && cd buildtools
-        wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-        java -jar BuildTools.jar --rev 1.8.8
-        
-        # BuildTools usually installs everything to the local ~/.m2 repository.
-        # We will find the chat jar there and force-install it under the name your POM expects.
-        echo "Searching local Maven repo for bungeecord-chat..."
-        CHAT_JAR=$(find ~/.m2/repository/net/md-5/bungeecord-chat -name "*.jar" ! -name "*-sources.jar" | head -n 1)
-        
-        if [ -z "$CHAT_JAR" ]; then
-          echo "Not in M2, searching BuildTools folder..."
-          CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" ! -name "*-sources.jar" | head -n 1)
-        fi
+      - name: Run BuildTools
+        run: |
+          mkdir buildtools && cd buildtools
+          wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+          java -jar BuildTools.jar --rev 1.8.8
+          
+          # BuildTools usually installs everything to the local ~/.m2 repository.
+          # We will find the chat jar there and force-install it under the name your POM expects.
+          echo "Searching local Maven repo for bungeecord-chat..."
+          CHAT_JAR=$(find ~/.m2/repository/net/md-5/bungeecord-chat -name "*.jar" ! -name "*-sources.jar" | head -n 1)
+          
+          if [ -z "$CHAT_JAR" ]; then
+            echo "Not in M2, searching BuildTools folder..."
+            CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" ! -name "*-sources.jar" | head -n 1)
+          fi
+          
+          if [ -z "$CHAT_JAR" ]; then
+            echo "Still not found. Listing all JARs found to identify the issue:"
+            find . -name "*.jar"
+            exit 1
+          fi
+          
+          echo "Found: $CHAT_JAR"
+          mvn install:install-file \
+            -Dfile="$CHAT_JAR" \
+            -DgroupId=net.md-5 \
+            -DartifactId=bungeecord-chat \
+            -Dversion=1.8-SNAPSHOT \
+            -Dpackaging=jar
 
-        if [ -z "$CHAT_JAR" ]; then
-          echo "Still not found. Listing all JARs found to identify the issue:"
-          find . -name "*.jar"
-          exit 1
-        fi
-        
-        echo "Found: $CHAT_JAR"
-        mvn install:install-file \
-          -Dfile="$CHAT_JAR" \
-          -DgroupId=net.md-5 \
-          -DartifactId=bungeecord-chat \
-          -Dversion=1.8-SNAPSHOT \
-          -Dpackaging=jar
+      - name: Set up JDK 21 (for Plugin Compilation)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
 
-    - name: Set up JDK 21 (for Plugin Compilation)
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: maven
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml
 
-    - name: Build with Maven
-      run: mvn -B package --file pom.xml
+      - name: Prepare Artifacts
+        run: |
+          JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+          if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
+          cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
+          cp "$JAR_PATH" ./fastbuilder-latest.jar
 
-    - name: Prepare Artifacts
-      run: |
-        JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
-        if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
-        cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
-        cp "$JAR_PATH" ./fastbuilder-latest.jar
+      - name: Create Archive Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Fastbuilder Build #${{ github.run_number }}"
+          body: "Archive of Build #${{ github.run_number }}."
+          files: fastbuilder-build-${{ github.run_number }}.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Create Archive Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: build-${{ github.run_number }}
-        name: "Fastbuilder Build #${{ github.run_number }}"
-        body: "Archive of Build #${{ github.run_number }}."
-        files: fastbuilder-build-${{ github.run_number }}.jar
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Update Latest Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: latest
-        name: "Fastbuilder Latest Build"
-        body: "This release always contains the newest version of the plugin."
-        make_latest: true
-        files: fastbuilder-latest.jar
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update Latest Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Fastbuilder Latest Build"
+          body: "This release always contains the newest version of the plugin."
+          make_latest: true
+          files: fastbuilder-latest.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
