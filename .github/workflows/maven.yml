@@ -1,4 +1,5 @@
 name: Build and Permanent Release Fastbuilder
+
 on:
   push:
     branches: [ "main" ]
@@ -9,13 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
     - name: Checkout Source
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Set up JDK 8 (Required for BuildTools)
+    - name: Set up JDK 8 (for BuildTools)
       uses: actions/setup-java@v4
       with:
         java-version: '8'
@@ -25,10 +27,25 @@ jobs:
       run: |
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-        # This installs spigot-api and craftbukkit into your local ~/.m2 repository automatically
+        # Build Spigot 1.8.8
         java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
+        
+        # Manually install bungeecord-chat to local .m2 to avoid remote download errors
+        CHAT_JAR=$(find Spigot/Spigot-API/target/ -name "bungeecord-chat-*.jar" | head -n 1)
+        if [ -z "$CHAT_JAR" ]; then
+          echo "Error: bungeecord-chat JAR not found in BuildTools!"
+          exit 1
+        fi
+        
+        echo "Installing $CHAT_JAR to local repository..."
+        mvn install:install-file \
+          -Dfile="$CHAT_JAR" \
+          -DgroupId=net.md-5 \
+          -DartifactId=bungeecord-chat \
+          -Dversion=1.8-SNAPSHOT \
+          -Dpackaging=jar
 
-    - name: Set up JDK 21 (For Plugin Compilation)
+    - name: Set up JDK 21 (for Maven Build)
       uses: actions/setup-java@v4
       with:
         java-version: '21'
@@ -38,9 +55,9 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
-    - name: Prepare JAR
+    - name: Prepare Artifacts
       run: |
-        # Search for the shaded or main JAR in target/
+        # Locate the final shaded JAR
         JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
         cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
@@ -61,7 +78,7 @@ jobs:
       with:
         tag_name: latest
         name: "Fastbuilder Latest Build"
-        body: "This release always contains the NEWEST JAR and NEWEST Source Code."
+        body: "This release always contains the newest version of the plugin."
         make_latest: true
         files: fastbuilder-latest.jar
       env:
