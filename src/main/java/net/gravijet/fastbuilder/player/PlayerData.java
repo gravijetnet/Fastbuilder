@@ -54,6 +54,9 @@ public class PlayerData {
     // Per-map custom run length preference (blocks from spawn to finish)
     private final Map<String, Integer> customLengths = new HashMap<>();
 
+    // Per-map custom length toggle (true = player has enabled custom length on this map)
+    private final Map<String, Boolean> customLengthToggles = new HashMap<>();
+
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
         this.name = name;
@@ -96,6 +99,9 @@ public class PlayerData {
         }
         for (Map.Entry<String, Integer> e : customLengths.entrySet()) {
             config.set("custom-lengths." + e.getKey(), e.getValue());
+        }
+        for (Map.Entry<String, Boolean> e : customLengthToggles.entrySet()) {
+            config.set("custom-length-toggles." + e.getKey(), e.getValue());
         }
     }
 
@@ -153,6 +159,12 @@ public class PlayerData {
         if (config.isConfigurationSection("custom-lengths")) {
             for (String mapKey : config.getConfigurationSection("custom-lengths").getKeys(false)) {
                 customLengths.put(mapKey, config.getInt("custom-lengths." + mapKey));
+            }
+        }
+        customLengthToggles.clear();
+        if (config.isConfigurationSection("custom-length-toggles")) {
+            for (String mapKey : config.getConfigurationSection("custom-length-toggles").getKeys(false)) {
+                customLengthToggles.put(mapKey, config.getBoolean("custom-length-toggles." + mapKey));
             }
         }
     }
@@ -291,6 +303,29 @@ public class PlayerData {
         } else {
             customLengths.put(mapName.toLowerCase(), length);
         }
+    }
+
+    /**
+     * Returns whether the player has custom length enabled on the given map.
+     */
+    public boolean isCustomLengthEnabled(String mapName) {
+        Boolean val = customLengthToggles.get(mapName.toLowerCase());
+        return val != null && val;
+    }
+
+    /**
+     * Toggle custom length on/off for the given map. Returns the new state.
+     */
+    public boolean toggleCustomLength(String mapName) {
+        String key = mapName.toLowerCase();
+        boolean current = customLengthToggles.getOrDefault(key, false);
+        boolean newValue = !current;
+        if (newValue) {
+            customLengthToggles.put(key, true);
+        } else {
+            customLengthToggles.remove(key); // false is default, don't store it
+        }
+        return newValue;
     }
 
     public static class MapStats {

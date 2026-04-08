@@ -43,11 +43,11 @@ block-status:
   purchased: "&aYou already own this block!"
   not-purchased: "&cYou don't own this block yet!"
 
-# Settings GUI slot layout
-# Available GUIs: infinite_blocks, mode_changer, island_selector, reset_stats, practice_mode
-# Placeholders: %practice_mode_enabled%, %infinite_blocks_status%, %infinite_blocks_unlocked%, %price%
+# Settings GUI slot layout (3×9 = 27 slots, items centered in second row)
+# Available GUIs: infinite_blocks, reset_stats, practice_mode, custom_length
+# Placeholders: %practice_mode_enabled%, %infinite_blocks_status%, %infinite_blocks_unlocked%, %price%, %custom_length%
 settings-gui-slots:
-  11:
+  10:
     name: "&bInfinite Blocks"
     material: STAINED_GLASS_PANE:11
     gui: "infinite_blocks"
@@ -57,14 +57,14 @@ settings-gui-slots:
       - ""
       - "&7Blocks never run out"
       - "&eUnlock cost: &c1000 coins"
-  13:
+  12:
     name: "&cReset Stats"
     material: DIAMOND_PICKAXE:0
     gui: "reset_stats"
     lore:
       - "&7Reset stats on all modes!"
       - "&ePrice: &c%price% coins"
-  15:
+  14:
     name: "&aPractice Mode"
     material: STAINED_CLAY:0
     gui: "practice_mode"
@@ -73,15 +73,15 @@ settings-gui-slots:
       - ""
       - "&7Blocks stay on fall"
       - "&7Time is not recorded"
-  17:
+  16:
     name: "&6Custom Length"
     material: STICK:0
     gui: "custom_length"
     lore:
-      - "&7Current: %custom_length%"
+      - "&7Status: %custom_length%"
       - ""
-      - "&7Set a custom run distance"
-      - "&7Click to configure"
+      - "&7Toggle infinite distance mode"
+      - "&7Click to enable/disable"
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
@@ -859,13 +859,14 @@ block-selector-slots:
 # Shop GUI
 shop:
   name: "Shop"
-  max-slots: 54
+  # Strictly 3×9 (27 slots) as per spec
+  max-slots: 27
   blocks-slot: 10
   pickaxes-slot: 12
   animations-slot: 14
   death-sounds-slot: 16
-  one-click-pick-slot: 21
-  designs-slot: 23
+  # one-click-pick has moved to the Pickaxe Shop
+  designs-slot: 13
 
 # Death Sound Selector GUI
 death-sound-selector:

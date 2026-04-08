@@ -305,14 +305,14 @@ public class GuiManager implements Listener {
                                 (data != null && data.hasInfiniteBlocks()) ? "&aEnabled" : "&cDisabled");
                         line = line.replace("%infinite_blocks_unlocked%",
                                 (data != null && data.hasInfiniteBlocksUnlocked()) ? "&aUnlocked" : "&cLocked");
-                        // Custom length placeholder
+                        // Custom length placeholder — shows toggle status
                         String customLengthStr = "&cNot available";
                         if (run != null) {
                             net.gravijet.fastbuilder.map.MapData clMap =
                                     plugin.getMapManager().getMap(run.getMapName());
                             if (clMap != null && clMap.hasCustomLength()) {
-                                int cl = data != null ? data.getCustomLength(run.getMapName()) : 0;
-                                customLengthStr = cl > 0 ? "&f" + cl + " blocks" : "&7Default";
+                                boolean clEnabled = data != null && data.isCustomLengthEnabled(run.getMapName());
+                                customLengthStr = clEnabled ? "&aEnabled" : "&cDisabled";
                             }
                         }
                         line = line.replace("%custom_length%", customLengthStr);
@@ -512,8 +512,10 @@ public class GuiManager implements Listener {
     public void openShop(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         String title = ColorUtil.translate(guis.getString("shop.name", "Shop"));
-        int size = guis.getInt("shop.max-slots", 54);
+        // Shop is strictly 3×9 (27 slots)
+        int size = guis.getInt("shop.max-slots", 27);
         if (size < 27) size = 27;
+        if (size > 27) size = 27; // enforce 3×9
         Inventory inv = Bukkit.createInventory(null, size, title);
 
         // Category: Blocks (permission-gated)
@@ -548,25 +550,16 @@ public class GuiManager implements Listener {
         int designsSlot = guis.getInt("shop.designs-slot", 13);
         if (plugin.getConfigManager().isShopCategoryVisible(player, "designs")) {
             if (hasDesigns) {
-                inv.setItem(designsSlot, new ItemBuilder(Material.PAINTING)
+                // Use an appealing block (not a glass pane) for the designs icon
+                inv.setItem(designsSlot, new ItemBuilder(Material.EMERALD_BLOCK)
                         .name("&aIsland Designs").lore("&7Choose a design for your island", "", "&aClick to browse").build());
             } else {
-                inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7)
+                inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 8)
                         .name("&7Island Designs").lore("&cNo designs available for this map").build());
             }
         }
 
-        // One-Click Pick (toggle purchase)
-        boolean hasOcp = shopData != null && shopData.hasOneClickPick();
-        boolean ocpPurchased = shopData != null && shopData.hasPurchasedBlock("cosmetic:one_click_pick");
-        int ocpPrice = guis.getInt("one-click-pick.price", 5000);
-        String ocpStatus = ocpPurchased ? (hasOcp ? "&a&lACTIVE" : "&7Owned - Click to enable") : "&cNot owned - Click to buy";
-        inv.setItem(guis.getInt("shop.one-click-pick-slot", 11), new ItemBuilder(Material.DIAMOND_AXE)
-                .name("&bOne-Click Pick")
-                .lore("&7Breaks placed blocks instantly on left-click",
-                        "&7Uses a &cDiamond Axe &7as the tool",
-                        "",
-                        ocpStatus, "", "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins")).build());
+        // One-Click Pick has been moved to the Pickaxe Shop — not shown here.
 
         player.openInventory(inv);
     }
@@ -654,6 +647,21 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
+        // One-Click Pick (moved here from main shop)
+        PlayerData ocpData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        boolean hasOcp = ocpData != null && ocpData.hasOneClickPick();
+        boolean ocpPurchased = ocpData != null && ocpData.hasPurchasedBlock("cosmetic:one_click_pick");
+        if (!player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick.hide")) {
+            int ocpPrice = guis.getInt("one-click-pick.price", 5000);
+            String ocpStatus = ocpPurchased ? (hasOcp ? "&a&lACTIVE" : "&7Owned - Click to enable") : "&cNot owned - Click to buy";
+            inv.setItem(maxSlots - 9, new ItemBuilder(Material.DIAMOND_AXE)
+                    .name("&bOne-Click Pick")
+                    .lore("&7Breaks placed blocks instantly on left-click",
+                            "&7Uses a &cDiamond Axe &7as the tool",
+                            "",
+                            ocpStatus, "", "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins")).build());
+        }
+
         // Back button
         inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
 
@@ -692,7 +700,9 @@ public class GuiManager implements Listener {
                 }
                 if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
-                if (selected) {
+                // Do not add enchant glow to CHEST (Item Drop) — it renders as a broken texture in 1.8.8
+                boolean canGlow = !mat.toUpperCase().startsWith("CHEST");
+                if (selected && canGlow) {
                     org.bukkit.inventory.meta.ItemMeta im = item.getItemMeta();
                     if (im != null) {
                         im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true);
@@ -747,7 +757,9 @@ public class GuiManager implements Listener {
                 if (!owned) lore.add(ColorUtil.translate("&cNot purchased"));
                 if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 ItemStack it = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
-                if (selected) {
+                // Do not add enchant glow to FIREWORK (Firework Rocket) — unsupported in 1.8.8
+                boolean canGlow = !mat.toUpperCase().startsWith("FIREWORK");
+                if (selected && canGlow) {
                     org.bukkit.inventory.meta.ItemMeta im = it.getItemMeta();
                     if (im != null) { im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true); it.setItemMeta(im); }
                 }
@@ -1140,7 +1152,7 @@ public class GuiManager implements Listener {
                 PlayerData iData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (iData == null) break;
                 if (!iData.hasInfiniteBlocksUnlocked()) {
-                    int unlockCost = 1000;
+                    int unlockCost = plugin.getConfigManager().getInfiniteBlocksUnlockCost();
                     if (iData.removeCoins(unlockCost)) {
                         iData.setInfiniteBlocksUnlocked(true);
                         iData.setInfiniteBlocks(true);
@@ -1149,7 +1161,7 @@ public class GuiManager implements Listener {
                         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                     } else {
                         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                                + "&cNot enough coins! Infinite Blocks costs &f1000 &ccoins."));
+                                + "&cNot enough coins! Infinite Blocks costs &f" + unlockCost + " &ccoins."));
                     }
                 } else {
                     boolean newState = !iData.hasInfiniteBlocks();
@@ -1166,28 +1178,30 @@ public class GuiManager implements Listener {
                 openConfirmStatsReset(player);
                 break;
             case "custom_length": {
-                player.closeInventory();
                 net.gravijet.fastbuilder.gameplay.RunSession clRun = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
                 if (clRun == null) {
                     player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&cYou must be on an island to configure custom length."));
+                            + "&cYou must be on an island to use custom length."));
                     break;
                 }
                 net.gravijet.fastbuilder.map.MapData clMap = plugin.getMapManager().getMap(clRun.getMapName());
                 if (clMap == null || !clMap.hasCustomLength()) {
                     player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&cCustom length is not enabled on your current map."));
+                            + "&cCustom length is not available on your current map."));
                     break;
                 }
+                // Toggle custom length on/off for this player
                 PlayerData clData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-                int currentCl = clData != null ? clData.getCustomLength(clRun.getMapName()) : 0;
-                String currentClStr = currentCl > 0 ? currentCl + " blocks" : "default";
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&fCurrent length: &c" + currentClStr
-                        + "  &7(allowed: &f" + clMap.getMinCustomLength()
-                        + " &7- &f" + clMap.getMaxCustomLength() + " blocks&7)"));
-                player.sendMessage(ColorUtil.translate("&7Use &f/length <blocks> &7to set, or &f/length reset &7to restore default."));
+                if (clData != null) {
+                    boolean nowEnabled = clData.toggleCustomLength(clRun.getMapName());
+                    String stateStr = nowEnabled ? "&aEnabled" : "&cDisabled";
+                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                            + "&fCustom length " + stateStr + "&f."
+                            + (nowEnabled ? " &7(min " + clMap.getMinCustomLength() + " blocks)" : "")));
+                    // Refresh settings to show updated status
+                    openSettings(player);
+                }
                 break;
             }
             case "practice_mode":
@@ -1243,6 +1257,16 @@ public class GuiManager implements Listener {
                         + "&fYour stats have been reset."));
                 // Update scoreboard
                 plugin.getScoreboardManager().updateScoreboard(player);
+                // Instant hologram sync — update immediately without requiring island switch
+                if (plugin.getHologramManager() != null) {
+                    net.gravijet.fastbuilder.player.PlayerData pData =
+                            plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                    if (pData != null && pData.getLastMap() != null) {
+                        plugin.getHologramManager().updateHologram(
+                                pData.getLastMap(), pData.getLastIsland(), player);
+                    }
+                }
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                         + "&cNot enough coins! You need &f" + cost + " &ccoins."));
@@ -1435,13 +1459,13 @@ public class GuiManager implements Listener {
             openAnimationSelector(player);
         } else if (name.equals("Death Sounds")) {
             openDeathSoundSelector(player);
-        } else if (name.equals("One-Click Pick")) {
-            handleOneClickPickShopClick(player);
         } else if (name.equals("Island Designs")) {
             openDesignSelector(player);
         }
+        // One-Click Pick is now in the Pickaxe Shop
     }
 
+    /** Handles One-Click Pick purchase/toggle from within the Pickaxe Shop. */
     private void handleOneClickPickShopClick(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         int price = guis.getInt("one-click-pick.price", 5000);
@@ -1449,12 +1473,19 @@ public class GuiManager implements Listener {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        boolean purchased = data.hasPurchasedBlock("cosmetic:one_click_pick");
+        boolean purchased = data.hasPurchasedBlock("cosmetic:one_click_pick")
+                || player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick");
         if (!purchased) {
+            // Cannot re-purchase — this is a strict permission gate
+            if (player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick")) {
+                player.sendMessage(ColorUtil.translate(prefix + "&cYou already have One-Click Pick via permission."));
+                return;
+            }
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock("cosmetic:one_click_pick");
                 data.setOneClickPick(true);
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick &apurchased and enabled! &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
@@ -1462,10 +1493,11 @@ public class GuiManager implements Listener {
         } else {
             // Toggle on/off if already owned
             data.setOneClickPick(!data.hasOneClickPick());
+            plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick "
                     + (data.hasOneClickPick() ? "&aenabled" : "&cdisabled") + "&f."));
         }
-        openShop(player);
+        openPickaxeSelector(player);
     }
 
     private void handlePickaxeSelectorClick(InventoryClickEvent event) {
@@ -1480,6 +1512,13 @@ public class GuiManager implements Listener {
         }
 
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 27);
+        int ocpSlot = maxSlots - 9;
+        if (event.getSlot() == ocpSlot) {
+            handleOneClickPickShopClick(player);
+            return;
+        }
+
         org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("pickaxe-selector-slots");
         if (slotsSection == null) return;
 

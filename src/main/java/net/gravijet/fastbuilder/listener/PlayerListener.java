@@ -82,6 +82,14 @@ public class PlayerListener implements Listener {
         }
 
         setupPlayerOnIsland(player, map, island);
+
+        // Force Creative for admin/setup users (spec requirement)
+        if (player.hasPermission("fastbuilder.admin") || player.hasPermission("fastbuilder.setup")) {
+            player.setGameMode(GameMode.CREATIVE);
+            player.setAllowFlight(true);
+            player.setFlying(true);
+        }
+
         mm.checkAutoscale(map);
     }
 

@@ -274,6 +274,27 @@ public class ConfigManager {
         return mainConfig.getBoolean("admin.hints", true);
     }
 
+    /** Maximum replays stored per player per map. -1 = unlimited (permission overrides this). */
+    public int getMaxReplaysPerMap() {
+        int v = mainConfig.getInt("replay.max-replays", 20);
+        return v < 0 ? Integer.MAX_VALUE : v;
+    }
+
+    /** Coins required to unlock the Infinite Blocks perk. */
+    public int getInfiniteBlocksUnlockCost() {
+        return mainConfig.getInt("infinite-blocks-unlock-cost", 1000);
+    }
+
+    /** X-axis offset applied to infinite-map island origins to isolate them from normal maps. */
+    public int getInfiniteMapOffsetX() {
+        return mainConfig.getInt("infinite-map-offset.x", 2000);
+    }
+
+    /** Z-axis offset applied to infinite-map island origins to isolate them from normal maps. */
+    public int getInfiniteMapOffsetZ() {
+        return mainConfig.getInt("infinite-map-offset.z", -10000);
+    }
+
     // -------------------------------------------------------------------------
     // GUI Config Accessors
     // -------------------------------------------------------------------------

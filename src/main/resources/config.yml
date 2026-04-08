@@ -10,10 +10,10 @@ storage:
   type: yaml
 
   mysql:
-    host:     localhost
-    port:     3306
-    database: fastbuilder
-    user:     root
+    host: "localhost"
+    port: "3306"
+    database: "fastbuilder"
+    user: "root"
     password: ""
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -64,16 +64,16 @@ scoreboard:
   update-interval: 1
   lines:
     - "&7&m-------------------"
-    - "&7Personal Best:"
-    - "&8» &c%pb%"
+    - "&cPersonal Best:"
+    - "&8» &f%pb%"
     - ""
-    - "&7Session-Top-3:"
-    - "%phoenix_player_rank_color%%top_name_1%&7: &c%top_time_1%"
-    - "%phoenix_player_rank_color%%top_name_2%&7: &c%top_time_2%"
-    - "%phoenix_player_rank_color%%top_name_3%&7: &c%top_time_3%"
+    - "&cSession-Top:"
+    - "%phoenix_player_rank_color%%top_name_1%&7: &f%top_time_1%"
+    - "%phoenix_player_rank_color%%top_name_2%&7: &f%top_time_2%"
+    - "%phoenix_player_rank_color%%top_name_3%&7: &f%top_time_3%"
     - ""
-    - "&7Blocks:"
-    - "&8» &c%blocks%"
+    - "&cBlocks:"
+    - "&8» &f%blocks%"
     - ""
     - "&7&ogravijet.net"
     - "&7&m-------------------"
@@ -92,6 +92,9 @@ replay:
   # "recorded" = use the name as it was at the time of the run.
   # "current"  = update to the player's current username (if resolvable).
   player-name-mode: "recorded"
+  # Maximum replays stored per player per map. -1 = unlimited.
+  # Permission nodes fastbuilder.replays.N override this per-player.
+  max-replays: 20
 
 # Finish trigger mode:
 #   "zone"  - enter the finish zone bounding box (default, works with any blocks)
@@ -111,6 +114,18 @@ default-y: 20
 
 # Auto-refill perk cost (coins)
 auto-refill-cost: 1000
+
+# Infinite Blocks perk unlock cost (coins)
+infinite-blocks-unlock-cost: 1000
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Infinite map isolation offset
+# Infinite maps are placed at an isolated coordinate block to prevent players
+# from building into normal maps. Configure X and Z offsets here.
+# ──────────────────────────────────────────────────────────────────────────────
+infinite-map-offset:
+  x: 2000
+  z: -10000
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Reset animations
@@ -134,12 +149,6 @@ shop:
     sounds:     ""
     designs:    ""
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Admin UX
-# ──────────────────────────────────────────────────────────────────────────────
-admin:
-  # Send interactive SUGGEST_COMMAND chat hints after /map setup steps
-  hints: true
 
 # BungeeCord
 bungee:

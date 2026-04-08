@@ -154,7 +154,7 @@ public class MapManager {
      */
     public MapData createMap(SetupSession session, String name) {
         MapData data = new MapData(name);
-        Location gridOrigin = getNextMapOrigin();
+        Location gridOrigin = getNextMapOrigin(session.isInfinite());
         data.setWorldName(gridOrigin.getWorld().getName());
         data.setOriginX(gridOrigin.getBlockX());
         data.setOriginY(gridOrigin.getBlockY());
@@ -475,10 +475,21 @@ public class MapManager {
     // --- Utility ---
 
     public Location getNextMapOrigin() {
+        return getNextMapOrigin(false);
+    }
+
+    public Location getNextMapOrigin(boolean infinite) {
         World world = Bukkit.getWorlds().get(0);
         int spacing = plugin.getConfigManager().getMapSpacing();
         int y = plugin.getConfigManager().getDefaultY();
         int x = GridCalculator.getNextMapX(maps.size(), spacing);
+        if (infinite) {
+            // Infinite maps get a completely isolated coordinate block to prevent
+            // building into normal maps (spec §4: Infinite Map Collision).
+            x += plugin.getConfigManager().getInfiniteMapOffsetX();
+            int z = plugin.getConfigManager().getInfiniteMapOffsetZ();
+            return new Location(world, x, y, z);
+        }
         return new Location(world, x, y, 0);
     }
 }
