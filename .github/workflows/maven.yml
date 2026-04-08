@@ -27,17 +27,23 @@ jobs:
       run: |
         mkdir buildtools && cd buildtools
         wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
+        
         # Build Spigot 1.8.8
         java -jar BuildTools.jar --rev 1.8.8 --compile craftbukkit
         
-        # Manually install bungeecord-chat to local .m2 to avoid remote download errors
-        CHAT_JAR=$(find Spigot/Spigot-API/target/ -name "bungeecord-chat-*.jar" | head -n 1)
+        # BROAD SEARCH: Look for bungeecord-chat anywhere in the buildtools folder
+        echo "Searching for bungeecord-chat..."
+        CHAT_JAR=$(find . -name "bungeecord-chat-*.jar" | grep -v "sources" | head -n 1)
+        
         if [ -z "$CHAT_JAR" ]; then
-          echo "Error: bungeecord-chat JAR not found in BuildTools!"
+          echo "Error: bungeecord-chat JAR not found!"
+          echo "Listing directory structure for debugging:"
+          ls -R
           exit 1
         fi
         
-        echo "Installing $CHAT_JAR to local repository..."
+        echo "Found chat jar at: $CHAT_JAR. Installing to local repository..."
+        
         mvn install:install-file \
           -Dfile="$CHAT_JAR" \
           -DgroupId=net.md-5 \
@@ -57,7 +63,6 @@ jobs:
 
     - name: Prepare Artifacts
       run: |
-        # Locate the final shaded JAR
         JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
         if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
         cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
