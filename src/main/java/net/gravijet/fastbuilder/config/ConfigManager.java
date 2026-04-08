@@ -219,13 +219,72 @@ public class ConfigManager {
         return mainConfig.getString("replay.player-name-mode", "recorded");
     }
 
-    // --- GUI Config Accessors ---
+    // -------------------------------------------------------------------------
+    // Storage backend
+    // -------------------------------------------------------------------------
+
+    /** Storage backend type: "yaml", "sqlite", or "mysql". */
+    public String getStorageType() {
+        return mainConfig.getString("storage.type", "yaml");
+    }
+
+    /** Generic MySQL config value accessor. */
+    public String getStorageMySQL(String key, String def) {
+        return mainConfig.getString("storage.mysql." + key, def);
+    }
+
+    public int getStorageMySQLPort() {
+        return mainConfig.getInt("storage.mysql.port", 3306);
+    }
+
+    // -------------------------------------------------------------------------
+    // Animation / reset speeds
+    // -------------------------------------------------------------------------
+
+    /** Blocks processed per tick in sequential block-clear animations. */
+    public int getAnimationBlocksPerTick() {
+        return mainConfig.getInt("animation.blocks-per-tick", 3);
+    }
+
+    /** Ticks between batches in sequential block-clear animations. */
+    public int getAnimationTickInterval() {
+        return mainConfig.getInt("animation.tick-interval", 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Shop visibility permissions
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns true if the shop category identified by {@code key} (e.g.
+     * "blocks", "pickaxes", "animations", "sounds") is visible for {@code player}.
+     * If no permission is configured, the category is always visible.
+     */
+    public boolean isShopCategoryVisible(org.bukkit.entity.Player player, String key) {
+        String perm = mainConfig.getString("shop.permissions." + key, "");
+        return perm.isEmpty() || player.hasPermission(perm);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin workflow
+    // -------------------------------------------------------------------------
+
+    /** Whether interactive SUGGEST_COMMAND hints should be sent after admin actions. */
+    public boolean isAdminHintsEnabled() {
+        return mainConfig.getBoolean("admin.hints", true);
+    }
+
+    // -------------------------------------------------------------------------
+    // GUI Config Accessors
+    // -------------------------------------------------------------------------
 
     public FileConfiguration getGuisConfig() {
         return guisConfig;
     }
 
-    // --- Items Config Accessors ---
+    // -------------------------------------------------------------------------
+    // Items Config Accessors
+    // -------------------------------------------------------------------------
 
     public FileConfiguration getItemsConfig() {
         return itemsConfig;

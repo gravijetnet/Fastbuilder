@@ -467,6 +467,10 @@ public class GameplayManager {
                                            List<Location> practiceBlocks,
                                            Map<String, int[]> origStates,
                                            boolean isPracticeMode, String animation) {
+        // Read animation speed from config (default: 3 blocks/tick, every 1 tick)
+        final int batchSize  = plugin.getConfigManager().getAnimationBlocksPerTick();
+        final long tickDelay = plugin.getConfigManager().getAnimationTickInterval();
+
         if ("FALL_DOWN".equalsIgnoreCase(animation) || "SLIDE_DOWN".equalsIgnoreCase(animation)) {
             // Sequential top-to-bottom falling blocks
             List<Location> toClear = new ArrayList<>();
@@ -479,8 +483,7 @@ public class GameplayManager {
             new org.bukkit.scheduler.BukkitRunnable() {
                 @Override
                 public void run() {
-                    int batch = 3;
-                    for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                    for (int i = 0; i < batchSize && idx[0] < toClear.size(); i++, idx[0]++) {
                         Location loc = toClear.get(idx[0]);
                         Block block = loc.getBlock();
                         if (block != null && block.getType() != Material.AIR) {
@@ -499,7 +502,7 @@ public class GameplayManager {
                     }
                     if (idx[0] >= toClear.size()) this.cancel();
                 }
-            }.runTaskTimer(plugin, 0L, 1L);
+            }.runTaskTimer(plugin, 0L, tickDelay);
         } else if ("EXPLODE".equalsIgnoreCase(animation)) {
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
@@ -525,7 +528,8 @@ public class GameplayManager {
         } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
             clearBlocksCreativeNpc(blocks, practiceBlocks, origStates, isPracticeMode);
         } else {
-            // NONE: fast sequential clear (one-by-one, 5 blocks per tick)
+            // NONE: fast sequential clear — uses config batch size × 2 for instant feel
+            final int noneBatch = Math.max(1, batchSize * 2);
             List<Location> toClear = new ArrayList<>();
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
@@ -535,8 +539,7 @@ public class GameplayManager {
             new org.bukkit.scheduler.BukkitRunnable() {
                 @Override
                 public void run() {
-                    int batch = 5;
-                    for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                    for (int i = 0; i < noneBatch && idx[0] < toClear.size(); i++, idx[0]++) {
                         Location loc = toClear.get(idx[0]);
                         Block block = loc.getBlock();
                         if (block != null) {
@@ -566,13 +569,14 @@ public class GameplayManager {
             toClear.add(loc);
         }
 
+        final int dropBatch = plugin.getConfigManager().getAnimationBlocksPerTick();
+        final long dropInterval = plugin.getConfigManager().getAnimationTickInterval();
         final int[] idx = {0};
         new BukkitRunnable() {
             @Override
             @SuppressWarnings("deprecation")
             public void run() {
-                int batch = 3;
-                for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
+                for (int i = 0; i < dropBatch && idx[0] < toClear.size(); i++, idx[0]++) {
                     Location loc = toClear.get(idx[0]);
                     Block block = loc.getBlock();
                     if (block == null || block.getType() == Material.AIR) continue;
@@ -581,10 +585,10 @@ public class GameplayManager {
                     short durability = block.getData();
                     Location center = loc.clone().add(0.5, 0.5, 0.5);
                     try {
-                        // Create a plain item stack with NO enchantments
+                        // Create a plain item stack with NO enchantments (no Unbreaking glow)
                         org.bukkit.inventory.ItemStack stack = new org.bukkit.inventory.ItemStack(mat, 1, durability);
                         org.bukkit.entity.Item item = loc.getWorld().dropItem(center, stack);
-                        item.setPickupDelay(32767);
+                        item.setPickupDelay(32767); // prevent pickup
                         item.setVelocity(new org.bukkit.util.Vector(
                                 (Math.random() - 0.5) * 0.25,
                                 0.15 + Math.random() * 0.25,
@@ -593,7 +597,7 @@ public class GameplayManager {
                         Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!ref.isDead()) ref.remove(); }, 40L);
                     } catch (Exception ignored) {}
 
-                    // Clear block
+                    // Restore underlying block
                     String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
                     int[] orig = origStates.get(key);
                     if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
@@ -601,7 +605,7 @@ public class GameplayManager {
                 }
                 if (idx[0] >= toClear.size()) this.cancel();
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        }.runTaskTimer(plugin, 0L, dropInterval);
     }
 
     /**

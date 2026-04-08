@@ -405,6 +405,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                  .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
 
+        // Post-creation interactive hints
+        sendPostCreationHints(player, name);
+
         // Return player to their island
         player.setGameMode(GameMode.SURVIVAL);
         player.setAllowFlight(false);
@@ -939,24 +942,63 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     // --- Clickable Setup Prompts ---
 
     private void sendClickableContinue(Player player) {
+        if (!plugin.getConfigManager().isAdminHintsEnabled()) return;
         String prefix = plugin.getConfigManager().getPrefix();
         net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
-                ColorUtil.translate(prefix + "&e&nClick here&r&7 or type &f/map setup continue"));
+                ColorUtil.translate(prefix + "&e[Click] &r&f/map setup continue"));
+        // SUGGEST_COMMAND: fills the chat bar so admin can review/modify before sending
         msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
-                net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND,
                 "/map setup continue"));
         msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
                 new net.md_5.bungee.api.chat.ComponentBuilder(
-                        ColorUtil.translate("&aClick to advance to the next step")).create()));
+                        ColorUtil.translate("&7Click to fill the command in your chat bar")).create()));
         player.spigot().sendMessage(msg);
     }
 
     private void sendClickableFinish(Player player) {
+        if (!plugin.getConfigManager().isAdminHintsEnabled()) return;
         String prefix = plugin.getConfigManager().getPrefix();
         net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
-                ColorUtil.translate(prefix + "&7Type &f/map setup finish <name> &7to finalize with a name."));
+                ColorUtil.translate(prefix + "&e[Click] &r&f/map setup finish <name>"));
+        msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND,
+                "/map setup finish "));
+        msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                new net.md_5.bungee.api.chat.ComponentBuilder(
+                        ColorUtil.translate("&7Click to fill — then type the map name and press Enter")).create()));
         player.spigot().sendMessage(msg);
+    }
+
+    /**
+     * Send interactive post-creation hints after a map is successfully saved.
+     * Each hint uses SUGGEST_COMMAND so the admin can review/edit before executing.
+     */
+    private void sendPostCreationHints(Player player, String mapName) {
+        if (!plugin.getConfigManager().isAdminHintsEnabled()) return;
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&aMap &c" + mapName + " &acreated! Next steps:"));
+        sendSuggestHint(player, "&7Enable the map: ", "/map enable " + mapName);
+        sendSuggestHint(player, "&7Set island count: ", "/map scale " + mapName + " 15");
+        sendSuggestHint(player, "&7Set island spacing: ", "/map distance " + mapName + " 50");
+        sendSuggestHint(player, "&7Test it: ", "/fb join " + mapName);
+    }
+
+    private void sendSuggestHint(Player player, String label, String command) {
+        net.md_5.bungee.api.chat.TextComponent line =
+                new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("  &8» " + label));
+        net.md_5.bungee.api.chat.TextComponent cmd =
+                new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&e&n" + command));
+        cmd.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, command));
+        cmd.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                new net.md_5.bungee.api.chat.ComponentBuilder(
+                        ColorUtil.translate("&7Click to fill this command in your chat bar")).create()));
+        line.addExtra(cmd);
+        player.spigot().sendMessage(line);
     }
 
     // --- Paginated Help (/map help [page]) ---

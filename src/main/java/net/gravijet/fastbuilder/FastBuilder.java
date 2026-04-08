@@ -137,9 +137,9 @@ public class FastBuilder extends JavaPlugin {
         if (coinManager != null) coinManager.shutdown();
         if (scoreboardManager != null) scoreboardManager.shutdown();
 
-        // Save all data
+        // Save all data and shut down storage provider
         if (mapManager != null) mapManager.saveAll();
-        if (playerManager != null) playerManager.saveAll();
+        if (playerManager != null) playerManager.shutdown();
 
         // Cleanup integrations
         if (cpsListener != null) cpsListener.cleanup();

@@ -6,119 +6,268 @@ import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import net.gravijet.fastbuilder.util.TimeUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Per-player scoreboards. GraviJet branding, &c/&f/&7 color scheme.
- * Lines are fully config-driven via scoreboard.lines in config.yml.
- * Supports up to 15 lines, top-10 granular placeholders, %blocks%, and PlaceholderAPI.
+ * Per-player sidebar scoreboard — team-based implementation.
+ *
+ * Lines are updated in-place using Bukkit {@link Team} prefix/suffix pairs.
+ * Only lines whose content changed since the last tick are touched, which
+ * eliminates the full-scoreboard-recreate flicker caused by the previous
+ * approach.
+ *
+ * <h2>Line length budget</h2>
+ * Each visible scoreboard line is composed of:
+ * <pre>
+ *   [team prefix] [invisible entry] [team suffix]
+ *    ≤ 16 chars    2 colour codes     ≤ 16 chars
+ * </pre>
+ * Total visible: up to 32 characters per line.  Lines longer than 32 chars
+ * (after colour codes are counted) will be truncated — keep config lines short.
+ *
+ * <h2>Colour carry-over</h2>
+ * When a line is split across prefix + suffix, the last colour/formatting code
+ * present in the prefix is prepended to the suffix so colour does not bleed.
  */
 public class FastScoreboard {
 
+    private static final int MAX_LINES  = 15;
+    /** Unique invisible entries — one per scoreboard slot (colour code pairs). */
+    private static final String[] ENTRIES;
+
+    static {
+        ENTRIES = new String[MAX_LINES];
+        ChatColor[] colours = ChatColor.values();
+        for (int i = 0; i < MAX_LINES; i++) {
+            // Two colour codes → unique, invisible, non-empty string
+            ENTRIES[i] = "" + colours[i % colours.length] + colours[(i + 1) % colours.length];
+        }
+    }
+
     private final FastBuilder plugin;
     private int updateTaskId = -1;
-
-    // Whether PlaceholderAPI is available at runtime
     private final boolean papiAvailable;
 
+    /** Per-player: the scoreboard object. */
+    private final Map<UUID, Scoreboard> boards = new HashMap<>();
+    /** Per-player: last rendered line text (for dirty-check). */
+    private final Map<UUID, String[]>   lastLines = new HashMap<>();
+
     public FastScoreboard(FastBuilder plugin) {
-        this.plugin = plugin;
+        this.plugin        = plugin;
         this.papiAvailable = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
         startUpdateTask();
     }
 
+    // -------------------------------------------------------------------------
+    // Create / Remove
+    // -------------------------------------------------------------------------
+
+    /**
+     * Create a fresh scoreboard for {@code player} and store it.
+     * Call when a player joins an island.
+     */
     public void createScoreboard(Player player) {
         Scoreboard board = Bukkit.getScoreboardManager().getNewScoreboard();
-        Objective obj = board.registerNewObjective("fb", "dummy");
+        Objective obj    = board.registerNewObjective("fb", "dummy");
         obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-        String title = plugin.getConfigManager().getScoreboardTitle();
-        obj.setDisplayName(ColorUtil.translate(title));
+        obj.setDisplayName(ColorUtil.translate(plugin.getConfigManager().getScoreboardTitle()));
 
-        List<String> lines = buildLines(player);
-        int score = lines.size();
-        for (String line : lines) {
-            obj.getScore(line).setScore(score--);
+        List<String> configLines = plugin.getConfigManager().getScoreboardLines();
+        int lineCount = Math.min(configLines.size(), MAX_LINES);
+
+        // Create teams for each slot and assign entries
+        for (int i = 0; i < lineCount; i++) {
+            String teamName = "fb_" + player.getName().hashCode() + "_" + i;
+            Team team = board.getTeam(teamName);
+            if (team == null) team = board.registerNewTeam(teamName);
+
+            team.addEntry(ENTRIES[i]);
+            obj.getScore(ENTRIES[i]).setScore(lineCount - i); // top line = highest score
         }
 
+        boards.put(player.getUniqueId(), board);
+        lastLines.put(player.getUniqueId(), new String[lineCount]);
         player.setScoreboard(board);
+
+        // Force first full render
+        renderLines(player, board, buildLines(player, configLines));
+    }
+
+    /** Remove the custom scoreboard from a player (e.g. on leave). */
+    public void removeScoreboard(Player player) {
+        boards.remove(player.getUniqueId());
+        lastLines.remove(player.getUniqueId());
+        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+    }
+
+    // -------------------------------------------------------------------------
+    // Update (called by task)
+    // -------------------------------------------------------------------------
+
+    /** Force-refresh the scoreboard for a single player (no dirty-check). */
+    public void updateScoreboard(Player player) {
+        Scoreboard board = boards.get(player.getUniqueId());
+        if (board == null) return;
+
+        List<String> configLines = plugin.getConfigManager().getScoreboardLines();
+        List<String> lines       = buildLines(player, configLines);
+        renderLines(player, board, lines);
+    }
+
+    // -------------------------------------------------------------------------
+    // Core rendering
+    // -------------------------------------------------------------------------
+
+    /**
+     * Render {@code lines} into {@code board}'s teams.
+     * Only lines that changed since the last render are updated.
+     */
+    private void renderLines(Player player, Scoreboard board, List<String> lines) {
+        String[] prev = lastLines.get(player.getUniqueId());
+        if (prev == null) return;
+
+        // Find the objective (created in createScoreboard)
+        Objective obj = board.getObjective("fb");
+        if (obj == null) return;
+
+        int lineCount = Math.min(lines.size(), MAX_LINES);
+
+        // Synchronise team count if config changed
+        for (int i = lineCount; i < prev.length; i++) {
+            // Hide extra lines by setting an empty prefix/suffix
+            Team team = getTeam(board, player, i);
+            if (team != null) { team.setPrefix(""); team.setSuffix(""); }
+        }
+
+        String[] next = new String[lineCount];
+        for (int i = 0; i < lineCount; i++) {
+            String rendered = lines.get(i);
+            next[i] = rendered;
+
+            if (rendered.equals(prev.length > i ? prev[i] : null)) continue; // no change
+
+            // Apply to team
+            Team team = getTeam(board, player, i);
+            if (team == null) continue;
+
+            setTeamLine(team, rendered);
+        }
+        lastLines.put(player.getUniqueId(), next);
+    }
+
+    /** Retrieve the team for line slot {@code index} from the board. */
+    private Team getTeam(Scoreboard board, Player player, int index) {
+        String teamName = "fb_" + player.getName().hashCode() + "_" + index;
+        return board.getTeam(teamName);
     }
 
     /**
-     * Build display lines from config, resolving all placeholders for this player.
-     * Lines are returned in top-to-bottom order (index 0 = top of sidebar).
+     * Split a line across team prefix + suffix (32-char budget).
+     * Colour carry-over is preserved via {@link ChatColor#getLastColors(String)}.
      */
-    private List<String> buildLines(Player player) {
-        List<String> configLines = plugin.getConfigManager().getScoreboardLines();
-        if (configLines.isEmpty()) {
-            return Collections.emptyList();
+    @SuppressWarnings("deprecation")
+    private void setTeamLine(Team team, String line) {
+        if (line.length() <= 16) {
+            team.setPrefix(line);
+            team.setSuffix("");
+        } else {
+            String prefix = line.substring(0, 16);
+            String rest   = line.substring(16);
+            // Carry last colour from prefix into suffix so rendering is seamless
+            String carry  = ChatColor.getLastColors(prefix);
+            String suffix;
+            if (carry.isEmpty()) {
+                suffix = rest.length() <= 16 ? rest : rest.substring(0, 16);
+            } else {
+                String candidate = carry + rest;
+                suffix = candidate.length() <= 16 ? candidate : candidate.substring(0, 16);
+            }
+            team.setPrefix(prefix);
+            team.setSuffix(suffix);
         }
+    }
 
-        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        RunSession session = plugin.getGameplayManager() != null
+    // -------------------------------------------------------------------------
+    // Line builder
+    // -------------------------------------------------------------------------
+
+    /**
+     * Build the list of display strings (top-to-bottom) for {@code player}.
+     * All placeholders are resolved here.
+     */
+    private List<String> buildLines(Player player, List<String> configLines) {
+        if (configLines.isEmpty()) return Collections.emptyList();
+
+        PlayerData data    = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        RunSession session  = plugin.getGameplayManager() != null
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
-        // Resolve placeholder values once
-        String pb = "§8-";
+        // --- Resolve common placeholders once ---
+        String pb;
         if (data != null && session != null) {
             PlayerData.MapStats stats = data.getStats(session.getMapName());
-            if (stats != null && stats.hasBestTime()) {
-                pb = "§f" + TimeUtil.formatTime(stats.bestTime);
-            }
+            pb = (stats != null && stats.hasBestTime())
+                    ? "§f" + TimeUtil.formatTime(stats.bestTime)
+                    : "§8" + TimeUtil.EMPTY;
+        } else {
+            pb = "§8" + TimeUtil.EMPTY;
         }
 
-        String currentTime = "§700:00.000";
+        String currentTime;
         if (session != null && session.isRunning()) {
             currentTime = "§f" + TimeUtil.formatTime(session.getElapsed());
+        } else {
+            currentTime = "§800:00,000";
         }
 
-        String coins = data != null ? String.valueOf(data.getCoins()) : "0";
+        String coins  = data != null ? String.valueOf(data.getCoins()) : "0";
 
-        // Blocks placed: use running session count, or last finished count if session finished
         String blocks = "§80";
-        if (session != null) {
-            blocks = "§f" + session.getPlacedBlocks().size();
-        }
+        if (session != null) blocks = "§f" + session.getPlacedBlocks().size();
 
-        // Top-10 session bests
+        // Session top-10
         List<String[]> topList = (plugin.getGameplayManager() != null)
                 ? plugin.getGameplayManager().getGlobalSessionTop(10)
                 : Collections.<String[]>emptyList();
 
-        // Build all result lines (in top-to-bottom order)
-        List<String> result = new ArrayList<>();
+        // --- Build all lines ---
+        List<String> result = new ArrayList<>(configLines.size());
         for (String raw : configLines) {
-            // Internal placeholder replacement
             String line = raw
-                    .replace("%pb%", pb)
+                    .replace("%pb%",           pb)
                     .replace("%current_time%", currentTime)
-                    .replace("%coins%", coins)
-                    .replace("%blocks%", blocks);
+                    .replace("%coins%",        coins)
+                    .replace("%blocks%",       blocks);
 
-            // Replace top_name_N and top_time_N for N = 1..10
-            for (int i = 1; i <= 10; i++) {
-                if (topList.size() >= i) {
-                    String[] entry = topList.get(i - 1);
-                    // Use unique padding to avoid duplicate scoreboard entries for empty slots
-                    line = line.replace("%top_name_" + i + "%", "§f" + entry[0]);
-                    line = line.replace("%top_time_" + i + "%", "§f" + TimeUtil.formatTime(Long.parseLong(entry[1])));
+            // top_name_N / top_time_N (N = 1..10)
+            for (int n = 1; n <= 10; n++) {
+                if (topList.size() >= n) {
+                    String[] entry = topList.get(n - 1);
+                    line = line.replace("%top_name_" + n + "%", "§f" + entry[0]);
+                    line = line.replace("%top_time_" + n + "%", "§f" + TimeUtil.formatTime(Long.parseLong(entry[1])));
                 } else {
-                    line = line.replace("%top_name_" + i + "%", "§8-" + spaces(i - 1));
-                    line = line.replace("%top_time_" + i + "%", "§8-" + spaces(i - 1));
+                    // Use unique invisible padding so duplicate-empty lines don't collapse
+                    line = line.replace("%top_name_" + n + "%", "§8" + TimeUtil.EMPTY + invisPad(n));
+                    line = line.replace("%top_time_" + n + "%", "§8" + TimeUtil.EMPTY + invisPad(n));
                 }
             }
 
-            // Apply PlaceholderAPI first so its output (which may contain &codes) gets translated next
+            // PlaceholderAPI (applied before colour translation so PAPI values can contain &codes)
             line = applyPapi(player, line);
-
-            // Translate all color/format codes including those introduced by PAPI placeholders
             line = ColorUtil.translate(line);
 
             result.add(line);
@@ -126,19 +275,13 @@ public class FastScoreboard {
         return result;
     }
 
-    /**
-     * Returns a string of N invisible spaces to make scoreboard entries unique.
-     * Scoreboard lines must all be unique strings or the last one wins.
-     */
-    private String spaces(int count) {
+    /** Return a zero-width padding string unique per {@code n} (prevents duplicate entries). */
+    private String invisPad(int n) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < count; i++) sb.append(' ');
+        for (int i = 0; i < n; i++) sb.append(' ');
         return sb.toString();
     }
 
-    /**
-     * Applies PlaceholderAPI placeholders if the plugin is available.
-     */
     private String applyPapi(Player player, String text) {
         if (!papiAvailable) return text;
         try {
@@ -147,21 +290,18 @@ public class FastScoreboard {
         return text;
     }
 
-    public void updateScoreboard(Player player) {
-        createScoreboard(player);
-    }
-
-    public void removeScoreboard(Player player) {
-        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
-    }
+    // -------------------------------------------------------------------------
+    // Task management
+    // -------------------------------------------------------------------------
 
     private void startUpdateTask() {
         long interval = plugin.getConfigManager().getScoreboardUpdateInterval();
         updateTaskId = new BukkitRunnable() {
             @Override
             public void run() {
+                if (plugin.getGameplayManager() == null) return;
                 for (Player player : Bukkit.getOnlinePlayers()) {
-                    if (plugin.getGameplayManager() != null) {
+                    if (boards.containsKey(player.getUniqueId())) {
                         updateScoreboard(player);
                     }
                 }
@@ -169,15 +309,16 @@ public class FastScoreboard {
         }.runTaskTimer(plugin, interval, interval).getTaskId();
     }
 
-    /**
-     * Called on /fb reload — restarts the update task with the (possibly new) interval from config.
-     */
+    /** Called on {@code /fb reload} — restarts the update task with a potentially new interval. */
     public void reload() {
         shutdown();
         startUpdateTask();
     }
 
     public void shutdown() {
-        if (updateTaskId != -1) Bukkit.getScheduler().cancelTask(updateTaskId);
+        if (updateTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(updateTaskId);
+            updateTaskId = -1;
+        }
     }
 }

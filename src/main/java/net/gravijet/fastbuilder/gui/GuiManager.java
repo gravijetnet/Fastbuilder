@@ -15,8 +15,11 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -513,18 +516,26 @@ public class GuiManager implements Listener {
         if (size < 27) size = 27;
         Inventory inv = Bukkit.createInventory(null, size, title);
 
-        // Category: Blocks
-        inv.setItem(guis.getInt("shop.blocks-slot", 10), new ItemBuilder(Material.SANDSTONE)
-                .name("&eBlocks").lore("&7Click to browse building blocks", "", "&aClick to browse").build());
-        // Category: Pickaxes
-        inv.setItem(guis.getInt("shop.pickaxes-slot", 12), new ItemBuilder(Material.DIAMOND_PICKAXE)
-                .name("&bPickaxes &7& Tools").lore("&7Click to browse pickaxes and tools", "", "&aClick to browse").build());
-        // Category: Reset Animations
-        inv.setItem(guis.getInt("shop.animations-slot", 14), new ItemBuilder(Material.FIREWORK)
-                .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
-        // Category: Death Sounds
-        inv.setItem(guis.getInt("shop.death-sounds-slot", 16), new ItemBuilder(Material.NOTE_BLOCK)
-                .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
+        // Category: Blocks (permission-gated)
+        if (plugin.getConfigManager().isShopCategoryVisible(player, "blocks")) {
+            inv.setItem(guis.getInt("shop.blocks-slot", 10), new ItemBuilder(Material.SANDSTONE)
+                    .name("&eBlocks").lore("&7Click to browse building blocks", "", "&aClick to browse").build());
+        }
+        // Category: Pickaxes (permission-gated)
+        if (plugin.getConfigManager().isShopCategoryVisible(player, "pickaxes")) {
+            inv.setItem(guis.getInt("shop.pickaxes-slot", 12), new ItemBuilder(Material.DIAMOND_PICKAXE)
+                    .name("&bPickaxes &7& Tools").lore("&7Click to browse pickaxes and tools", "", "&aClick to browse").build());
+        }
+        // Category: Reset Animations (permission-gated)
+        if (plugin.getConfigManager().isShopCategoryVisible(player, "animations")) {
+            inv.setItem(guis.getInt("shop.animations-slot", 14), new ItemBuilder(Material.FIREWORK)
+                    .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
+        }
+        // Category: Death Sounds (permission-gated)
+        if (plugin.getConfigManager().isShopCategoryVisible(player, "sounds")) {
+            inv.setItem(guis.getInt("shop.death-sounds-slot", 16), new ItemBuilder(Material.NOTE_BLOCK)
+                    .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
+        }
 
         // Category: Island Designs (only shown if the player's current map has alt designs)
         net.gravijet.fastbuilder.player.PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
@@ -535,12 +546,14 @@ public class GuiManager implements Listener {
             hasDesigns = designMap != null && !designMap.getAlternativeTemplates().isEmpty();
         }
         int designsSlot = guis.getInt("shop.designs-slot", 13);
-        if (hasDesigns) {
-            inv.setItem(designsSlot, new ItemBuilder(Material.PAINTING)
-                    .name("&aIsland Designs").lore("&7Choose a design for your island", "", "&aClick to browse").build());
-        } else {
-            inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7)
-                    .name("&7Island Designs").lore("&cNo designs available for this map").build());
+        if (plugin.getConfigManager().isShopCategoryVisible(player, "designs")) {
+            if (hasDesigns) {
+                inv.setItem(designsSlot, new ItemBuilder(Material.PAINTING)
+                        .name("&aIsland Designs").lore("&7Choose a design for your island", "", "&aClick to browse").build());
+            } else {
+                inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7)
+                        .name("&7Island Designs").lore("&cNo designs available for this map").build());
+            }
         }
 
         // One-Click Pick (toggle purchase)
@@ -840,55 +853,103 @@ public class GuiManager implements Listener {
         viewer.openInventory(inv);
     }
 
+    // =========================================================================
+    // Strict inventory lock — prevents ALL unauthorised item movement
+    // =========================================================================
+
+    /**
+     * Returns true if {@code stripped} (colour-stripped title) belongs to one of
+     * this plugin's GUI windows.
+     */
+    private boolean isPluginGui(String stripped) {
+        return stripped.startsWith(ISLAND_SELECTOR_PREFIX)
+                || stripped.startsWith(BLOCK_SELECTOR_PREFIX)
+                || stripped.startsWith(SETTINGS_PREFIX)
+                || stripped.startsWith(CONFIRM_PREFIX)
+                || stripped.startsWith(MAP_SELECTOR_PREFIX)
+                || stripped.startsWith(REPLAYS_PREFIX)
+                || stripped.startsWith(SHOP_PREFIX)
+                || stripped.startsWith(PICKAXE_SELECTOR_PREFIX)
+                || stripped.startsWith(ANIMATION_SELECTOR_PREFIX)
+                || stripped.startsWith(DEATH_SOUND_SELECTOR_PREFIX)
+                || stripped.startsWith(STATS_PREFIX)
+                || stripped.startsWith(DESIGN_SELECTOR_PREFIX);
+    }
+
+    /**
+     * HIGH-priority drag-cancel: any drag (split-stack, paint) across a plugin GUI is
+     * unconditionally blocked to prevent item duplication exploits.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDrag(InventoryDragEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Inventory top = event.getInventory();
+        if (top == null || top.getType() == InventoryType.CRAFTING) return;
+        String title = top.getTitle();
+        if (title != null && isPluginGui(ColorUtil.strip(title))) {
+            event.setCancelled(true);
+        }
+    }
+
     // ===== Click Handling =====
 
-    @EventHandler
+    /**
+     * HIGH priority so we process before other plugins (e.g. item-protection plugins)
+     * and our cancel verdict is respected by them.
+     *
+     * Strategy:
+     *   1. Identify the top inventory by title.
+     *   2. If it belongs to us, IMMEDIATELY cancel — stops all item movement regardless
+     *      of which sub-inventory (top or bottom player-inv) was clicked.
+     *   3. Only invoke action handlers when the click was inside the TOP inventory.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
     public void onClick(InventoryClickEvent event) {
-        if (event.getClickedInventory() == null) return;
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        String title = event.getInventory().getTitle();
+        Inventory top = event.getInventory();
+        // CRAFTING is the player's own default view — skip
+        if (top == null || top.getType() == InventoryType.CRAFTING) return;
+
+        String title = top.getTitle();
         if (title == null) return;
 
         String stripped = ColorUtil.strip(title);
+        if (!isPluginGui(stripped)) return;
 
+        // ---- Lock: cancel EVERYTHING in this inventory context ----
+        event.setCancelled(true);
+
+        // Only dispatch actions for clicks inside the top GUI panel.
+        // Shift-clicks from the bottom player-inventory are already blocked above.
+        Inventory clicked = event.getClickedInventory();
+        if (clicked == null || clicked != top) return;
+
+        // ---- Route to specific handler ----
         if (stripped.startsWith(ISLAND_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleIslandSelectorClick(event);
         } else if (stripped.startsWith(BLOCK_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleBlockSelectorClick(event);
         } else if (stripped.startsWith(SETTINGS_PREFIX)) {
-            event.setCancelled(true);
             handleSettingsClick(event);
         } else if (stripped.startsWith(CONFIRM_PREFIX)) {
-            event.setCancelled(true);
             handleConfirmClick(event);
         } else if (stripped.startsWith(MAP_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleMapSelectorClick(event);
         } else if (stripped.startsWith(REPLAYS_PREFIX)) {
-            event.setCancelled(true);
             handleReplayClick(event);
         } else if (stripped.startsWith(SHOP_PREFIX)) {
-            event.setCancelled(true);
             handleShopClick(event);
         } else if (stripped.startsWith(PICKAXE_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handlePickaxeSelectorClick(event);
         } else if (stripped.startsWith(ANIMATION_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleAnimationSelectorClick(event);
         } else if (stripped.startsWith(DEATH_SOUND_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleDeathSoundSelectorClick(event);
-        } else if (stripped.startsWith(STATS_PREFIX)) {
-            event.setCancelled(true);
-            // Stats GUI is read-only; no action needed
         } else if (stripped.startsWith(DESIGN_SELECTOR_PREFIX)) {
-            event.setCancelled(true);
             handleDesignSelectorClick(event);
         }
+        // STATS_PREFIX: read-only — no handler needed
     }
 
     private void handleIslandSelectorClick(InventoryClickEvent event) {
