@@ -1,88 +1,74 @@
-Hier ist der finale, ultimativ verbesserte Prompt für Claude Code. Er ist hochpräzise, technisch detailliert und darauf ausgelegt, dass die KI keine deiner Anforderungen überspringt.
+CRITICAL SYSTEM OVERRIDE INSTRUCTION: You are acting as a Senior Java/Spigot Developer. This is a massive architectural overhaul of the "Fastbuilder" plugin. Your previous iterations skipped crucial details, used placeholders, or implemented superficial fixes. This time, you must read EVERY SINGLE WORD of this specification. Do not output placeholder code (// do something here). Implement the actual, production-ready, highly optimized logic.
 
-Prompt for Claude Code:
+Every single string, item, size, and feature must be 100% configurable in English via YAML. Treat this prompt as a strict technical specification document.
+🏛️ 1. Core State Machine & Reset Logic (CRITICAL)
 
-CRITICAL INSTRUCTION: This is a comprehensive architectural and functional overhaul. Previous attempts missed several core features. You must implement EVERY point listed below with production-grade logic. Do not use placeholder code. Language: English only.
-🛠️ 1. Setup, Admin Commands & Help Menus
+    The Double-Reset Bug: Ensure resetPlayer() is locked by the state machine. If a player finishes a run, trigger the reset animation. Once the animation finishes, teleport them exactly once. Never trigger a second reset.
 
-    Interactive Help Pagination: Rewrite /map help with a clickable pagination system.
+    100% Block Clearance: During any reset (finish, death, or out-of-bounds), iterate and force-clear every single placed block. Ghost blocks are unacceptable.
 
-        Format: &fShowing page &c1 &fof &c3. &f(&714 results&f). &a»
+    Out-of-Bounds (OOB) Handling: If a player steps out of their island boundaries, instantly trigger the full block reset (clear all their blocks) AND teleport them back.
 
-        Use ClickEvent to allow clicking the arrows (» or «) to switch pages instantly.
+    Strict Build Protection: Intercept BlockPlaceEvent and BlockBreakEvent. If a reset animation is playing or a replay is active, absolutely cancel the event so players cannot place phantom blocks.
 
-        Only show commands the player has permission for. Sub-commands (like /map setup) need their own formatted help.
+👥 2. NPC, Tablist & Visuals
 
-    Map Setup Logic: * Final Step: Use ClickEvent.Action.SUGGEST_COMMAND for /map setup finish  so the admin only needs to type the name.
+    Creative NPC Identity: The reset NPC must perfectly mimic the player who just finished the run. Fetch the player's exact Skin and Username and apply it to the NPC. DO NOT use generic names like "&6Builder". The current animation speed is perfect, keep it.
 
-        REMOVAL: Remove the "Set island spacing" message and the /map setinfinite command.
+    Zero-Tick Tablist Hiding: The NPC must never flash on the Tablist, not even for a millisecond. Use PacketPlayOutPlayerInfo with REMOVE_PLAYER in the exact same tick it spawns, or use Bukkit Teams to hide it completely.
 
-    GameMode Force: Force Creative Mode for admins/players with setup permissions upon joining or finishing a setup.
+    Death Sounds: Audio is currently completely broken. Fix the death sounds so they actually play. Remove the "Portal" sound entirely. Use punchy, short sounds.
 
-    New Command: /map customlength <true/false> [minBlocks] to enable custom distance scaling.
+🎥 3. High-Performance Replay Engine
 
-🎮 2. Gameplay Logic & Island Mechanics
+    5-Second Rewind Math: Rebuild the "Rewind" button. It must not restart the replay from the beginning. It must jump back exactly 5 seconds (100 ticks) from the current timestamp and reconstruct the block state accordingly.
 
-    Flawless Reset Logic:
+    Extreme Compression Storage: Serialize replay data and templates into a highly compressed format (e.g., custom binary or GZIP). They must be extremely space-efficient.
 
-        Single Reset: Fix the bug where players reset twice. Reset once immediately upon finish/death; do not reset again after the animation.
+    Permission-Based Limits: Implement configurable replay limits (e.g., fastbuilder.limit.50). -1 means infinite.
 
-        Full Clearing: Ensure 100% of placed blocks are removed.
+🛡️ 4. GUI Framework & Inventory Hardening (CRITICAL BUGS)
 
-        Out of Bounds: If a player leaves their island zone, trigger an immediate teleport and a full block reset.
+    Inventory Stealing Bug: The Pickaxe Shop is completely broken. Players can move items around and put them in their own inventory. You MUST cancel InventoryClickEvent (event.setCancelled(true)) for all custom menus.
 
-    Build Protection: Strictly prevent placing/breaking blocks while a reset animation or replay is active.
+    Pickaxe Shop Fixes: Integrate the "One-Click Pick" (Diamond Axe) directly into this menu. Ensure the purchase logic works and players cannot buy items they already own.
 
-    Join Logic: If the "default" map is disabled or full, automatically send joining players to the first available map.
+    Main Shop Layout: Make it visually appealing. Put Sandstone (Block Selector) exactly on Slot 9, and the Pickaxe Shop exactly on Slot 11.
 
-    Leave System: Replace the "Bungee" config section with a "Leave-Item" system (Configurable material/slot/command/server).
+    Block Selector: Add a "Back to Shop" item to return to the main menu.
 
-🛡️ 3. GUI, Shop & Permissions (CRITICAL FIXES)
+    Island Selector Menu:
 
-    Pickaxe Shop Fix (TOP PRIORITY): * Include the One-Click Pick (Diamond Axe).
+        Must be exactly 3x9 (27 slots).
 
-        Fix the "Moving Items" bug: Strictly cancel InventoryClickEvent to prevent players from dragging or stealing items.
+        Place a "Back to Shop" button in the bottom center slot.
 
-        Ensure buying works correctly and grants the item/permission.
+        Use Material.PAPER for the designs. Do NOT use enchanted books or glass panes. No enchantments.
 
-    Shop Layout (3x9): * Sandstone on Slot 9, Pickaxe on Slot 11, etc. (Make it look professional).
+        Instant Update: Clicking a design must instantly change the island and clear all blocks immediately.
 
-        Island Design: Replace glass panes/books with Paper items. No enchantments.
+⚙️ 5. Commands, Setup & Admin Workflow
 
-        Island Design Logic: Changing a design must apply instantly and trigger a block reset on the island.
+    Command Removals: Completely delete /map setinfinite and /length.
 
-    Block Selector: Add a "Back to Shop" button.
+    Setup Cleanup: Remove the confusing message: » Set island spacing: /map distance aaa 50 when a setup finishes.
 
-    Settings Menu: Center all items (shift 1 slot left). Players configure "Custom Length" here; the end-island must physically move/spawn at the selected distance.
+    Interactive Help Menu: Format /map help exactly like this: &fShowing page &c1 &fof &c3. &f(&714 results&f). &a». The » and « must be clickable via ClickEvent.Action.RUN_COMMAND to actually turn the pages.
 
-    Permissions: Every shop item needs a unique permission. If a player has the permission, the item should show as "Owned" and be unpurchasable.
+    Custom Length Feature: * Add the command /map customlength <true/false> [minblocksfromspawntopressureplates].
 
-🎬 4. Animations & Replays
+        Players must be able to configure this in the settings menu.
 
-    Creative NPC Evolution: * The NPC must have the exact Skin and Name of the player who performed the run.
+        Physical Movement: The end island (with the pressure plates) must actually physically move or generate closer/further away based on this setting. (Developer note: Implement a setup step where the admin explicitly defines the "End Island Schematic" so the plugin knows what to move).
 
-        Ensure the mining animation is visible and lasts long enough to be impactful.
+    The Ultimate /fb dump: This must generate a massive diagnostic file containing: All plugins, Server/OS specs, and a complete printout of every single Fastbuilder YAML config.
 
-    Death Sounds: Fix the bug where no sounds play. Remove the "Portal" sound.
+🌐 6. Config, Environment & Join Logic
 
-    Item Drop Fix: Eliminate "purple-black" (missing texture) entities.
+    Leave-Item System: Completely delete the # BungeeCord section (enabled, lobby-server) from the config. Replace it with a leave-item system where a configured item is given to the player to leave the server/game.
 
-    Replay Rewind: Clicking "Rewind" at the end of a replay must go back 5 seconds, not restart the whole session.
+    Join Fallback Logic: If the default map is offline or full, automatically connect the joining player to the very first available map.
 
-    Efficiency: Store Replays, Templates, and Schematics using heavy compression (e.g., GZIP/NBT) to save disk space. Integrate permission-based replay limits.
+    THE 100% CONFIGURABILITY MANDATE: Everything must be in the YAML files. Every chat message, every GUI size (rows), every item material, every lore, every sound, and every true/false toggle. No hardcoding.
 
-📊 5. Scoreboard & Placeholders
-
-    Formatting: Empty Top 3 slots must show -,--- only (no colon).
-
-    Fix "6c": Remove the random "6c" string appearing in session lines.
-
-    PAPI & Colors: Ensure PlaceholderAPI works for the viewing player. Color codes (like &c%blocks%) must be respected by parsing the placeholder as a raw string first.
-
-⚙️ 6. System Diagnostics & Config
-
-    Extreme /fb dump: Log everything: Server/Java/OS info, all installed plugins, and the entire content of every config file. Upload to Bytebin and provide a copyable link.
-
-    100% Configurability: Every message, every GUI (size/items/slots), every sound, and every item must be configurable. This is the "Absolute Configurability" mandate.
-
-IMPLEMENT ALL LOGIC INTERNALLY. NO PLACEHOLDER COMMENTS.
+FINAL CHECK: Did you fix the Pickaxe shop stealing bug? Did you apply the player's skin to the NPC? Is the Tablist clean? Do not output placeholder code. Implement the actual logic.
