@@ -19,23 +19,15 @@ import java.util.logging.Level;
 
 /**
  * MySQL / MariaDB storage provider.
- *
- * Uses a lightweight fixed-size connection pool built on {@link DriverManager}
- * (no HikariCP required). The pool defaults to 5 connections; each borrow
- * blocks up to 30 s before throwing a timeout exception.
- *
- * Credentials are read from {@code config.yml} under {@code storage.mysql.*}.
- * The driver is loaded reflectively so the plugin will still start on servers
- * that don't have the connector on the classpath — it will just fail gracefully
- * with a clear error and fall back to YAML (handled by PlayerManager).
+ * Java 8 Compliant.
  */
 public class MySqlStorageProvider implements StorageProvider {
 
-    private static final long   CACHE_TTL_MS   = 60_000L;
+    private static final long   CACHE_TTL_MS   = 60000L;
     private static final String DRIVER         = "com.mysql.jdbc.Driver";
     private static final String DRIVER_NEW     = "com.mysql.cj.jdbc.Driver";
     private static final int    POOL_SIZE      = 5;
-    private static final long   POOL_TIMEOUT   = 30_000L;
+    private static final long   POOL_TIMEOUT   = 30000L;
 
     private final FastBuilder plugin;
     private final String host;
@@ -44,12 +36,11 @@ public class MySqlStorageProvider implements StorageProvider {
     private final String user;
     private final String password;
 
-    // ---- simple connection pool ----
     private final Connection[] pool    = new Connection[POOL_SIZE];
     private final boolean[]    in_use  = new boolean[POOL_SIZE];
 
-    private final Map<String, long[]> bestTimesCache     = new HashMap<>();
-    private final Map<String, Long>   bestTimesCacheTime = new HashMap<>();
+    private final Map<String, long[]> bestTimesCache     = new HashMap<String, long[]>();
+    private final Map<String, Long>   bestTimesCacheTime = new HashMap<String, Long>();
 
     public MySqlStorageProvider(FastBuilder plugin) {
         this.plugin   = plugin;
@@ -60,13 +51,8 @@ public class MySqlStorageProvider implements StorageProvider {
         this.password = plugin.getConfigManager().getStorageMySQL("password", "");
     }
 
-    // -------------------------------------------------------------------------
-    // Init
-    // -------------------------------------------------------------------------
-
     @Override
     public void init() throws Exception {
-        // Try both old and new connector driver class names
         boolean driverLoaded = false;
         try { Class.forName(DRIVER);     driverLoaded = true; } catch (ClassNotFoundException ignored) {}
         if (!driverLoaded) {
@@ -87,87 +73,74 @@ public class MySqlStorageProvider implements StorageProvider {
             }
         }
 
-        // Create tables on the first connection
         try (Connection c = borrowConnection();
              Statement stmt = c.createStatement()) {
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_data (
-                    uuid                     VARCHAR(36) PRIMARY KEY,
-                    name                     VARCHAR(64) NOT NULL,
-                    coins                    INT DEFAULT 0,
-                    last_map                 VARCHAR(64),
-                    last_island              INT DEFAULT -1,
-                    selected_block           VARCHAR(64) DEFAULT 'SANDSTONE:0',
-                    selected_pickaxe         VARCHAR(64) DEFAULT 'DIAMOND_PICKAXE:0',
-                    selected_animation       VARCHAR(64) DEFAULT 'NONE',
-                    selected_death_sound     VARCHAR(64) DEFAULT 'NONE',
-                    one_click_pick           TINYINT(1) DEFAULT 0,
-                    auto_refill              TINYINT(1) DEFAULT 0,
-                    infinite_blocks_unlocked TINYINT(1) DEFAULT 0,
-                    infinite_blocks          TINYINT(1) DEFAULT 0
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_data (" +
+                    "uuid                     VARCHAR(36) PRIMARY KEY," +
+                    "name                     VARCHAR(64) NOT NULL," +
+                    "coins                    INT DEFAULT 0," +
+                    "last_map                 VARCHAR(64)," +
+                    "last_island              INT DEFAULT -1," +
+                    "selected_block           VARCHAR(64) DEFAULT 'SANDSTONE:0'," +
+                    "selected_pickaxe         VARCHAR(64) DEFAULT 'DIAMOND_PICKAXE:0'," +
+                    "selected_animation       VARCHAR(64) DEFAULT 'NONE'," +
+                    "selected_death_sound     VARCHAR(64) DEFAULT 'NONE'," +
+                    "one_click_pick           TINYINT(1) DEFAULT 0," +
+                    "auto_refill              TINYINT(1) DEFAULT 0," +
+                    "infinite_blocks_unlocked TINYINT(1) DEFAULT 0," +
+                    "infinite_blocks          TINYINT(1) DEFAULT 0" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_map_stats (
-                    uuid                VARCHAR(36) NOT NULL,
-                    map_name            VARCHAR(64) NOT NULL,
-                    best_time           BIGINT DEFAULT -1,
-                    total_attempts      INT DEFAULT 0,
-                    successful_attempts INT DEFAULT 0,
-                    total_success_time  BIGINT DEFAULT 0,
-                    PRIMARY KEY (uuid, map_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_map_stats (" +
+                    "uuid                VARCHAR(36) NOT NULL," +
+                    "map_name            VARCHAR(64) NOT NULL," +
+                    "best_time           BIGINT DEFAULT -1," +
+                    "total_attempts      INT DEFAULT 0," +
+                    "successful_attempts INT DEFAULT 0," +
+                    "total_success_time  BIGINT DEFAULT 0," +
+                    "PRIMARY KEY (uuid, map_name)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_purchased_blocks (
-                    uuid      VARCHAR(36) NOT NULL,
-                    block_key VARCHAR(128) NOT NULL,
-                    PRIMARY KEY (uuid, block_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_purchased_blocks (" +
+                    "uuid      VARCHAR(36) NOT NULL," +
+                    "block_key VARCHAR(128) NOT NULL," +
+                    "PRIMARY KEY (uuid, block_key)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_favorites (
-                    uuid        VARCHAR(36) NOT NULL,
-                    replay_file VARCHAR(256) NOT NULL,
-                    PRIMARY KEY (uuid, replay_file)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_favorites (" +
+                    "uuid        VARCHAR(36) NOT NULL," +
+                    "replay_file VARCHAR(256) NOT NULL," +
+                    "PRIMARY KEY (uuid, replay_file)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_notified_ranks (
-                    uuid      VARCHAR(36) NOT NULL,
-                    map_name  VARCHAR(64) NOT NULL,
-                    rank_name VARCHAR(64) NOT NULL,
-                    PRIMARY KEY (uuid, map_name, rank_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_notified_ranks (" +
+                    "uuid      VARCHAR(36) NOT NULL," +
+                    "map_name  VARCHAR(64) NOT NULL," +
+                    "rank_name VARCHAR(64) NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name, rank_name)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_custom_lengths (
-                    uuid     VARCHAR(36) NOT NULL,
-                    map_name VARCHAR(64) NOT NULL,
-                    length   INT NOT NULL,
-                    PRIMARY KEY (uuid, map_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_custom_lengths (" +
+                    "uuid     VARCHAR(36) NOT NULL," +
+                    "map_name VARCHAR(64) NOT NULL," +
+                    "length   INT NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS player_selected_designs (
-                    uuid         VARCHAR(36) NOT NULL,
-                    map_name     VARCHAR(64) NOT NULL,
-                    template_key VARCHAR(128) NOT NULL,
-                    PRIMARY KEY (uuid, map_name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4""");
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_selected_designs (" +
+                    "uuid         VARCHAR(36) NOT NULL," +
+                    "map_name     VARCHAR(64) NOT NULL," +
+                    "template_key VARCHAR(128) NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-            stmt.execute("""
-                CREATE INDEX IF NOT EXISTS idx_map_stats_map_best
-                ON player_map_stats(map_name, best_time)""");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
+                    "ON player_map_stats(map_name, best_time)");
         }
 
         plugin.getLogger().info("[MySQL] Database initialised. Connected to " + host + ":" + port + "/" + database);
     }
-
-    // -------------------------------------------------------------------------
-    // Connection Pool
-    // -------------------------------------------------------------------------
 
     private Connection borrowConnection() throws SQLException {
         long deadline = System.currentTimeMillis() + POOL_TIMEOUT;
@@ -175,7 +148,6 @@ public class MySqlStorageProvider implements StorageProvider {
             synchronized (pool) {
                 for (int i = 0; i < POOL_SIZE; i++) {
                     if (!in_use[i]) {
-                        // Validate connection
                         try {
                             if (pool[i].isClosed() || !pool[i].isValid(2)) {
                                 String url = pool[i].getMetaData().getURL();
@@ -192,7 +164,6 @@ public class MySqlStorageProvider implements StorageProvider {
         throw new SQLException("MySQL connection pool exhausted (timeout after " + POOL_TIMEOUT + " ms)");
     }
 
-    /** Proxy connection that returns itself to the pool on close(). */
     private class PooledConnection implements Connection {
         private final Connection delegate;
         private final int        poolIndex;
@@ -209,7 +180,6 @@ public class MySqlStorageProvider implements StorageProvider {
             }
         }
 
-        // ---- delegate all other methods ----
         @Override public PreparedStatement prepareStatement(String s) throws SQLException { return delegate.prepareStatement(s); }
         @Override public Statement createStatement() throws SQLException { return delegate.createStatement(); }
         @Override public void setAutoCommit(boolean b) throws SQLException { delegate.setAutoCommit(b); }
@@ -219,7 +189,6 @@ public class MySqlStorageProvider implements StorageProvider {
         @Override public boolean isClosed() throws SQLException { return delegate.isClosed(); }
         @Override public boolean isValid(int timeout) throws SQLException { return delegate.isValid(timeout); }
         @Override public java.sql.DatabaseMetaData getMetaData() throws SQLException { return delegate.getMetaData(); }
-        // Stub remaining Connection methods (not used in this provider)
         @Override public <T> T unwrap(Class<T> c) throws SQLException { return delegate.unwrap(c); }
         @Override public boolean isWrapperFor(Class<?> c) throws SQLException { return delegate.isWrapperFor(c); }
         @Override public PreparedStatement prepareStatement(String s, int a, int b) throws SQLException { return delegate.prepareStatement(s, a, b); }
@@ -253,8 +222,8 @@ public class MySqlStorageProvider implements StorageProvider {
         @Override public java.sql.Blob createBlob() throws SQLException { return delegate.createBlob(); }
         @Override public java.sql.NClob createNClob() throws SQLException { return delegate.createNClob(); }
         @Override public java.sql.SQLXML createSQLXML() throws SQLException { return delegate.createSQLXML(); }
-        @Override public void setClientInfo(String k, String v) throws java.sql.SQLClientInfoException { try { delegate.setClientInfo(k, v); } catch (java.sql.SQLClientInfoException e) { throw e; } }
-        @Override public void setClientInfo(java.util.Properties p) throws java.sql.SQLClientInfoException { try { delegate.setClientInfo(p); } catch (java.sql.SQLClientInfoException e) { throw e; } }
+        @Override public void setClientInfo(String k, String v) throws java.sql.SQLClientInfoException { delegate.setClientInfo(k, v); }
+        @Override public void setClientInfo(java.util.Properties p) throws java.sql.SQLClientInfoException { delegate.setClientInfo(p); }
         @Override public String getClientInfo(String k) throws SQLException { return delegate.getClientInfo(k); }
         @Override public java.util.Properties getClientInfo() throws SQLException { return delegate.getClientInfo(); }
         @Override public java.sql.Array createArrayOf(String t, Object[] e) throws SQLException { return delegate.createArrayOf(t, e); }
@@ -266,17 +235,12 @@ public class MySqlStorageProvider implements StorageProvider {
         @Override public int getNetworkTimeout() throws SQLException { return delegate.getNetworkTimeout(); }
     }
 
-    // -------------------------------------------------------------------------
-    // Load
-    // -------------------------------------------------------------------------
-
     @Override
     public PlayerData loadPlayerData(UUID uuid, String name) {
         PlayerData data = new PlayerData(uuid, name);
         String uuidStr = uuid.toString();
 
         try (Connection c = borrowConnection()) {
-            // Main row
             try (PreparedStatement ps = c.prepareStatement(
                     "SELECT * FROM player_data WHERE uuid = ?")) {
                 ps.setString(1, uuidStr);
@@ -355,34 +319,29 @@ public class MySqlStorageProvider implements StorageProvider {
         return data;
     }
 
-    // -------------------------------------------------------------------------
-    // Save
-    // -------------------------------------------------------------------------
-
     @Override
     public void savePlayerData(PlayerData data) {
         String uuidStr = data.getUuid().toString();
         try (Connection c = borrowConnection()) {
             c.setAutoCommit(false);
             try {
-                try (PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO player_data
-                      (uuid, name, coins, last_map, last_island, selected_block,
-                       selected_pickaxe, selected_animation, selected_death_sound,
-                       one_click_pick, auto_refill, infinite_blocks_unlocked, infinite_blocks)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON DUPLICATE KEY UPDATE
-                      name=VALUES(name), coins=VALUES(coins),
-                      last_map=VALUES(last_map), last_island=VALUES(last_island),
-                      selected_block=VALUES(selected_block),
-                      selected_pickaxe=VALUES(selected_pickaxe),
-                      selected_animation=VALUES(selected_animation),
-                      selected_death_sound=VALUES(selected_death_sound),
-                      one_click_pick=VALUES(one_click_pick),
-                      auto_refill=VALUES(auto_refill),
-                      infinite_blocks_unlocked=VALUES(infinite_blocks_unlocked),
-                      infinite_blocks=VALUES(infinite_blocks)
-                    """)) {
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO player_data " +
+                                "(uuid, name, coins, last_map, last_island, selected_block, " +
+                                "selected_pickaxe, selected_animation, selected_death_sound, " +
+                                "one_click_pick, auto_refill, infinite_blocks_unlocked, infinite_blocks) " +
+                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+                                "ON DUPLICATE KEY UPDATE " +
+                                "name=VALUES(name), coins=VALUES(coins), " +
+                                "last_map=VALUES(last_map), last_island=VALUES(last_island), " +
+                                "selected_block=VALUES(selected_block), " +
+                                "selected_pickaxe=VALUES(selected_pickaxe), " +
+                                "selected_animation=VALUES(selected_animation), " +
+                                "selected_death_sound=VALUES(selected_death_sound), " +
+                                "one_click_pick=VALUES(one_click_pick), " +
+                                "auto_refill=VALUES(auto_refill), " +
+                                "infinite_blocks_unlocked=VALUES(infinite_blocks_unlocked), " +
+                                "infinite_blocks=VALUES(infinite_blocks)")) {
                     ps.setString(1, uuidStr); ps.setString(2, data.getName());
                     ps.setInt(3, data.getCoins()); ps.setString(4, data.getLastMap());
                     ps.setInt(5, data.getLastIsland()); ps.setString(6, data.getSelectedBlock());
@@ -394,15 +353,14 @@ public class MySqlStorageProvider implements StorageProvider {
                     ps.setInt(13, data.hasInfiniteBlocks() ? 1 : 0);
                     ps.executeUpdate();
                 }
-                try (PreparedStatement ps = c.prepareStatement("""
-                    INSERT INTO player_map_stats
-                      (uuid, map_name, best_time, total_attempts, successful_attempts, total_success_time)
-                    VALUES (?,?,?,?,?,?)
-                    ON DUPLICATE KEY UPDATE
-                      best_time=VALUES(best_time), total_attempts=VALUES(total_attempts),
-                      successful_attempts=VALUES(successful_attempts),
-                      total_success_time=VALUES(total_success_time)
-                    """)) {
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO player_map_stats " +
+                                "(uuid, map_name, best_time, total_attempts, successful_attempts, total_success_time) " +
+                                "VALUES (?,?,?,?,?,?) " +
+                                "ON DUPLICATE KEY UPDATE " +
+                                "best_time=VALUES(best_time), total_attempts=VALUES(total_attempts), " +
+                                "successful_attempts=VALUES(successful_attempts), " +
+                                "total_success_time=VALUES(total_success_time)")) {
                     for (Map.Entry<String, PlayerData.MapStats> e : data.getAllStats().entrySet()) {
                         PlayerData.MapStats s = e.getValue();
                         ps.setString(1, uuidStr); ps.setString(2, e.getKey());
@@ -412,8 +370,6 @@ public class MySqlStorageProvider implements StorageProvider {
                     }
                     ps.executeBatch();
                 }
-                // purchased blocks, favorites, notified ranks, custom lengths, selected designs
-                // all use delete-then-insert pattern (same as SQLite provider)
                 syncTable(c, uuidStr, "player_purchased_blocks", "block_key", data.getPurchasedBlocks());
                 syncTable(c, uuidStr, "player_favorites", "replay_file", data.getFavoriteReplays());
                 c.commit();
@@ -446,10 +402,6 @@ public class MySqlStorageProvider implements StorageProvider {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Global best times
-    // -------------------------------------------------------------------------
-
     @Override
     public long[] getGlobalBestTimesForMap(String mapName) {
         Long cacheTime = bestTimesCacheTime.get(mapName);
@@ -458,7 +410,7 @@ public class MySqlStorageProvider implements StorageProvider {
             if (cached != null) return cached;
         }
 
-        List<Long> times = new ArrayList<>();
+        List<Long> times = new ArrayList<Long>();
         try (Connection c = borrowConnection();
              PreparedStatement ps = c.prepareStatement(
                      "SELECT best_time FROM player_map_stats WHERE map_name = ? AND best_time > 0")) {
@@ -481,10 +433,6 @@ public class MySqlStorageProvider implements StorageProvider {
     public void invalidateBestTimesCache(String mapName) {
         bestTimesCacheTime.remove(mapName);
     }
-
-    // -------------------------------------------------------------------------
-    // Shutdown
-    // -------------------------------------------------------------------------
 
     @Override
     public void shutdown() {
