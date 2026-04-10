@@ -115,6 +115,7 @@ public class PlayerListener implements Listener {
             } else {
                 plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             }
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
             plugin.getGameplayManager().removeSession(player.getUniqueId());
             plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
@@ -169,6 +170,7 @@ public class PlayerListener implements Listener {
         }
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
             plugin.getGameplayManager().removeSession(player.getUniqueId());
             plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
@@ -183,7 +185,14 @@ public class PlayerListener implements Listener {
         player.setHealth(player.getMaxHealth());
 
         if (plugin.getGameplayManager() != null) {
-            plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+            net.gravijet.fastbuilder.gameplay.RunSession sess =
+                    plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+            // Restore end platform if the player had a custom length set for this map
+            PlayerData pJoinData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (pJoinData != null && map.hasCustomLength() && pJoinData.getCustomLength(map.getName()) > 0) {
+                plugin.getGameplayManager().placeEndPlatform(
+                        player, map, sess, pJoinData.getCustomLength(map.getName()));
+            }
         }
 
         if (plugin.getHotbarManager() != null) {

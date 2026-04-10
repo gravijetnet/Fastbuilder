@@ -55,6 +55,22 @@ public class CpsListener implements Listener {
         Material type = clicked.getType();
         if (type != Material.SAPLING) return;
 
+        // Only count clicks on saplings within the player's own assigned island
+        net.gravijet.fastbuilder.gameplay.RunSession session =
+                plugin.getGameplayManager().getSession(player.getUniqueId());
+        if (session == null) return;
+        net.gravijet.fastbuilder.map.MapData map =
+                plugin.getMapManager().getMap(session.getMapName());
+        if (map != null) {
+            Location clickLoc = clicked.getLocation();
+            Location islandMin = map.getIslandMin(session.getIslandIndex());
+            Location islandMax = map.getIslandMax(session.getIslandIndex());
+            if (clickLoc.getBlockX() < islandMin.getBlockX() || clickLoc.getBlockX() > islandMax.getBlockX()
+                    || clickLoc.getBlockZ() < islandMin.getBlockZ() || clickLoc.getBlockZ() > islandMax.getBlockZ()) {
+                return;
+            }
+        }
+
         Location loc = clicked.getLocation();
         UUID uuid = player.getUniqueId();
 
@@ -88,6 +104,9 @@ public class CpsListener implements Listener {
             plugin.getServer().getScheduler().cancelTask(existingTask);
         }
 
+        boolean privateMode = "private".equalsIgnoreCase(
+                plugin.getConfigManager().getCpsHologramVisibility());
+
         try {
             eu.decentsoftware.holograms.api.holograms.Hologram hologram = activeHolograms.get(uuid);
 
@@ -96,6 +115,13 @@ public class CpsListener implements Listener {
                 // This avoids DHAPI.getHologram() which can return null even for live holograms
                 // on certain server builds, causing the remove+create path to create duplicates.
                 eu.decentsoftware.holograms.api.DHAPI.setHologramLine(hologram, 0, text);
+                // Re-apply visibility in case the config changed since creation
+                if (privateMode) {
+                    hologram.setDefaultVisibleState(false);
+                    hologram.setShowPlayer(player);
+                } else {
+                    hologram.setDefaultVisibleState(true);
+                }
             } else {
                 // No tracked hologram — clean any stale DHAPI entry then create fresh
                 try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
@@ -104,6 +130,10 @@ public class CpsListener implements Listener {
                 lines.add(text);
                 hologram = eu.decentsoftware.holograms.api.DHAPI.createHologram(holoId, holoLoc, false, lines);
                 if (hologram != null) {
+                    if (privateMode) {
+                        hologram.setDefaultVisibleState(false);
+                        hologram.setShowPlayer(player);
+                    }
                     activeHolograms.put(uuid, hologram);
                 }
             }

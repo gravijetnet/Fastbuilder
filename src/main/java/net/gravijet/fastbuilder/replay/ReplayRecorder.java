@@ -17,6 +17,8 @@ public class ReplayRecorder {
 
     private final UUID playerUuid;
     private final String playerName;
+    // Full display tag (rank prefix + name) at recording time — stored in replay file.
+    private final String playerDisplayTag;
     private final String mapName;
     private final int islandIndex;
     private final long startTimestamp;
@@ -32,13 +34,20 @@ public class ReplayRecorder {
     private boolean pendingArmSwing = false;
 
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex) {
-        this(playerUuid, playerName, mapName, islandIndex, Collections.emptyList());
+        this(playerUuid, playerName, "", mapName, islandIndex, Collections.emptyList());
     }
 
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex,
                           List<ReplayFrame.BlockPlacement> initialBlocks) {
+        this(playerUuid, playerName, "", mapName, islandIndex, initialBlocks);
+    }
+
+    public ReplayRecorder(UUID playerUuid, String playerName, String playerDisplayTag,
+                          String mapName, int islandIndex,
+                          List<ReplayFrame.BlockPlacement> initialBlocks) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
+        this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
         this.mapName = mapName;
         this.islandIndex = islandIndex;
         this.startTimestamp = System.currentTimeMillis();
@@ -113,7 +122,7 @@ public class ReplayRecorder {
      */
     public ReplayData build(boolean successful, long runTimeMillis) {
         return new ReplayData(
-                playerUuid, playerName, mapName, islandIndex,
+                playerUuid, playerName, playerDisplayTag, mapName, islandIndex,
                 startTimestamp, successful, runTimeMillis, new ArrayList<>(frames),
                 new ArrayList<>(initialBlocks)
         );

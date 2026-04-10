@@ -306,11 +306,14 @@ public class PlayerData {
     }
 
     /**
-     * Returns whether the player has custom length enabled on the given map.
+     * Returns whether custom length is active for the given map.
+     * True when the player explicitly toggled it on, OR when they have a positive
+     * length set via the settings distance adjuster or /length command.
      */
     public boolean isCustomLengthEnabled(String mapName) {
         Boolean val = customLengthToggles.get(mapName.toLowerCase());
-        return val != null && val;
+        if (val != null && val) return true;
+        return getCustomLength(mapName) > 0;
     }
 
     /**

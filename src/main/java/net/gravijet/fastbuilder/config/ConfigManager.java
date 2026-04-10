@@ -136,6 +136,10 @@ public class ConfigManager {
         return Collections.<String>emptyList();
     }
 
+    public boolean isIslandHoppingEnabled() {
+        return mainConfig.getBoolean("island-hopping.enabled", true);
+    }
+
     public int getAutoscaleMinIslands() {
         return mainConfig.getInt("autoscale.min-islands", 15);
     }
@@ -152,12 +156,25 @@ public class ConfigManager {
         return mainConfig.getInt("default-y", 64);
     }
 
+    /** @deprecated Replaced by leave-item system. Use getLeaveAction() instead. */
+    @Deprecated
     public boolean isBungeeEnabled() {
-        return mainConfig.getBoolean("bungee.enabled", false);
+        return "BUNGEE".equalsIgnoreCase(getLeaveAction());
+    }
+
+    public String getLeaveAction() {
+        return mainConfig.getString("leave-item.action", "SPAWN").toUpperCase();
     }
 
     public String getLobbyServer() {
-        return mainConfig.getString("bungee.lobby-server", "lobby");
+        // Support both old bungee.lobby-server and new leave-item.lobby-server
+        String v = mainConfig.getString("leave-item.lobby-server", null);
+        if (v == null || v.isEmpty()) v = mainConfig.getString("bungee.lobby-server", "Lobby-1");
+        return v;
+    }
+
+    public String getLeaveCommand() {
+        return mainConfig.getString("leave-item.leave-command", "");
     }
 
     // --- Messages Config Accessors ---
@@ -293,6 +310,37 @@ public class ConfigManager {
     /** Z-axis offset applied to infinite-map island origins to isolate them from normal maps. */
     public int getInfiniteMapOffsetZ() {
         return mainConfig.getInt("infinite-map-offset.z", -10000);
+    }
+
+    // -------------------------------------------------------------------------
+    // Custom Length — end-island platform
+    // -------------------------------------------------------------------------
+
+    /**
+     * Block material string for the end-island platform (e.g. "STAINED_GLASS_PANE:5").
+     */
+    public String getEndPlatformMaterial() {
+        return mainConfig.getString("custom-length.end-platform.material", "STAINED_GLASS_PANE:5");
+    }
+
+    /**
+     * Fixed Z-depth of the end-island platform in blocks.
+     * 0 or negative → span the full finish-zone Z range.
+     */
+    public int getEndPlatformDepth() {
+        return mainConfig.getInt("custom-length.end-platform.depth", 3);
+    }
+
+    // -------------------------------------------------------------------------
+    // CPS hologram visibility
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns "global" (default) or "private".
+     * "private" means only the clicking player sees their own CPS hologram.
+     */
+    public String getCpsHologramVisibility() {
+        return mainConfig.getString("cps-hologram.visibility", "global");
     }
 
     // -------------------------------------------------------------------------

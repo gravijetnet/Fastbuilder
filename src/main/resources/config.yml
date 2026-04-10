@@ -101,6 +101,12 @@ replay:
 #   "touch" - step on a pressure plate inside the finish zone
 finish-trigger-mode: "zone"
 
+# Island hopping: when a player crosses into a neighbor island
+# enabled=true → empty target = auto-switch session; occupied target = reset
+# enabled=false → always reset when leaving own island Z bounds
+island-hopping:
+  enabled: true
+
 # Autoscale defaults
 autoscale:
   min-islands: 15
@@ -138,19 +144,38 @@ animation:
   tick-interval: 1
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Shop permission overrides
-# Leave a value empty ("") to always show that category.
+# Per-item permissions
+# Items use individual permission nodes (e.g., fastbuilder.block.stained_clay.5,
+# fastbuilder.animation.fall_down, fastbuilder.sound.creeper, fastbuilder.pickaxe.diamond_pickaxe.0).
+# Players with the permission can use the item without purchasing.
 # ──────────────────────────────────────────────────────────────────────────────
-shop:
-  permissions:
-    blocks:     ""
-    pickaxes:   ""
-    animations: ""
-    sounds:     ""
-    designs:    ""
 
-
-# BungeeCord
-bungee:
-  enabled: true
+# Leave item: given to the player in hotbar slot 8 so they can leave the server/game.
+# action: "BUNGEE" → send to lobby-server via BungeeCord
+#          "SPAWN"  → teleport to world spawn
+#          "COMMAND" → run leave-command as the player
+leave-item:
+  action: "SPAWN"
   lobby-server: "Lobby-1"
+  leave-command: ""
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Custom Length — end-island platform
+# When a player adjusts their custom length in the settings menu, a small
+# platform is placed at the finish position so they have a visible target.
+# ──────────────────────────────────────────────────────────────────────────────
+custom-length:
+  end-platform:
+    # Block material and data value for the platform (format "MATERIAL:DATA")
+    material: "STAINED_GLASS_PANE:5"
+    # How many blocks deep (Z-axis) the platform extends.
+    # 0 = span the full finish-zone Z range; positive = use this fixed depth.
+    depth: 3
+
+# ──────────────────────────────────────────────────────────────────────────────
+# CPS hologram visibility
+# "global"  → all players on the server can see the CPS hologram
+# "private" → only the player who clicked the sapling sees their own hologram
+# ──────────────────────────────────────────────────────────────────────────────
+cps-hologram:
+  visibility: "global"

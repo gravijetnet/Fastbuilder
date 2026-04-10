@@ -39,7 +39,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "setup", "rename", "regen", "seticon", "enable", "disable", "scale", "distance",
             "autoscale", "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign",
-            "removedesign", "setinfinite", "info", "help"
+            "removedesign", "customlength", "info", "help"
     );
     private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "cancel");
@@ -126,8 +126,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             case "removedesign":
                 handleRemoveDesign(player, args, mm);
                 break;
-            case "setinfinite":
-                handleSetInfinite(player, args, mm);
+            case "customlength":
+                handleCustomLength(player, args, mm);
                 break;
             case "info":
                 handleInfo(player, args, mm);
@@ -308,7 +308,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     session.advanceToName();
                     player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved! Infinite mode enabled."));
                     player.sendMessage(ColorUtil.translate("&7No finish zone required for infinite maps."));
-                    player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map: &c/map setup finish <name>"));
+                    player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map:"));
+                    sendClickableFinish(player);
                 } else {
                     session.advanceToFinish();
                     player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
@@ -947,20 +948,57 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     // --- /map setinfinite <map> <true|false> ---
 
-    private void handleSetInfinite(Player player, String[] args, MapManager mm) {
+    // --- /map customlength <map> <true/false> [minblocks] ---
+
+    private void handleCustomLength(Player player, String[] args, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.command.map.setcustomlength")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
         if (args.length < 3) {
             msg(player, plugin.getConfigManager().getPrefix()
-                    + "&cUsage: &f/map setinfinite <map> <true|false>");
+                    + "&cUsage: &f/map customlength <map> <true|false> [minBlocksFromSpawnToPressurePlates]");
             return;
         }
         MapData map = mm.getMap(args[1]);
         if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
 
-        boolean value = Boolean.parseBoolean(args[2]);
-        map.setInfinite(value);
+        boolean enabled = Boolean.parseBoolean(args[2]);
+        String prefix = plugin.getConfigManager().getPrefix();
+
+        if (!enabled) {
+            // Disable: reset both bounds to 0 so hasCustomLength() returns false
+            map.setMinCustomLength(0);
+            map.setMaxCustomLength(0);
+            mm.saveMap(map);
+            msg(player, prefix + "&fCustom length &cdisabled &ffor &c" + map.getName() + "&f.");
+            return;
+        }
+
+        // Enable: require at least a min-blocks value
+        int minBlocks = args.length >= 4 ? 0 : map.getMinCustomLength();
+        if (args.length >= 4) {
+            try {
+                minBlocks = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                msg(player, "&cInvalid number: &f" + args[3]);
+                return;
+            }
+        }
+        if (minBlocks <= 0) {
+            msg(player, prefix + "&cUsage: &f/map customlength <map> true <minBlocksFromSpawnToPressurePlates>");
+            return;
+        }
+
+        // maxCustomLength defaults to min×2 if not previously set
+        int maxBlocks = map.getMaxCustomLength() > 0 ? map.getMaxCustomLength() : minBlocks * 2;
+        map.setMinCustomLength(minBlocks);
+        map.setMaxCustomLength(maxBlocks);
         mm.saveMap(map);
-        msg(player, plugin.getConfigManager().getPrefix()
-                + "&fInfinite mode for &c" + map.getName() + " &fset to &c" + value + "&f.");
+
+        msg(player, prefix + "&fCustom length &aenabled &ffor &c" + map.getName()
+                + " &f(min: &c" + minBlocks + " &fblocks, max: &c" + maxBlocks + " &fblocks).");
+        msg(player, prefix + "&7Tip: Players can toggle custom length in their &fSettings &7menu.");
     }
 
     private String capitalize(String s) {
@@ -981,23 +1019,24 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 "/map setup continue"));
         msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                new net.md_5.bungee.api.chat.ComponentBuilder(
-                        ColorUtil.translate("&7Click to fill the command in your chat bar")).create()));
+                new net.md_5.bungee.api.chat.BaseComponent[]{
+                        new net.md_5.bungee.api.chat.TextComponent(
+                                ColorUtil.translate("&7Click to fill the command in your chat bar"))}));
         player.spigot().sendMessage(msg);
     }
 
     private void sendClickableFinish(Player player) {
         if (!plugin.getConfigManager().isAdminHintsEnabled()) return;
-        String prefix = plugin.getConfigManager().getPrefix();
         net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
-                ColorUtil.translate(prefix + "&e[Click] &r&f/map setup finish <name>"));
+                ColorUtil.translate("&f/map setup finish <name>"));
         msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                 net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND,
                 "/map setup finish "));
         msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                new net.md_5.bungee.api.chat.ComponentBuilder(
-                        ColorUtil.translate("&7Click to fill — then type the map name and press Enter")).create()));
+                new net.md_5.bungee.api.chat.BaseComponent[]{
+                        new net.md_5.bungee.api.chat.TextComponent(
+                                ColorUtil.translate("&7Click to fill — then type the map name and press Enter"))}));
         player.spigot().sendMessage(msg);
     }
 
@@ -1011,7 +1050,6 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate(prefix + "&aMap &c" + mapName + " &acreated! Next steps:"));
         sendSuggestHint(player, "&7Enable the map: ", "/map enable " + mapName);
         sendSuggestHint(player, "&7Set island count: ", "/map scale " + mapName + " 15");
-        sendSuggestHint(player, "&7Set island spacing: ", "/map distance " + mapName + " 50");
         sendSuggestHint(player, "&7Test it: ", "/fb join " + mapName);
     }
 
@@ -1024,8 +1062,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, command));
         cmd.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                new net.md_5.bungee.api.chat.ComponentBuilder(
-                        ColorUtil.translate("&7Click to fill this command in your chat bar")).create()));
+                new net.md_5.bungee.api.chat.BaseComponent[]{
+                        new net.md_5.bungee.api.chat.TextComponent(
+                                ColorUtil.translate("&7Click to fill this command in your chat bar"))}));
         line.addExtra(cmd);
         player.spigot().sendMessage(line);
     }
@@ -1050,21 +1089,47 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         int start = (page - 1) * HELP_PAGE_SIZE;
         int end   = Math.min(start + HELP_PAGE_SIZE, lines.size());
 
-        player.sendMessage(ColorUtil.translate(
-                "&c&lFastBuilder &7» &fMap Commands &8(&7" + lines.size() + " results&8)"));
-        if (totalPages > 1 && page < totalPages) {
-            player.sendMessage(ColorUtil.translate(
-                    "&8» Showing page &f" + page + " &8of &f" + totalPages
-                    + "  &e/map help " + (page + 1) + " &8»"));
-        } else if (totalPages > 1) {
-            player.sendMessage(ColorUtil.translate(
-                    "&8« Showing page &f" + page + " &8of &f" + totalPages
-                    + "  &e/map help " + (page - 1) + " &8«"));
-        }
-
+        // Print entries first, pagination footer at the bottom
         for (int i = start; i < end; i++) {
             player.sendMessage(ColorUtil.translate(lines.get(i)));
         }
+
+        // Build pagination footer: [&c<] Showing page X of Y [&a>]
+        net.md_5.bungee.api.chat.TextComponent footer = new net.md_5.bungee.api.chat.TextComponent("");
+
+        if (page > 1) {
+            net.md_5.bungee.api.chat.TextComponent prev =
+                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&c< "));
+            prev.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                    "/map help " + (page - 1)));
+            prev.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                    new net.md_5.bungee.api.chat.BaseComponent[]{
+                            new net.md_5.bungee.api.chat.TextComponent(
+                                    ColorUtil.translate("&7Previous page"))}));
+            footer.addExtra(prev);
+        }
+
+        footer.addExtra(new net.md_5.bungee.api.chat.TextComponent(
+                ColorUtil.translate("&fShowing page &c" + page + " &fof &c" + totalPages
+                        + " &f(&7" + lines.size() + " results&f)")));
+
+        if (page < totalPages) {
+            net.md_5.bungee.api.chat.TextComponent next =
+                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate(" &a>"));
+            next.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                    "/map help " + (page + 1)));
+            next.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                    new net.md_5.bungee.api.chat.BaseComponent[]{
+                            new net.md_5.bungee.api.chat.TextComponent(
+                                    ColorUtil.translate("&7Next page"))}));
+            footer.addExtra(next);
+        }
+
+        player.spigot().sendMessage(footer);
     }
 
     /** Build help entries, filtered to commands this player has permission for. */
@@ -1089,9 +1154,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             {"fastbuilder.command.map.setrank",   "/map setmintime <map> <ms>",          "Set minimum valid run time"},
             {"fastbuilder.command.map.setrank",   "/map setmaxtime <map> <ms>",          "Set max run time (0=off)"},
             {"fastbuilder.command.map.setrank",   "/map setrank <map> <tier> <ms>",      "Set rank time threshold"},
-            {"fastbuilder.command.map.adddesign", "/map adddesign <map> [key]",          "Add alternative island design"},
-            {"fastbuilder.command.map.adddesign", "/map removedesign <map> <key>",       "Remove alternative island design"},
-            {"fastbuilder.command.map.setinfin",  "/map setinfinite <map> <true|false>", "Toggle infinite mode"},
+            {"fastbuilder.command.map.adddesign",       "/map adddesign <map> [key]",                              "Add alternative island design"},
+            {"fastbuilder.command.map.adddesign",       "/map removedesign <map> <key>",                          "Remove alternative island design"},
+            {"fastbuilder.command.map.setcustomlength", "/map customlength <map> <true|false> [minBlocks]",       "Enable custom run length on a map"},
         };
 
         List<String> lines = new ArrayList<>();
@@ -1148,7 +1213,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "setmintime":
                 case "setmaxtime":
                 case "setrank":
-                case "setinfinite":
+                case "customlength":
                 case "adddesign":
                 case "removedesign":
                 case "info":
@@ -1186,7 +1251,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "setrank":
                     return filter(RANK_TIERS, args[2]);
                 case "autoscale":
-                case "setinfinite":
+                case "customlength":
                     return filter(BOOLEANS, args[2]);
                 default:
                     return Collections.emptyList();

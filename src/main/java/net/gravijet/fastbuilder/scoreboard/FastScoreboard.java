@@ -241,7 +241,7 @@ public class FastScoreboard {
         if (session != null && session.isRunning()) {
             currentTime = TimeUtil.formatTime(session.getElapsed());
         } else {
-            currentTime = "00:00,000";
+            currentTime = "0,000";
         }
 
         String coins  = data != null ? String.valueOf(data.getCoins()) : "0";

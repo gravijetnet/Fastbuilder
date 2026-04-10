@@ -65,7 +65,7 @@ public class HologramManager {
             List<String> lines = new ArrayList<>();
 
             PlayerData.MapStats stats = playerData.getStats(map.getName());
-            String pb = (stats != null && stats.hasBestTime()) ? TimeUtil.formatTime(stats.bestTime) : "N/A";
+            String pb = (stats != null && stats.hasBestTime()) ? TimeUtil.formatTime(stats.bestTime) : TimeUtil.EMPTY;
             int successful = stats != null ? stats.successfulAttempts : 0;
             int total = stats != null ? stats.totalAttempts : 0;
 

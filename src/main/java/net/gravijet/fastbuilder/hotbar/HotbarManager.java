@@ -204,19 +204,33 @@ public class HotbarManager implements Listener {
             plugin.getGameplayManager().removeSession(player.getUniqueId());
         }
 
-        if (plugin.getConfigManager().isBungeeEnabled()) {
-            String lobbyServer = plugin.getConfigManager().getLobbyServer();
-            try {
-                ByteArrayOutputStream b = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(b);
-                out.writeUTF("Connect");
-                out.writeUTF(lobbyServer);
-                player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
-            } catch (IOException e) {
-                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        String action = plugin.getConfigManager().getLeaveAction();
+        switch (action) {
+            case "BUNGEE": {
+                String lobbyServer = plugin.getConfigManager().getLobbyServer();
+                try {
+                    ByteArrayOutputStream b = new ByteArrayOutputStream();
+                    DataOutputStream out = new DataOutputStream(b);
+                    out.writeUTF("Connect");
+                    out.writeUTF(lobbyServer);
+                    player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
+                } catch (IOException e) {
+                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                break;
             }
-        } else {
-            player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            case "COMMAND": {
+                String cmd = plugin.getConfigManager().getLeaveCommand();
+                if (cmd != null && !cmd.isEmpty()) {
+                    Bukkit.dispatchCommand(player, cmd);
+                } else {
+                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                break;
+            }
+            default: // "SPAWN" or anything else
+                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                break;
         }
     }
 

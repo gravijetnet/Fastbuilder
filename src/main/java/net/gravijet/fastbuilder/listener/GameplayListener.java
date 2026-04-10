@@ -23,6 +23,8 @@ import org.bukkit.event.player.PlayerMoveEvent;
 public class GameplayListener implements Listener {
 
     private final FastBuilder plugin;
+    // Per-player cooldown to prevent rapid island-hop re-triggers
+    private final java.util.Set<java.util.UUID> islandHopCooldown = new java.util.HashSet<>();
 
     public GameplayListener(FastBuilder plugin) {
         this.plugin = plugin;
@@ -75,22 +77,90 @@ public class GameplayListener implements Listener {
         }
 
         RunSession session = gm.getSession(player.getUniqueId());
-        if (session == null || !session.isRunning()) return;
+        if (session == null) return;
 
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
         Location to = event.getTo();
-        if (isInFinishZone(map, session.getIslandIndex(), to, player)) {
-            // In "touch" mode the player must be standing on a pressure plate inside the zone.
-            // In "zone" mode (default) any block — including regular blocks — triggers the finish.
-            if (plugin.getConfigManager().isFinishTouchMode()) {
-                org.bukkit.block.Block below = to.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
-                // Allow both stone plates (70), wood plates (72), AND any solid non-air block
-                if (below.getType() == org.bukkit.Material.AIR) return;
+
+        // Finish zone detection (only when timer is running)
+        if (session.isRunning()) {
+            if (isInFinishZone(map, session.getIslandIndex(), to, player)) {
+                // In "touch" mode the player must be standing on a pressure plate inside the zone.
+                // In "zone" mode (default) any block — including regular blocks — triggers the finish.
+                if (plugin.getConfigManager().isFinishTouchMode()) {
+                    org.bukkit.block.Block below = to.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
+                    // Allow both stone plates (70), wood plates (72), AND any solid non-air block
+                    if (below.getType() == org.bukkit.Material.AIR) return;
+                }
+                gm.onFinish(player);
+                return;
             }
-            gm.onFinish(player);
         }
+
+        // Island hopping: trigger switch if player steps into an adjacent island's zone
+        checkIslandHop(player, gm, map, session, to);
+    }
+
+    /**
+     * Detect if the player has walked into an adjacent island's Z zone and trigger a switch.
+     * Teleports back if the target island is occupied or out of bounds.
+     */
+    private void checkIslandHop(Player player, GameplayManager gm, MapData map, RunSession session, Location to) {
+        if (!plugin.getConfigManager().isIslandHoppingEnabled()) return;
+
+        java.util.UUID uuid = player.getUniqueId();
+        if (islandHopCooldown.contains(uuid)) return;
+        if (session.isResetting()) return;
+        if (plugin.getMapManager().hasSetupSession(uuid)) return;
+
+        int dist = map.getDistance();
+        if (dist <= 0) return;
+
+        // Player must be within the island's X range
+        int bx = to.getBlockX();
+        if (bx < map.getOriginX() || bx > map.getOriginX() + map.getIslandWidth() - 1) return;
+
+        int bz = to.getBlockZ();
+        int relZ = bz - map.getOriginZ();
+        if (relZ < 0) return;
+
+        int candidateIndex = relZ / dist;
+        int currentIndex = session.getIslandIndex();
+        if (candidateIndex == currentIndex) return;
+
+        // Confirm player is within this island's Z extent (not in the gap between islands)
+        int islandStartZ = map.getOriginZ() + candidateIndex * dist;
+        int islandEndZ = islandStartZ + map.getIslandLength() - 1;
+        if (bz < islandStartZ || bz > islandEndZ) return;
+
+        java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
+                plugin.getMapManager().getIslands(map.getName());
+
+        // Boundary check: target slot must exist within current scale
+        if (candidateIndex < 0 || candidateIndex >= islandList.size()) {
+            teleportBack(player, map, currentIndex, uuid);
+            return;
+        }
+
+        net.gravijet.fastbuilder.map.IslandInstance target = islandList.get(candidateIndex);
+        if (target.isOccupied() && !target.getOccupantUuid().equals(uuid)) {
+            // Target occupied by another player — push back
+            teleportBack(player, map, currentIndex, uuid);
+            return;
+        }
+
+        // Perform the island switch
+        islandHopCooldown.add(uuid);
+        gm.switchIsland(player, map, session, candidateIndex);
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> islandHopCooldown.remove(uuid), 40L);
+    }
+
+    private void teleportBack(Player player, MapData map, int islandIndex, java.util.UUID uuid) {
+        islandHopCooldown.add(uuid);
+        player.teleport(map.getIslandSpawn(islandIndex));
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> islandHopCooldown.remove(uuid), 20L);
     }
 
     /**

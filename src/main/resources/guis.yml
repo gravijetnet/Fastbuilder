@@ -78,10 +78,11 @@ settings-gui-slots:
     material: STICK:0
     gui: "custom_length"
     lore:
-      - "&7Status: %custom_length%"
+      - "&7Distance: %custom_length_value% &7blocks"
+      - "&7Range: &e%custom_length_min% &7- &e%custom_length_max% &7blocks"
       - ""
-      - "&7Toggle infinite distance mode"
-      - "&7Click to enable/disable"
+      - "&aLeft-Click &8(-1)  &6Shift-Left &8(-10)"
+      - "&cRight-Click &8(+1)  &4Shift-Right &8(+10)"
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
@@ -861,12 +862,11 @@ shop:
   name: "Shop"
   # Strictly 3×9 (27 slots) as per spec
   max-slots: 27
-  blocks-slot: 10
-  pickaxes-slot: 12
-  animations-slot: 14
-  death-sounds-slot: 16
-  # one-click-pick has moved to the Pickaxe Shop
+  blocks-slot: 9
+  pickaxes-slot: 11
   designs-slot: 13
+  animations-slot: 15
+  death-sounds-slot: 17
 
 # Death Sound Selector GUI
 death-sound-selector:
@@ -1181,14 +1181,6 @@ death-sound-selector-slots:
     lore:
       - "&7Firework blast"
       - "&ePrice: 300"
-  13:
-    name: "&5Portal"
-    material: "ENDER_PORTAL_FRAME:0"
-    sound: "Portal"
-    price: 300
-    lore:
-      - "&7Portal ambient sound"
-      - "&ePrice: 300"
   14:
     name: "&eSplash"
     material: "WATER_BUCKET:0"
@@ -1197,14 +1189,6 @@ death-sound-selector-slots:
     lore:
       - "&7Splash sound"
       - "&ePrice: 200"
-  15:
-    name: "&6LevelUp"
-    material: "EXP_BOTTLE:0"
-    sound: "LevelUp"
-    price: 300
-    lore:
-      - "&7Level up sound"
-      - "&ePrice: 300"
   16:
     name: "&cDragon"
     material: "DRAGON_EGG:0"
@@ -1245,13 +1229,63 @@ death-sound-selector-slots:
     lore:
       - "&7Wither spawn sound"
       - "&ePrice: 1500"
+  21:
+    name: "&fClick"
+    material: "LEVER:0"
+    sound: "Click"
+    price: 100
+    lore:
+      - "&7Lever click sound"
+      - "&ePrice: 100"
+  22:
+    name: "&6WoodClick"
+    material: "WOOD_BUTTON:0"
+    sound: "WoodClick"
+    price: 100
+    lore:
+      - "&7Wooden button click"
+      - "&ePrice: 100"
+  23:
+    name: "&dBassDrum"
+    material: "CLAY:0"
+    sound: "BassDrum"
+    price: 100
+    lore:
+      - "&7Bass drum hit"
+      - "&ePrice: 100"
+  24:
+    name: "&bSnareDrum"
+    material: "GRAVEL:0"
+    sound: "SnareDrum"
+    price: 100
+    lore:
+      - "&7Snare drum hit"
+      - "&ePrice: 100"
+  25:
+    name: "&aExpPickup"
+    material: "EXP_BOTTLE:0"
+    sound: "ExpPickup"
+    price: 150
+    lore:
+      - "&7XP orb pickup pop"
+      - "&ePrice: 150"
+  26:
+    name: "&2SlimeHit"
+    material: "SLIME_BALL:0"
+    sound: "SlimeHit"
+    price: 250
+    lore:
+      - "&7Slime attack sound"
+      - "&ePrice: 250"
 
 # One-Click Pick cosmetic (single entry, toggle-style)
+# slot: 1-based position inside the pickaxe selector content area (must not overlap nav row)
 one-click-pick:
   name: "&bOne-Click Pick"
   material: "DIAMOND_AXE:0"
   price: 5000
+  slot: 23
   lore:
-    - "&7Breaks placed blocks instantly on left-click"
-    - "&7Uses a &cDiamond Axe &7as the tool"
+    - "&7Insta-breaks your placed blocks on left-click"
+    - "&7Equip any tool — no dig time required"
     - "&ePrice: 5000"

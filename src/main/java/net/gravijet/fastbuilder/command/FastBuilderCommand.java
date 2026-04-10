@@ -199,23 +199,41 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             msg(player, plugin.getConfigManager().getMessage("no-permission"));
             return;
         }
-        // Free all islands
+        // Full cleanup before leaving
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        }
 
-        if (plugin.getConfigManager().isBungeeEnabled()) {
-            String lobbyServer = plugin.getConfigManager().getLobbyServer();
-            try {
-                ByteArrayOutputStream b = new ByteArrayOutputStream();
-                DataOutputStream out = new DataOutputStream(b);
-                out.writeUTF("Connect");
-                out.writeUTF(lobbyServer);
-                player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
-            } catch (IOException e) {
-                plugin.getLogger().warning("Failed to send player to lobby via BungeeCord.");
-                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        String action = plugin.getConfigManager().getLeaveAction();
+        switch (action) {
+            case "BUNGEE": {
+                String lobbyServer = plugin.getConfigManager().getLobbyServer();
+                try {
+                    ByteArrayOutputStream b = new ByteArrayOutputStream();
+                    DataOutputStream out = new DataOutputStream(b);
+                    out.writeUTF("Connect");
+                    out.writeUTF(lobbyServer);
+                    player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
+                } catch (IOException e) {
+                    plugin.getLogger().warning("Failed to send player to lobby via BungeeCord.");
+                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                break;
             }
-        } else {
-            player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            case "COMMAND": {
+                String cmd = plugin.getConfigManager().getLeaveCommand();
+                if (cmd != null && !cmd.isEmpty()) {
+                    Bukkit.dispatchCommand(player, cmd);
+                } else {
+                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                break;
+            }
+            default: // "SPAWN"
+                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                break;
         }
 
         msg(player, plugin.getConfigManager().getPrefix() + "&fYou left the game.");
@@ -355,8 +373,9 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                                 net.md_5.bungee.api.chat.ClickEvent.Action.OPEN_URL, url));
                         link.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                                new net.md_5.bungee.api.chat.ComponentBuilder(
-                                        ColorUtil.translate("&7Click to open in browser")).create()));
+                                new net.md_5.bungee.api.chat.BaseComponent[]{
+                                        new net.md_5.bungee.api.chat.TextComponent(
+                                                ColorUtil.translate("&7Click to open in browser"))}));
                         player.spigot().sendMessage(link);
 
                         net.md_5.bungee.api.chat.TextComponent copy =
@@ -366,8 +385,9 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                                 net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, url));
                         copy.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                                new net.md_5.bungee.api.chat.ComponentBuilder(
-                                        ColorUtil.translate("&7Click to paste URL into chat")).create()));
+                                new net.md_5.bungee.api.chat.BaseComponent[]{
+                                        new net.md_5.bungee.api.chat.TextComponent(
+                                                ColorUtil.translate("&7Click to paste URL into chat"))}));
                         player.spigot().sendMessage(copy);
                     } else {
                         msg(player, plugin.getConfigManager().getPrefix()
@@ -412,16 +432,12 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 .append(maxMB).append("MB max\n");
         sb.append("CPU cores: ").append(rt.availableProcessors()).append("\n");
 
-        // Hooked plugins
-        sb.append("\n--- Hooked Plugins ---\n");
-        String[] hooks = {"WorldEdit", "FastAsyncWorldEdit", "Citizens", "DecentHolograms", "PlaceholderAPI"};
-        for (String h : hooks) {
-            org.bukkit.plugin.Plugin p = Bukkit.getPluginManager().getPlugin(h);
-            if (p != null) {
-                sb.append(h).append(": ").append(p.getDescription().getVersion()).append("\n");
-            } else {
-                sb.append(h).append(": NOT FOUND\n");
-            }
+        // All installed plugins
+        sb.append("\n--- All Installed Plugins (").append(Bukkit.getPluginManager().getPlugins().length).append(") ---\n");
+        for (org.bukkit.plugin.Plugin p : Bukkit.getPluginManager().getPlugins()) {
+            sb.append(p.getName())
+              .append(" v").append(p.getDescription().getVersion())
+              .append(" [").append(p.isEnabled() ? "ENABLED" : "DISABLED").append("]\n");
         }
 
         // Online players
@@ -442,22 +458,37 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                     .append("\n");
         }
 
-        // config.yml contents
-        sb.append("\n--- config.yml ---\n");
-        try {
-            java.io.File configFile = new java.io.File(plugin.getDataFolder(), "config.yml");
-            sb.append(new String(java.nio.file.Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            sb.append("[Could not read config.yml: ").append(e.getMessage()).append("]\n");
+        // All Fastbuilder YAML config files
+        String[] yamlFiles = {"config.yml", "messages.yml", "guis.yml", "items.yml"};
+        for (String yamlName : yamlFiles) {
+            sb.append("\n--- ").append(yamlName).append(" ---\n");
+            try {
+                java.io.File yamlFile = new java.io.File(plugin.getDataFolder(), yamlName);
+                if (yamlFile.exists()) {
+                    sb.append(new String(java.nio.file.Files.readAllBytes(yamlFile.toPath()), StandardCharsets.UTF_8));
+                } else {
+                    sb.append("[File not found]\n");
+                }
+            } catch (Exception e) {
+                sb.append("[Could not read ").append(yamlName).append(": ").append(e.getMessage()).append("]\n");
+            }
         }
 
-        // messages.yml contents
-        sb.append("\n--- messages.yml ---\n");
-        try {
-            java.io.File msgFile = new java.io.File(plugin.getDataFolder(), "messages.yml");
-            sb.append(new String(java.nio.file.Files.readAllBytes(msgFile.toPath()), StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            sb.append("[Could not read messages.yml: ").append(e.getMessage()).append("]\n");
+        // Map data files
+        sb.append("\n--- Map Data Files ---\n");
+        java.io.File mapsDir = new java.io.File(plugin.getDataFolder(), "maps");
+        if (mapsDir.exists()) {
+            java.io.File[] mapFiles = mapsDir.listFiles((dir, name) -> name.endsWith(".yml"));
+            if (mapFiles != null) {
+                for (java.io.File mapFile : mapFiles) {
+                    sb.append("\n[").append(mapFile.getName()).append("]\n");
+                    try {
+                        sb.append(new String(java.nio.file.Files.readAllBytes(mapFile.toPath()), StandardCharsets.UTF_8));
+                    } catch (Exception e) {
+                        sb.append("[Could not read: ").append(e.getMessage()).append("]\n");
+                    }
+                }
+            }
         }
 
         return sb.toString();

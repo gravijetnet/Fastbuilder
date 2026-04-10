@@ -3,8 +3,8 @@ version: 2.1.0
 main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
-depend: [WorldEdit, FastAsyncWorldEdit, Citizens, DecentHolograms]
-softdepend: [PlaceholderAPI]
+depend: [WorldEdit]
+softdepend: [FastAsyncWorldEdit, Citizens, DecentHolograms, PlaceholderAPI]
 commands:
   map:
     description: Map administration commands
@@ -23,9 +23,6 @@ commands:
   build:
     description: Toggle creative build mode on your island
     usage: /<command>
-  length:
-    description: Set or reset your custom run length for the current map
-    usage: /<command> [blocks|reset]
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands and features
@@ -47,7 +44,6 @@ permissions:
       fastbuilder.command.map.setrank: true
       fastbuilder.command.map.adddesign: true
       fastbuilder.command.map.removedesign: true
-      fastbuilder.command.map.setinfinite: true
       fastbuilder.command.map.setcustomlength: true
       fastbuilder.command.fb.reload: true
       fastbuilder.command.fb.dump: true
@@ -62,7 +58,6 @@ permissions:
       fastbuilder.command.fb.reset: true
       fastbuilder.command.fb.list: true
       fastbuilder.command.stats: true
-      fastbuilder.command.length: true
       fastbuilder.command.build: true
   fastbuilder.command.map:
     description: Access to /map command
@@ -112,9 +107,6 @@ permissions:
   fastbuilder.command.map.removedesign:
     description: Remove an alternative island design
     default: op
-  fastbuilder.command.map.setinfinite:
-    description: Toggle infinite mode for a map
-    default: op
   fastbuilder.command.map.setcustomlength:
     description: Set custom run length range for a map
     default: op
@@ -139,9 +131,6 @@ permissions:
   fastbuilder.command.stats:
     description: View statistics with /stats
     default: true
-  fastbuilder.command.length:
-    description: Set custom run length with /length
-    default: true
   fastbuilder.command.build:
     description: Toggle build mode with /build
     default: true
@@ -152,25 +141,37 @@ permissions:
     description: Modify other players' coins
     default: op
   fastbuilder.blocks.*:
-    description: Access to all building blocks
+    description: Access to all building blocks without purchasing
     default: false
-  fastbuilder.shop.pickaxe:
-    description: Access to the pickaxe shop
-    default: true
-  fastbuilder.shop.animation:
-    description: Access to reset animations shop
-    default: true
-  fastbuilder.shop.deathsound:
-    description: Access to death sounds shop
-    default: true
-  fastbuilder.shop.design:
-    description: Access to island design selection
-    default: true
+  fastbuilder.block.*:
+    description: Per-item block permission (e.g. fastbuilder.block.stained_clay.5)
+    default: false
+  fastbuilder.pickaxe.*:
+    description: Per-item pickaxe permission (e.g. fastbuilder.pickaxe.diamond_pickaxe.0)
+    default: false
+  fastbuilder.animation.*:
+    description: Per-item animation permission (e.g. fastbuilder.animation.fall_down)
+    default: false
+  fastbuilder.sound.*:
+    description: Per-item death sound permission (e.g. fastbuilder.sound.creeper)
+    default: false
   fastbuilder.cosmetic.autofill:
     description: Purchase and use the auto-refill perk
     default: true
   fastbuilder.cosmetic.oneclickpick:
-    description: Purchase and use the one-click pick cosmetic
+    description: Grants free access to the One-Click Pick cosmetic (bypasses coin purchase)
+    default: false
+  fastbuilder.cosmetic.infiniteblocks:
+    description: Grants free access to Infinite Blocks (bypasses coin purchase)
+    default: false
+  fastbuilder.stats.reset:
+    description: Allows resetting personal statistics
+    default: true
+  fastbuilder.feature.practice_mode:
+    description: Allows toggling practice mode in the Settings GUI
+    default: true
+  fastbuilder.feature.custom_length:
+    description: Allows toggling custom island length in the Settings GUI
     default: true
   fastbuilder.bypass.border:
     description: Bypass island border restrictions

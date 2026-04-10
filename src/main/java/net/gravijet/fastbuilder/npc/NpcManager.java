@@ -38,15 +38,24 @@ public class NpcManager implements Listener {
 
         despawnNpc(player.getUniqueId());
 
-        // Fix Y: snap to integer to avoid floating-point sinking, then ensure
-        // the NPC stands on top of a block rather than inside it.
+        // Find the highest solid block at or below the intended Y, then spawn one block above it.
+        // This guarantees the NPC stands on the surface rather than inside a block,
+        // regardless of floating-point rounding or how the location was stored.
         Location adjusted = npcLocation.clone();
-        adjusted.setY(Math.floor(adjusted.getY()));
-
-        // If the block at this position is solid, move up by 1
-        Block blockAt = adjusted.getBlock();
-        if (blockAt != null && blockAt.getType() != Material.AIR) {
-            adjusted.setY(adjusted.getBlockY() + 1);
+        int targetY = (int) Math.floor(adjusted.getY());
+        org.bukkit.World npcWorld = adjusted.getWorld();
+        if (npcWorld != null) {
+            int groundY = targetY; // default: no solid block found, stay put
+            for (int dy = 0; dy >= -5; dy--) {
+                Block b = npcWorld.getBlockAt(adjusted.getBlockX(), targetY + dy, adjusted.getBlockZ());
+                if (b != null && b.getType() != Material.AIR) {
+                    groundY = targetY + dy + 1; // stand on top of this solid block
+                    break;
+                }
+            }
+            adjusted.setY(groundY);
+        } else {
+            adjusted.setY(targetY);
         }
 
         try {
@@ -60,6 +69,31 @@ public class NpcManager implements Listener {
 
             npc.spawn(adjusted);
             npc.setProtected(true);
+
+            // Zero-tick tablist removal: hide the NPC from the tab list immediately in the same tick.
+            if (npc.isSpawned() && npc.getEntity() instanceof org.bukkit.entity.Player) {
+                try {
+                    org.bukkit.entity.Player npcEntity = (org.bukkit.entity.Player) npc.getEntity();
+                    String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+                    Object nmsNpcPlayer = npcEntity.getClass().getMethod("getHandle").invoke(npcEntity);
+                    Class<?> pktClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo");
+                    Class<?> enumClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
+                    Class<?> entityPlayerClass = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
+                    // REMOVE_PLAYER is the 5th value (index 4) in the enum
+                    Object removeAction = java.lang.reflect.Array.get(enumClass.getMethod("values").invoke(null), 4);
+                    Object entityPlayerArr = java.lang.reflect.Array.newInstance(entityPlayerClass, 1);
+                    java.lang.reflect.Array.set(entityPlayerArr, 0, nmsNpcPlayer);
+                    Object removePacket = pktClass.getDeclaredConstructors()[0].newInstance(removeAction, entityPlayerArr);
+                    Class<?> packetIface = Class.forName("net.minecraft.server." + ver + ".Packet");
+                    for (org.bukkit.entity.Player viewer : adjusted.getWorld().getPlayers()) {
+                        Object handle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+                        Object conn = handle.getClass().getField("playerConnection").get(handle);
+                        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, removePacket);
+                    }
+                } catch (Exception e) {
+                    plugin.getLogger().fine("Could not hide NPC from tablist: " + e.getMessage());
+                }
+            }
 
             playerNpcs.put(player.getUniqueId(), npc.getId());
 

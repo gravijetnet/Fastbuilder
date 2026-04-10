@@ -19,6 +19,8 @@ public class RunSession {
     private long finishTimeMs = -1;
     private boolean running = false;
     private boolean finished = false;
+    // True while the reset animation is playing — blocks double-resets and phantom block placement.
+    private boolean resetting = false;
 
     // All blocks placed during this run
     private final List<Location> placedBlocks = new ArrayList<>();
@@ -50,7 +52,10 @@ public class RunSession {
 
     public long finish() {
         if (!running) return -1;
-        finishTimeMs = System.currentTimeMillis() - startTime;
+        long rawMs = System.currentTimeMillis() - startTime;
+        // Snap to the nearest 50 ms increment — sub-50 ms precision is not physically achievable
+        // by human reactions, so values like 3,001 are measurement noise rather than real data.
+        finishTimeMs = Math.round(rawMs / 50.0) * 50;
         running = false;
         finished = true;
         return finishTimeMs;
@@ -60,12 +65,17 @@ public class RunSession {
         startTime = -1;
         running = false;
         finished = false;
+        resetting = false;
         placedBlocks.clear();
         originalBlockStates.clear();
         // Note: practiceBlocks is intentionally NOT cleared here.
         // It is cleared in GameplayManager.resetRun() selectively
         // and in handleSettingsClick when practice mode is toggled off.
     }
+
+    /** Mark that the reset animation is in progress. Prevents double-resets and phantom block placement. */
+    public void setResetting(boolean resetting) { this.resetting = resetting; }
+    public boolean isResetting() { return resetting; }
 
     public long getElapsed() {
         if (startTime < 0) return 0;

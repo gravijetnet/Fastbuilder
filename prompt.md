@@ -1,74 +1,84 @@
-CRITICAL SYSTEM OVERRIDE INSTRUCTION: You are acting as a Senior Java/Spigot Developer. This is a massive architectural overhaul of the "Fastbuilder" plugin. Your previous iterations skipped crucial details, used placeholders, or implemented superficial fixes. This time, you must read EVERY SINGLE WORD of this specification. Do not output placeholder code (// do something here). Implement the actual, production-ready, highly optimized logic.
+bei /map setup finish <name> im chat soll, wenn man auf den befehl draufklickt, der befehl in seinen chat kopiert werden, dass man den ersten teil nicht selbst schreiben muss.!!!!!!
+es soll außerdem statt /map setup finish /map setup finish <name> dastehen bitte.
+custom length ist NICHT die infinite distance! Entferne das aus den settings!
+bei custom length gibt man bitte /map setup --customlength ein.
+da muss man dann die startinsel EINZELN und die endinsel EINZEL auswählen, damit sich die endinsel auch bewegen kann!!! man setzt dann auch eine standarddistanz für die entfernung. und dann kann man in dem settingsmenü bitte einstellen wie weit die insel enfert ist (am besten mit shift linksklick für -10 blöcke und linksklick für -1 block und bei rechtsklick halt +1 block und bei shift rechtsklick +10 blöcke. irgendwie soll man es auch resetten können (wird auch resetted wenn man dem server, oder die map verlässt und neu beitritt; DIE INSEL MUSS SICH UNBEDINGT IMMER IN ECHTZEIT VERSCHIEBEN!!!!))
+im replay soll bitte der gleiche name wie in echt sein wann man das replay aufgenommen hat vom spieler. also mit prefix, farbe, skin, cape, etc. 1:1 und nicht nur &5<playername>
+das konfigurierbar machen mit dem insel hopping:
+das mit "Showing page 2 of 3. (21 results). » «" soll bitte nur ganz unten auf der helpmessage angezeigt werden und nicht oben. außerdem nur ein pfeil, der entweder &a (nach vorne) ist oder &c (zurück), jenachdem ist der pfeil auch vor dem text (zurück) oder hinter dem text (vor)
+wenn man von seiner insel zu einer anderen springt (nicht übers island menu, sondern einfach in minecraft sich bewegt) und diese insel direkt neben einem nicht leer ist, dann soll man bitte auf diese insel wechseln. blöcke werden auch entfernt und so etc. wenn die insel aber schon jemandem gehört, dann wird man zurück zu seiner eigenen teleportiert wie bei einem normalen reset. und wenn man am rand ist, dann geht das auch nur in eine richtung natürlich
+mach bitte auch konfigurierbar, ob das hologramm für die cps beim setlzing und ob wenn man mit den cps mit dem setzling andere spieler sehen können oder nur der spieler, der gerade klickt.
+mach bitte wirklich alles was geht, konfigurierbar, jedes item, jeder preis im shop, alles!!!!
+der mapselector ist manchmal einen block im boden anstatt wie ein normaler spieler auf dem block zu stehen und geht erst wieder ganz normal hinauf, wenn man insel wechselt! bitte fixen, hat davor funktioniert!
+die zeit eines runs soll bitte niemals 3,001 sein sondern immer 3,000 oder 3,050 aber nicht 0,001 weil das kann man gar nicht messen.
+bei dem shop mit den blocks soll bitte noch ein "Back to Shop" button sein wie überall sonst.
+außerdem sollen beim blockshop immer beide pfeile für go back und weiter da sein. wenn man einmal nicht auf die nächste seite kann, steht halt irgendwie da dass es keien nächste seite gibt.
+bitte für jedes shopitem und alles permissions machen, dass man wirklich für alles und jedes permissions geben kann, auch für blöcke, resetanimationen, resetsounds, spitzhacke, stats reset, unlimited blocks, etc.
+füge bitte zu den resetsounds noch mehr sounds hinzu, die bitte nur kurz und nicht lang brauchen (max. 0.8s)
+in dem shopmenü, wo man die spitzhacken auswählen kann, kann man immernoch alles einfach so verschieben und es passiert nichts und man kann auch nichts auswählen oder kaufen. es ist auch keine one click pick (diamantaxt, die alle blöcke mit einem klick abbaut) da, die bitte im pickaxe shop sein soll. das muss unbedingt gefixed werden!
+du musst hier sehr sehr viel löschen und von grund auf neu und besser schreiben bitte!
 
-Every single string, item, size, and feature must be 100% configurable in English via YAML. Treat this prompt as a strict technical specification document.
-🏛️ 1. Core State Machine & Reset Logic (CRITICAL)
 
-    The Double-Reset Bug: Ensure resetPlayer() is locked by the state machine. If a player finishes a run, trigger the reset animation. Once the animation finishes, teleport them exactly once. Never trigger a second reset.
+Prompt 1:
+Task: Comprehensive Refactoring of the Plugin Core, Permission System, and Shop Logic.
 
-    100% Block Clearance: During any reset (finish, death, or out-of-bounds), iterate and force-clear every single placed block. Ghost blocks are unacceptable.
+Context: We are rebuilding parts of the system to ensure 100% configurability and a robust permission-based architecture.
+Files: src/ (Focus on Shop, Permissions, Config, and Item handlers)
 
-    Out-of-Bounds (OOB) Handling: If a player steps out of their island boundaries, instantly trigger the full block reset (clear all their blocks) AND teleport them back.
+Requirements:
+1. Global Configurability: Move every item, price, message, and sound into a central configuration. Ensure that no values are hardcoded.
+2. Permission System: Implement a granular permission system. Every feature (blocks, reset-animations, reset-sounds, pickaxes, stats-reset, unlimited blocks, etc.) must check for a specific permission before use.
+3. Shop UI Overhaul:
+    - Fix the Pickaxe Shop: Prevent players from moving items in the inventory.
+    - Implement a "One Click Pick" (Diamond Axe) that instabreaks all blocks.
+    - Add a "Back to Shop" button to every sub-menu.
+    - Standardize pagination: Arrows for "Next/Back" must always be visible. If a page doesn't exist, display a "No more pages" message or a disabled state.
+4. Timer Precision: Adjust the run timer logic. Ensure times are rounded/snapped to intervals (e.g., 3.000 or 3.050). Measurements like 0.001 must be removed as they are physically impossible to track accurately.
+5. Coding Style: Write idiomatic, clean Java code. Avoid typical AI tropes. Use meaningful variable names and follow standard Minecraft plugin development patterns (human-like structure).
 
-    Strict Build Protection: Intercept BlockPlaceEvent and BlockBreakEvent. If a reset animation is playing or a replay is active, absolutely cancel the event so players cannot place phantom blocks.
+Model Recommendation: Claude 4.6 Opus | Effort: Max
 
-👥 2. NPC, Tablist & Visuals
 
-    Creative NPC Identity: The reset NPC must perfectly mimic the player who just finished the run. Fetch the player's exact Skin and Username and apply it to the NPC. DO NOT use generic names like "&6Builder". The current animation speed is perfect, keep it.
+Prompt 2:
+Task: Implementation of Advanced Island Mechanics and Custom Distance Logic.
 
-    Zero-Tick Tablist Hiding: The NPC must never flash on the Tablist, not even for a millisecond. Use PacketPlayOutPlayerInfo with REMOVE_PLAYER in the exact same tick it spawns, or use Bukkit Teams to hide it completely.
+Requirements:
+1. Custom Length System:
+    - Remove "Infinite Distance" from settings; replace it with "--customlength".
+    - Workflow: Player selects Start Island and End Island individually.
+    - Real-time movement: When the distance is adjusted in the settings menu (Left-click: -1, Shift-Left: -10, Right-click: +1, Shift-Right: +10), the end island must move physically in the world in real-time.
+    - Reset Logic: Reset island position when a player leaves the server or the map.
+2. Island Hopping:
+    - If a player walks from their island to an adjacent non-empty island, trigger a switch.
+    - Handle block clearing and state transfer.
+    - If the target island is occupied, teleport the player back (standard reset).
+    - Respect boundary limits (one-way hopping at the edge).
+3. Configurable Visuals:
+    - Make CPS holograms (for seedlings) toggleable: Global visibility vs. Private (only clicking player sees it).
 
-    Death Sounds: Audio is currently completely broken. Fix the death sounds so they actually play. Remove the "Portal" sound entirely. Use punchy, short sounds.
+Model Recommendation: Claude 4.6 Opus | Effort: Max
 
-🎥 3. High-Performance Replay Engine
+prompt 2 continue
+claude --resume 39e2a3c2-b388-451d-b7ca-bf61782d3a95
 
-    5-Second Rewind Math: Rebuild the "Rewind" button. It must not restart the replay from the beginning. It must jump back exactly 5 seconds (100 ticks) from the current timestamp and reconstruct the block state accordingly.
+Prompt 3:
+Task: UI Polishing, Command Enhancement, and Replay Fidelity.
 
-    Extreme Compression Storage: Serialize replay data and templates into a highly compressed format (e.g., custom binary or GZIP). They must be extremely space-efficient.
+Requirements:
+1. Interactive Commands:
+    - Update "/map setup finish <name>": When clicked in chat, it should suggest/copy the command into the player's chat bar.
+    - Display the full command "/map setup finish <name>" instead of just the prompt.
+2. Help Message UI:
+    - Move pagination ("Showing page X of Y") to the very bottom.
+    - Use single arrows for navigation: &a (Forward, placed after text) or &c (Back, placed before text) depending on the context.
+3. 1:1 Replay System:
+    - Ensure the player in the replay is an exact clone of the original player at the time of recording.
+    - This includes: Prefix, Colors, Skin, Cape, and Name formatting (No more hardcoded &5 prefix).
+4. Bug Fix:
+    - MapSelector NPC: Fix the issue where the NPC spawns one block inside the ground. It should stand perfectly on the block surface.
+5. Audio:
+    - Add more Reset-Sounds to the config. All sounds must be short (max 0.8s).
 
-    Permission-Based Limits: Implement configurable replay limits (e.g., fastbuilder.limit.50). -1 means infinite.
+Model Recommendation: Claude 4.6 Sonnet | Effort: Medium/High
 
-🛡️ 4. GUI Framework & Inventory Hardening (CRITICAL BUGS)
 
-    Inventory Stealing Bug: The Pickaxe Shop is completely broken. Players can move items around and put them in their own inventory. You MUST cancel InventoryClickEvent (event.setCancelled(true)) for all custom menus.
-
-    Pickaxe Shop Fixes: Integrate the "One-Click Pick" (Diamond Axe) directly into this menu. Ensure the purchase logic works and players cannot buy items they already own.
-
-    Main Shop Layout: Make it visually appealing. Put Sandstone (Block Selector) exactly on Slot 9, and the Pickaxe Shop exactly on Slot 11.
-
-    Block Selector: Add a "Back to Shop" item to return to the main menu.
-
-    Island Selector Menu:
-
-        Must be exactly 3x9 (27 slots).
-
-        Place a "Back to Shop" button in the bottom center slot.
-
-        Use Material.PAPER for the designs. Do NOT use enchanted books or glass panes. No enchantments.
-
-        Instant Update: Clicking a design must instantly change the island and clear all blocks immediately.
-
-⚙️ 5. Commands, Setup & Admin Workflow
-
-    Command Removals: Completely delete /map setinfinite and /length.
-
-    Setup Cleanup: Remove the confusing message: » Set island spacing: /map distance aaa 50 when a setup finishes.
-
-    Interactive Help Menu: Format /map help exactly like this: &fShowing page &c1 &fof &c3. &f(&714 results&f). &a». The » and « must be clickable via ClickEvent.Action.RUN_COMMAND to actually turn the pages.
-
-    Custom Length Feature: * Add the command /map customlength <true/false> [minblocksfromspawntopressureplates].
-
-        Players must be able to configure this in the settings menu.
-
-        Physical Movement: The end island (with the pressure plates) must actually physically move or generate closer/further away based on this setting. (Developer note: Implement a setup step where the admin explicitly defines the "End Island Schematic" so the plugin knows what to move).
-
-    The Ultimate /fb dump: This must generate a massive diagnostic file containing: All plugins, Server/OS specs, and a complete printout of every single Fastbuilder YAML config.
-
-🌐 6. Config, Environment & Join Logic
-
-    Leave-Item System: Completely delete the # BungeeCord section (enabled, lobby-server) from the config. Replace it with a leave-item system where a configured item is given to the player to leave the server/game.
-
-    Join Fallback Logic: If the default map is offline or full, automatically connect the joining player to the very first available map.
-
-    THE 100% CONFIGURABILITY MANDATE: Everything must be in the YAML files. Every chat message, every GUI size (rows), every item material, every lore, every sound, and every true/false toggle. No hardcoding.
-
-FINAL CHECK: Did you fix the Pickaxe shop stealing bug? Did you apply the player's skin to the NPC? Is the Tablist clean? Do not output placeholder code. Implement the actual logic.

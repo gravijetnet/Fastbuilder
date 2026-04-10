@@ -38,6 +38,11 @@ public class GameplayManager {
 
     private int actionbarTaskId = -1;
 
+    // Per-player end-island platform blocks (placed when custom length changes)
+    private final Map<UUID, List<Location>> endPlatforms = new HashMap<>();
+    // Original block states under the end platform (for restoration on clear)
+    private final Map<UUID, Map<String, int[]>> endPlatformOrigStates = new HashMap<>();
+
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
 
@@ -47,22 +52,33 @@ public class GameplayManager {
     // -------------------------------------------------------------------------
     public static final Map<String, String> DEATH_SOUNDS = new LinkedHashMap<>();
     static {
+        // Keys MUST match the "sound:" values in guis.yml (what gets saved to player data).
+        // Values are Bukkit 1.8.8 Sound enum names.
         DEATH_SOUNDS.put("NONE",           null);
-        DEATH_SOUNDS.put("CreeperPrime",   "CREEPER_PRIME");   // short, punchy fuse ignition
-        DEATH_SOUNDS.put("AnvilLand",      "ANVIL_LAND");      // sharp metallic thud
-        DEATH_SOUNDS.put("Explode",        "EXPLODE");         // crisp explosion pop
-        DEATH_SOUNDS.put("LevelUp",        "LEVEL_UP");        // bright ascending chime
-        DEATH_SOUNDS.put("ArrowHit",       "ARROW_HIT");       // clean impact click
-        DEATH_SOUNDS.put("Fizz",           "FIZZ");            // short sizzle
-        DEATH_SOUNDS.put("Note",           "NOTE_PLING");      // clean single note
-        DEATH_SOUNDS.put("Splash",         "SPLASH");          // short water slap
-        DEATH_SOUNDS.put("ItemBreak",      "ITEM_BREAK");      // crisp crack
-        DEATH_SOUNDS.put("Zombie",         "ZOMBIE_HURT");     // short impact grunt
-        DEATH_SOUNDS.put("Skeleton",       "SKELETON_HURT");   // short rattle
-        DEATH_SOUNDS.put("BlazeDeath",     "BLAZE_DEATH");     // fast airy pop
-        DEATH_SOUNDS.put("FireworkBlast",  "FIREWORK_BLAST");  // punchy burst
-        DEATH_SOUNDS.put("Enderman",       "ENDERMAN_SCREAM"); // short screech
-        DEATH_SOUNDS.put("AnvilBreak",     "ANVIL_BREAK");     // crunchy snap
+        DEATH_SOUNDS.put("Creeper",        "CREEPER_HISS");
+        DEATH_SOUNDS.put("Anvil",          "ANVIL_LAND");
+        DEATH_SOUNDS.put("Ghast",          "GHAST_SCREAM");
+        DEATH_SOUNDS.put("Wither",         "WITHER_HURT");
+        DEATH_SOUNDS.put("IronGolem",      "IRONGOLEM_HIT");
+        DEATH_SOUNDS.put("Enderman",       "ENDERMAN_SCREAM");
+        DEATH_SOUNDS.put("Zombie",         "ZOMBIE_HURT");
+        DEATH_SOUNDS.put("Piglin",         "ZOMBIE_PIG_ANGRY");
+        DEATH_SOUNDS.put("Blaze",          "BLAZE_DEATH");
+        DEATH_SOUNDS.put("Wolf",           "WOLF_BARK");
+        DEATH_SOUNDS.put("Firework",       "FIREWORK_BLAST");
+        DEATH_SOUNDS.put("Splash",         "SPLASH");
+        DEATH_SOUNDS.put("DragonGrowl",    "ENDERDRAGON_GROWL");
+        DEATH_SOUNDS.put("Bat",            "BAT_HURT");
+        DEATH_SOUNDS.put("ArrowHit",       "ARROW_HIT");
+        DEATH_SOUNDS.put("Note",           "NOTE_PLING");
+        DEATH_SOUNDS.put("WitherSpawn",    "WITHER_SPAWN");
+        // Added short sounds (all ≤ 0.8 s in 1.8.8)
+        DEATH_SOUNDS.put("Click",          "CLICK");          // lever/button click  ~0.2s
+        DEATH_SOUNDS.put("WoodClick",      "WOOD_CLICK");     // wooden button click ~0.2s
+        DEATH_SOUNDS.put("BassDrum",       "NOTE_BASS_DRUM"); // note-block bass drum ~0.2s
+        DEATH_SOUNDS.put("SnareDrum",      "NOTE_SNARE_DRUM");// note-block snare     ~0.2s
+        DEATH_SOUNDS.put("ExpPickup",      "ORB_PICKUP");     // XP orb pickup        ~0.2s
+        DEATH_SOUNDS.put("SlimeHit",       "SLIME_ATTACK");   // slime attack         ~0.4s
     }
 
     // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
@@ -105,11 +121,9 @@ public class GameplayManager {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
-        if (session.isFinished()) {
-            resetRun(player);
-            session = activeSessions.get(player.getUniqueId());
-            if (session == null) return;
-        }
+        // If the session is finished or its reset animation is already playing,
+        // absolutely do NOT allow any further block placement or second reset.
+        if (session.isFinished() || session.isResetting()) return;
 
         if (!session.isRunning()) {
             // Block the timer start if there are un-cleared practice blocks
@@ -153,7 +167,7 @@ public class GameplayManager {
         finishCooldown.add(uuid);
 
         RunSession session = activeSessions.get(uuid);
-        if (session == null || !session.isRunning() || session.isFinished()) {
+        if (session == null || !session.isRunning() || session.isFinished() || session.isResetting()) {
             finishCooldown.remove(uuid);
             return;
         }
@@ -393,6 +407,7 @@ public class GameplayManager {
 
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
+        if (session.isResetting()) return;
 
         if (session.isRunning()) {
             if (plugin.getReplayManager() != null) {
@@ -433,6 +448,9 @@ public class GameplayManager {
     public void startResetAnimation(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
+
+        // Lock the session immediately so no second reset can fire.
+        session.setResetting(true);
 
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
@@ -478,9 +496,12 @@ public class GameplayManager {
      * Full reset in one shot (used by GUI/command resets that don't need animation/delay split).
      */
     public void resetRun(Player player) {
+        RunSession session = activeSessions.get(player.getUniqueId());
+        if (session == null) return;
+        if (session.isResetting()) return;
         startResetAnimation(player);
         // For synchronous callers (e.g. island switch), finalize immediately
-        RunSession session = activeSessions.get(player.getUniqueId());
+        session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
         MapData map = plugin.getMapManager().getMap(session.getMapName());
@@ -504,6 +525,166 @@ public class GameplayManager {
     }
 
     /**
+     * Switch a player to a different island within the same map (island hopping).
+     * Clears old blocks, frees old island, assigns new island, teleports, spawns NPC/hologram.
+     * Session bests are carried over to the new session.
+     */
+    public void switchIsland(Player player, MapData map, RunSession session, int targetIsland) {
+        UUID uuid = player.getUniqueId();
+        int oldIsland = session.getIslandIndex();
+
+        // Preserve state that survives the island switch
+        List<Long> carriedBests = new ArrayList<>(session.getSessionBests());
+        boolean carriedPractice = session.isPracticeMode();
+
+        // Clear placed blocks and end platform on old island (instant, no animation)
+        clearAllPlacedBlocks(uuid);
+        clearEndPlatform(uuid);
+
+        // Cleanup old island integrations
+        if (plugin.getCpsListener() != null) plugin.getCpsListener().cleanupPlayer(uuid);
+        if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(uuid);
+        if (plugin.getHologramManager() != null) plugin.getHologramManager().removeHologram(map.getName(), oldIsland);
+
+        // Free old island, remove old session
+        plugin.getMapManager().freeIsland(map.getName(), uuid);
+        removeSession(uuid);
+
+        // Assign new island
+        plugin.getMapManager().assignIsland(map.getName(), targetIsland, uuid, player.getName());
+        net.gravijet.fastbuilder.player.PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data != null) data.setLastIsland(targetIsland);
+
+        // Teleport to new island spawn
+        player.teleport(map.getIslandSpawn(targetIsland));
+
+        // Create new session and carry over session bests + practice mode
+        RunSession newSession = createSession(uuid, map.getName(), targetIsland);
+        for (Long best : carriedBests) newSession.addSessionBest(best);
+        newSession.setPracticeMode(carriedPractice);
+
+        // Give hotbar items
+        if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
+
+        // Spawn NPC and hologram at new island
+        if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(targetIsland));
+        if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(map.getName(), targetIsland, player);
+
+        // Restore end platform on the new island if the player has custom length active
+        if (data != null && map.hasCustomLength() && data.getCustomLength(map.getName()) > 0) {
+            placeEndPlatform(player, map, newSession, data.getCustomLength(map.getName()));
+        }
+
+        plugin.getScoreboardManager().updateScoreboard(player);
+    }
+
+    // =========================================================================
+    // End-island platform management
+    // =========================================================================
+
+    /**
+     * Place (or replace) the end-island platform for a player.
+     * The platform is placed at spawnX + customLength along the player's Z lane,
+     * at the finish-zone Y level. Existing blocks at that position are saved so
+     * they can be restored when the platform is cleared.
+     *
+     * @param player       The player who owns the platform
+     * @param map          The active map
+     * @param session      The player's current run session (for island index)
+     * @param customLength How many blocks from spawn the end island sits
+     */
+    @SuppressWarnings("deprecation")
+    public void placeEndPlatform(Player player, MapData map, RunSession session, int customLength) {
+        UUID uuid = player.getUniqueId();
+        clearEndPlatform(uuid); // always remove the old one first
+
+        if (customLength <= 0 || !map.hasCustomLength()) return;
+
+        customLength = Math.max(map.getMinCustomLength(),
+                Math.min(map.getMaxCustomLength(), customLength));
+
+        // X: spawn position + custom distance
+        int platformX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
+        // Y: bottom of the finish zone (so the player stands on the platform)
+        int platformY = map.getOriginY() + map.getFinishMinY();
+        // Z range: finish zone Z extent for this island slot
+        int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getDistance();
+        int minZ = islandBaseZ + map.getFinishMinZ();
+        int maxZ = islandBaseZ + map.getFinishMaxZ();
+
+        // Optional depth override — centre the platform in the Z range
+        int configDepth = plugin.getConfigManager().getEndPlatformDepth();
+        if (configDepth > 0 && (maxZ - minZ + 1) > configDepth) {
+            int zCenter = (minZ + maxZ) / 2;
+            minZ = zCenter - configDepth / 2;
+            maxZ = minZ + configDepth - 1;
+        }
+
+        // Parse material from config (format "MATERIAL_NAME:data")
+        String matStr = plugin.getConfigManager().getEndPlatformMaterial();
+        Material mat;
+        byte matData = 0;
+        try {
+            if (matStr.contains(":")) {
+                String[] parts = matStr.split(":");
+                mat = Material.getMaterial(parts[0].toUpperCase());
+                matData = (byte) Integer.parseInt(parts[1]);
+            } else {
+                mat = Material.getMaterial(matStr.toUpperCase());
+            }
+            if (mat == null || mat == Material.AIR) throw new IllegalArgumentException("bad material");
+        } catch (Exception e) {
+            mat = Material.STAINED_GLASS_PANE;
+            matData = 5; // lime
+        }
+
+        org.bukkit.World world = map.getWorld();
+        if (world == null) return;
+
+        List<Location> platform = new ArrayList<>();
+        Map<String, int[]> origStates = new HashMap<>();
+
+        for (int z = minZ; z <= maxZ; z++) {
+            Location loc = new Location(world, platformX, platformY, z);
+            org.bukkit.block.Block block = loc.getBlock();
+            String key = platformX + "," + platformY + "," + z;
+            origStates.put(key, new int[]{block.getTypeId(), block.getData()});
+            block.setTypeIdAndData(mat.getId(), matData, false);
+            platform.add(loc);
+        }
+
+        endPlatforms.put(uuid, platform);
+        endPlatformOrigStates.put(uuid, origStates);
+    }
+
+    /**
+     * Remove the end-island platform for a player, restoring original block states.
+     */
+    @SuppressWarnings("deprecation")
+    public void clearEndPlatform(UUID uuid) {
+        List<Location> platform = endPlatforms.remove(uuid);
+        Map<String, int[]> origStates = endPlatformOrigStates.remove(uuid);
+        if (platform == null) return;
+        for (Location loc : platform) {
+            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+            int[] orig = origStates != null ? origStates.get(key) : null;
+            org.bukkit.block.Block block = loc.getBlock();
+            if (orig != null && orig[0] != 0) {
+                block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+            } else {
+                block.setType(Material.AIR);
+            }
+        }
+    }
+
+    /** Remove all active end platforms (called on plugin disable). */
+    public void clearAllEndPlatforms() {
+        for (UUID uuid : new ArrayList<>(endPlatforms.keySet())) {
+            clearEndPlatform(uuid);
+        }
+    }
+
+    /**
      * Plays the player's selected death sound at their location.
      */
     public void playDeathSound(Player player) {
@@ -512,16 +693,33 @@ public class GameplayManager {
         if (data == null) return;
         String soundKey = data.getSelectedDeathSound();
         if (soundKey == null || soundKey.equalsIgnoreCase("NONE")) return;
+
+        // Block removed sounds — Portal (long ambient), LevelUp (removed from selector)
+        if (soundKey.toUpperCase().contains("PORTAL")) return;
+        if (soundKey.equalsIgnoreCase("LevelUp")) return;
+
+        // Migrate legacy key names from previous DEATH_SOUNDS map format
+        if (soundKey.equalsIgnoreCase("CreeperPrime") || soundKey.equalsIgnoreCase("CreeperHiss"))
+            soundKey = "Creeper";
+        else if (soundKey.equalsIgnoreCase("AnvilLand")) soundKey = "Anvil";
+        else if (soundKey.equalsIgnoreCase("BlazeDeath")) soundKey = "Blaze";
+        else if (soundKey.equalsIgnoreCase("FireworkBlast")) soundKey = "Firework";
+
         String soundEnum = DEATH_SOUNDS.getOrDefault(soundKey, soundKey);
         if (soundEnum == null) return;
+
         try {
-            org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundEnum);
-            player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
-        } catch (Exception ignored) {}
+            org.bukkit.Sound sound = org.bukkit.Sound.valueOf(soundEnum.toUpperCase());
+            // Play to the player at a slightly elevated volume so it's unmistakably heard.
+            player.playSound(player.getLocation(), sound, 1.5f, 1.0f);
+        } catch (IllegalArgumentException e) {
+            plugin.getLogger().warning("Invalid death sound '" + soundEnum + "' for player "
+                    + player.getName() + " — check your guis.yml death-sound-selector-slots.");
+        }
     }
 
     @SuppressWarnings("deprecation")
-    private void clearBlocksWithAnimation(Player player, List<Location> blocks,
+    private void clearBlocksWithAnimation(final Player player, List<Location> blocks,
                                            List<Location> practiceBlocks,
                                            Map<String, int[]> origStates,
                                            boolean isPracticeMode, String animation) {
@@ -584,7 +782,7 @@ public class GameplayManager {
         } else if ("ICE_MELT".equalsIgnoreCase(animation)) {
             clearBlocksIceMelt(blocks, practiceBlocks, origStates, isPracticeMode);
         } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
-            clearBlocksCreativeNpc(blocks, practiceBlocks, origStates, isPracticeMode);
+            clearBlocksCreativeNpcWithPlayer(player, blocks, practiceBlocks, origStates, isPracticeMode);
         } else {
             // NONE: fast sequential clear — uses config batch size × 2 for instant feel
             final int noneBatch = Math.max(1, batchSize * 2);
@@ -739,6 +937,12 @@ public class GameplayManager {
     @SuppressWarnings("deprecation")
     private void clearBlocksCreativeNpc(List<Location> blocks, List<Location> practiceBlocks,
                                          Map<String, int[]> origStates, boolean isPracticeMode) {
+        clearBlocksCreativeNpcWithPlayer(null, blocks, practiceBlocks, origStates, isPracticeMode);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void clearBlocksCreativeNpcWithPlayer(Player owner, List<Location> blocks, List<Location> practiceBlocks,
+                                         Map<String, int[]> origStates, boolean isPracticeMode) {
         List<Location> toClear = new ArrayList<>();
         for (Location loc : blocks) {
             if (isPracticeMode && practiceBlocks.contains(loc)) continue;
@@ -748,15 +952,43 @@ public class GameplayManager {
         }
         if (toClear.isEmpty()) return;
 
-        // Spawn NPC at the first block location
+        // Spawn NPC at the first block location, mirroring the player's skin and name.
         net.citizensnpcs.api.npc.NPC[] npcRef = new net.citizensnpcs.api.npc.NPC[1];
         try {
             net.citizensnpcs.api.npc.NPCRegistry reg = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
+            String npcName = owner != null ? owner.getName() : "Builder";
             net.citizensnpcs.api.npc.NPC npc = reg.createNPC(
-                    org.bukkit.entity.EntityType.PLAYER, "§6Builder");
+                    org.bukkit.entity.EntityType.PLAYER, npcName);
+            if (owner != null) {
+                npc.data().set("player-skin-uuid", owner.getUniqueId().toString());
+                npc.data().set("player-skin-name", owner.getName());
+            }
             Location spawnLoc = toClear.get(0).clone().add(0.5, 0, 0.5);
             npc.spawn(spawnLoc);
             npcRef[0] = npc;
+
+            // Zero-tick tablist removal: send REMOVE_PLAYER immediately in the same tick
+            // so the NPC never flashes in the tab list for any viewer.
+            if (npc.isSpawned() && npc.getEntity() instanceof org.bukkit.entity.Player) {
+                try {
+                    org.bukkit.entity.Player npcEntity = (org.bukkit.entity.Player) npc.getEntity();
+                    String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+                    Object nmsPlayer = npcEntity.getClass().getMethod("getHandle").invoke(npcEntity);
+                    Class<?> pktClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo");
+                    Class<?> enumClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
+                    Class<?> entityPlayerClass = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
+                    Object removeAction = java.lang.reflect.Array.get(enumClass.getMethod("values").invoke(null), 4); // REMOVE_PLAYER = index 4
+                    Object entityPlayerArr = java.lang.reflect.Array.newInstance(entityPlayerClass, 1);
+                    java.lang.reflect.Array.set(entityPlayerArr, 0, nmsPlayer);
+                    Object removePacket = pktClass.getDeclaredConstructors()[0].newInstance(removeAction, entityPlayerArr);
+                    for (org.bukkit.entity.Player viewer : spawnLoc.getWorld().getPlayers()) {
+                        Object handle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+                        Object conn = handle.getClass().getField("playerConnection").get(handle);
+                        Class<?> packetIface = Class.forName("net.minecraft.server." + ver + ".Packet");
+                        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, removePacket);
+                    }
+                } catch (Exception ignored) {}
+            }
         } catch (NoClassDefFoundError | Exception ignored) {}
 
         // Slower pace for more visible NPC animation (3 blocks/tick, every 2 ticks = visible swing)
@@ -886,17 +1118,33 @@ public class GameplayManager {
     /**
      * Clear ALL placed blocks for a player unconditionally (used on disconnect).
      */
+    @SuppressWarnings("deprecation")
     public void clearAllPlacedBlocks(UUID uuid) {
         RunSession session = activeSessions.get(uuid);
         if (session == null) return;
 
+        Map<String, int[]> origStates = session.getOriginalBlockStates();
         for (Location loc : session.getPlacedBlocks()) {
             Block block = loc.getBlock();
-            if (block != null) block.setType(Material.AIR);
+            if (block == null) continue;
+            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+            int[] orig = origStates.get(key);
+            if (orig != null && orig[0] != 0) {
+                block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+            } else {
+                block.setType(Material.AIR);
+            }
         }
         for (Location loc : session.getPracticeBlocks()) {
             Block block = loc.getBlock();
-            if (block != null) block.setType(Material.AIR);
+            if (block == null) continue;
+            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+            int[] orig = origStates.get(key);
+            if (orig != null && orig[0] != 0) {
+                block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+            } else {
+                block.setType(Material.AIR);
+            }
         }
     }
 
@@ -1036,6 +1284,7 @@ public class GameplayManager {
 
     public void shutdown() {
         if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
+        clearAllEndPlatforms();
         activeSessions.clear();
         finishCooldown.clear();
         buildModePlayers.clear();

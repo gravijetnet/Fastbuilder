@@ -41,6 +41,19 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Block ALL placement during a reset animation or replay — prevents phantom blocks.
+        if (plugin.getGameplayManager() != null) {
+            RunSession sess = plugin.getGameplayManager().getSession(player.getUniqueId());
+            if (sess != null && sess.isResetting()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Use Z-corridor check for building: allows placing blocks along the X axis
         // (the build direction) beyond the island template's defined width.
         if (!canBuildAtLocation(player, event.getBlock().getLocation())) {
@@ -111,6 +124,19 @@ public class ProtectionListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         if (player.hasPermission("fastbuilder.admin") && plugin.getMapManager().hasSetupSession(player.getUniqueId())) {
+            return;
+        }
+
+        // Block breaking during reset animation or replay — no phantom interactions.
+        if (plugin.getGameplayManager() != null) {
+            RunSession breakSess = plugin.getGameplayManager().getSession(player.getUniqueId());
+            if (breakSess != null && breakSess.isResetting()) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+            event.setCancelled(true);
             return;
         }
 
@@ -235,20 +261,35 @@ public class ProtectionListener implements Listener {
         int[] bounds = GridCalculator.getIslandBounds(map, session.getIslandIndex());
         int maxDist = plugin.getConfigManager().getMaxDistance();
 
-        // Z strictly identifies the player's island slot — teleport back to island spawn
-        // if the player tries to cross into another island's Z corridor.
+        // Z strictly identifies the player's island slot — when crossed, either switch
+        // to the neighboring island (if island-hopping is enabled and target is empty)
+        // or trigger a full reset.
         boolean zOutOfBounds = to.getBlockZ() < bounds[2] || to.getBlockZ() > bounds[5];
         if (zOutOfBounds) {
-            // Use a small cooldown to prevent rapid successive teleports causing jitter
             long now = System.currentTimeMillis();
             Long lastZ = fallCooldown.get(player.getUniqueId());
-            if (lastZ == null || now - lastZ > 500) {
+            if (lastZ == null || now - lastZ > 1000) {
                 fallCooldown.put(player.getUniqueId(), now);
+
+                // Island hopping: detect which island the player is moving into
+                if (plugin.getConfigManager().isIslandHoppingEnabled()) {
+                    int targetIsland = GridCalculator.getIslandIndex(map, to);
+                    if (targetIsland >= 0 && targetIsland != session.getIslandIndex()) {
+                        java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
+                                plugin.getMapManager().getIslands(map.getName());
+                        if (islandList != null && targetIsland < islandList.size()) {
+                            net.gravijet.fastbuilder.map.IslandInstance targetInstance = islandList.get(targetIsland);
+                            if (!targetInstance.isOccupied()) {
+                                // Empty target → auto-switch session
+                                plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
+                                return;
+                            }
+                        }
+                    }
+                }
+
                 event.setCancelled(true);
-                Location safeSpawn = map.getIslandSpawn(session.getIslandIndex());
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (player.isOnline()) player.teleport(safeSpawn);
-                });
+                plugin.getGameplayManager().onFall(player);
             } else {
                 event.setTo(event.getFrom());
             }
