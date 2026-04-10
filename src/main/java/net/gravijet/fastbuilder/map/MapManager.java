@@ -148,6 +148,34 @@ public class MapManager {
     public boolean mapExists(String name) { return maps.containsKey(name.toLowerCase()); }
 
     /**
+     * Permanently delete a map: relocates any occupants, removes all island instances,
+     * removes the map from memory, and deletes its YAML file.
+     * The template schematic file is left intact (admin may want to reuse it).
+     */
+    public void deleteMap(String name) {
+        String key = name.toLowerCase();
+        MapData map = maps.remove(key);
+        if (map == null) return;
+
+        List<IslandInstance> islandList = islands.remove(key);
+        if (islandList != null) {
+            for (IslandInstance island : islandList) {
+                if (island.isOccupied()) {
+                    org.bukkit.entity.Player p = org.bukkit.Bukkit.getPlayer(island.getOccupantUuid());
+                    if (p != null && p.isOnline()) {
+                        relocatePlayer(p, name);
+                    }
+                }
+            }
+        }
+
+        File mapFile = new File(mapsDir, key + ".yml");
+        if (mapFile.exists() && !mapFile.delete()) {
+            plugin.getLogger().warning("Could not delete map file: " + mapFile.getName());
+        }
+    }
+
+    /**
      * Create a new map from a completed setup session.
      * Hologram offset from session is also stored.
      * After creation the initial island (index 0) is pasted immediately.
@@ -165,13 +193,17 @@ public class MapManager {
         data.setSpawnOffsetX(session.getSpawnOffsetX());
         data.setSpawnOffsetY(session.getSpawnOffsetY());
         data.setSpawnOffsetZ(session.getSpawnOffsetZ());
-        // Yaw is always overridden to East in getIslandSpawn(), but store -90 anyway
-        data.setSpawnYaw(-90f);
-        data.setSpawnPitch(0f);
+        if (session.getSpawnPoint() != null) {
+            data.setSpawnYaw(session.getSpawnPoint().getYaw());
+            data.setSpawnPitch(session.getSpawnPoint().getPitch());
+        }
         data.setNpcOffsetX(session.getNpcOffsetX());
         data.setNpcOffsetY(session.getNpcOffsetY());
         data.setNpcOffsetZ(session.getNpcOffsetZ());
-        if (session.getNpcPoint() != null) data.setNpcYaw(session.getNpcPoint().getYaw());
+        if (session.getNpcPoint() != null) {
+            data.setNpcYaw(session.getNpcPoint().getYaw());
+            data.setNpcPitch(session.getNpcPoint().getPitch());
+        }
         data.setHologramOffsetX(session.getHologramOffsetX());
         data.setHologramOffsetY(session.getHologramOffsetY());
         data.setHologramOffsetZ(session.getHologramOffsetZ());

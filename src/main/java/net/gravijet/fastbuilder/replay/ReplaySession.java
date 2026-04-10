@@ -56,14 +56,20 @@ public class ReplaySession {
     private int offsetY;
     private int offsetZ;
 
-    // Hotbar slot assignments
-    public static final int SLOT_REWIND       = 0;
-    public static final int SLOT_SLOW         = 1;
-    public static final int SLOT_PAUSE        = 2;
-    public static final int SLOT_FAST         = 3;
-    public static final int SLOT_FORWARD      = 4;
+    // Hotbar slot assignments — 3 controls centred in slots 3-5, stop at 8
+    public static final int SLOT_TIMELINE     = 3;   // L=Rewind / R=FastForward
+    public static final int SLOT_PAUSE_RESUME = 4;   // click to toggle pause
+    public static final int SLOT_SPEED        = 5;   // L=Slower / R=Faster
     public static final int SLOT_REPLAY_AGAIN = 7;
     public static final int SLOT_STOP         = 8;
+
+    // Extra margin (blocks) beyond the schematic boundary that the viewer may roam
+    private static final int REPLAY_BOUNDARY_MARGIN = 30;
+
+    // Replay-area AABB, populated in start() once the map dimensions are known
+    private int replayMinX, replayMaxX;
+    private int replayMinY, replayMaxY;
+    private int replayMinZ, replayMaxZ;
 
     public ReplaySession(FastBuilder plugin, UUID viewerUuid, ReplayData replayData, int replaySlot) {
         this.plugin = plugin;
@@ -97,6 +103,14 @@ public class ReplaySession {
         offsetX = replayAreaX - islandOriginX;
         offsetY = REPLAY_AREA_Y - islandOriginY;
         offsetZ = replayAreaZ - islandOriginZ;
+
+        // Store the schematic AABB so onMove() can enforce the roam boundary
+        replayMinX = replayAreaX;
+        replayMaxX = replayAreaX + map.getIslandWidth();
+        replayMinY = REPLAY_AREA_Y;
+        replayMaxY = REPLAY_AREA_Y + map.getIslandHeight();
+        replayMinZ = replayAreaZ;
+        replayMaxZ = replayAreaZ + map.getIslandLength();
 
         // Viewer watches from slightly above-behind the replay island spawn
         Location islandSpawn = map.getIslandSpawn(replayData.getIslandIndex());
@@ -474,15 +488,37 @@ public class ReplaySession {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public void fastForward(int ticks) {
         int targetTick = Math.min(replayData.getFrames().size() - 1, currentTick + ticks);
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer == null) return;
 
-        while (currentTick < targetTick) {
-            playFrame(viewer, currentTick);
-            currentTick++;
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map == null || map.getWorld() == null) {
+            currentTick = targetTick;
+            return;
         }
+
+        // Apply block placements for all skipped frames without spamming NPC teleports
+        for (int i = currentTick; i < targetTick; i++) {
+            ReplayFrame frame = replayData.getFrames().get(i);
+            if (frame.hasBlockPlacement()) {
+                ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
+                int bx = bp.getBlockX() + offsetX;
+                int by = bp.getBlockY() + offsetY;
+                int bz = bp.getBlockZ() + offsetZ;
+                Block block = map.getWorld().getBlockAt(bx, by, bz);
+                block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
+                placedBlocks.add(block.getLocation().clone());
+            }
+        }
+
+        // Snap NPC to the target frame in a single teleport so the client sees it move
+        currentTick = targetTick;
+        playFrame(viewer, currentTick);
+        currentTick++;
+        ended = false;
     }
 
     public void togglePause() { paused = !paused; }
@@ -498,6 +534,19 @@ public class ReplaySession {
     public Location getViewerWatchLocation() { return viewerWatchLocation; }
     public int getReplaySlot()               { return replaySlot; }
 
+    /**
+     * Returns true when {@code loc} is further than {@link #REPLAY_BOUNDARY_MARGIN} blocks
+     * outside the replay schematic AABB.  Called every move-event by ProtectionListener.
+     */
+    public boolean isOutsideReplayBounds(Location loc) {
+        return loc.getX() < replayMinX - REPLAY_BOUNDARY_MARGIN
+            || loc.getX() > replayMaxX + REPLAY_BOUNDARY_MARGIN
+            || loc.getY() < replayMinY - REPLAY_BOUNDARY_MARGIN
+            || loc.getY() > replayMaxY + REPLAY_BOUNDARY_MARGIN
+            || loc.getZ() < replayMinZ - REPLAY_BOUNDARY_MARGIN
+            || loc.getZ() > replayMaxZ + REPLAY_BOUNDARY_MARGIN;
+    }
+
     // -------------------------------------------------------------------------
     // Control items
     // -------------------------------------------------------------------------
@@ -505,26 +554,43 @@ public class ReplaySession {
     private void giveControlItems(Player player) {
         player.getInventory().clear();
 
-        player.getInventory().setItem(SLOT_REWIND, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
-                .name("&c<< Rewind (5s)").build());
-        player.getInventory().setItem(SLOT_SLOW, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 4)
-                .name("&e< Slower").lore("&7Speed: " + String.format("%.2f", playbackSpeed) + "x").build());
-        player.getInventory().setItem(SLOT_PAUSE, new ItemBuilder(Material.STAINED_GLASS_PANE, paused ? (byte) 5 : (byte) 1)
-                .name(paused ? "&a> Resume" : "&6|| Pause").build());
-        player.getInventory().setItem(SLOT_FAST, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 4)
-                .name("&e> Faster").lore("&7Speed: " + String.format("%.2f", playbackSpeed) + "x").build());
-        player.getInventory().setItem(SLOT_FORWARD, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
-                .name("&a» Forward (5s)").build());
-        player.getInventory().setItem(SLOT_STOP, new ItemBuilder(Material.BARRIER)
-                .name("&c&lLeave Replay").build());
+        player.getInventory().setItem(SLOT_TIMELINE,
+                new ItemBuilder(Material.WATCH)
+                        .name("&6Timeline")
+                        .lore("&7Left-click: &eRewind 5s", "&7Right-click: &aForward 5s")
+                        .build());
+
+        player.getInventory().setItem(SLOT_PAUSE_RESUME,
+                new ItemBuilder(Material.BLAZE_ROD)
+                        .name(paused ? "&a&lResume" : "&e&lPause")
+                        .lore("&7Click to toggle")
+                        .build());
+
+        player.getInventory().setItem(SLOT_SPEED,
+                new ItemBuilder(Material.FEATHER)
+                        .name("&bPlayback Speed")
+                        .lore("&7Left-click: &cSlower  &7Right-click: &aFaster",
+                              "&7Current: &e" + String.format("%.2fx", playbackSpeed))
+                        .build());
+
+        player.getInventory().setItem(SLOT_STOP,
+                new ItemBuilder(Material.BARRIER)
+                        .name("&c&lLeave Replay")
+                        .build());
     }
 
     private void showReplayEndItems(Player player) {
-        // Keep all existing control items, just update pause button and add Play Again
-        player.getInventory().setItem(SLOT_PAUSE, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 5)
-                .name("&a&lReplay Finished").build());
-        player.getInventory().setItem(SLOT_REPLAY_AGAIN, new ItemBuilder(Material.EMERALD)
-                .name("&a&lPlay Again").lore("&7Click to watch again").build());
+        // Refresh the pause button to reflect the finished state, add Play Again
+        player.getInventory().setItem(SLOT_PAUSE_RESUME,
+                new ItemBuilder(Material.BLAZE_ROD)
+                        .name("&a&lReplay Finished")
+                        .lore("&7Watch again or leave")
+                        .build());
+        player.getInventory().setItem(SLOT_REPLAY_AGAIN,
+                new ItemBuilder(Material.EMERALD)
+                        .name("&a&lPlay Again")
+                        .lore("&7Click to watch again")
+                        .build());
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                 + "&fReplay finished. &aPlay Again &7(slot 8) or &cLeave Replay &7(slot 9)."));
     }

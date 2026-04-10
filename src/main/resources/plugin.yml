@@ -45,6 +45,7 @@ permissions:
       fastbuilder.command.map.adddesign: true
       fastbuilder.command.map.removedesign: true
       fastbuilder.command.map.setcustomlength: true
+      fastbuilder.command.map.delete: true
       fastbuilder.command.fb.reload: true
       fastbuilder.command.fb.dump: true
       fastbuilder.coins.admin: true
@@ -109,6 +110,9 @@ permissions:
     default: op
   fastbuilder.command.map.setcustomlength:
     description: Set custom run length range for a map
+    default: op
+  fastbuilder.command.map.delete:
+    description: Permanently delete a map
     default: op
   fastbuilder.command.fb.join:
     description: Join a map with /fb join

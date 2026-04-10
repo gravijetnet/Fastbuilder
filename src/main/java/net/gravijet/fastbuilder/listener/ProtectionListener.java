@@ -233,18 +233,15 @@ public class ProtectionListener implements Listener {
             return;
         }
 
-        // Handle replay viewer void protection
+        // Replay viewer boundary enforcement
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
-            if (event.getTo().getY() < 0) {
-                ReplaySession replaySession = plugin.getReplayManager().getPlaybackSession(player.getUniqueId());
-                if (replaySession != null) {
-                    Location safeSpot = replaySession.getViewerWatchLocation();
-                    if (safeSpot != null) {
-                        player.teleport(safeSpot);
-                    } else {
-                        // Fall back: stop the replay and return to island
-                        plugin.getReplayManager().stopPlayback(player.getUniqueId());
-                    }
+            ReplaySession replaySession = plugin.getReplayManager().getPlaybackSession(player.getUniqueId());
+            if (replaySession != null && replaySession.isOutsideReplayBounds(event.getTo())) {
+                Location safeSpot = replaySession.getViewerWatchLocation();
+                if (safeSpot != null) {
+                    player.teleport(safeSpot);
+                } else {
+                    plugin.getReplayManager().stopPlayback(player.getUniqueId());
                 }
             }
             return; // Skip normal boundary checks for replay viewers

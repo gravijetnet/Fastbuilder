@@ -143,23 +143,37 @@ public class HotbarManager implements Listener {
 
         if (slot1 != null && slot1.getType() != Material.AIR && slot1.getAmount() < 64) slot1.setAmount(64);
         if (slot2 != null && slot2.getType() != Material.AIR && slot2.getAmount() < 64) slot2.setAmount(64);
+
+        // Infinite blocks also keeps practice blocks topped up
+        if (data.hasInfiniteBlocks()) {
+            ItemStack practiceSlot = player.getInventory().getItem(SLOT_PRACTICE_BLOCKS);
+            if (practiceSlot != null && practiceSlot.getType() != Material.AIR && practiceSlot.getAmount() < 64) {
+                practiceSlot.setAmount(64);
+            }
+        }
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-
         Player player = event.getPlayer();
+        Action action = event.getAction();
+
+        // Replay controls respond to both left- and right-click
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+            if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK
+                    || action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
+                handleReplayControls(player, event);
+            }
+            return;
+        }
+
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
+
         ItemStack item = event.getItem();
         if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
 
         String displayName = item.getItemMeta().getDisplayName();
         FileConfiguration items = plugin.getConfigManager().getItemsConfig();
-
-        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
-            handleReplayControls(player, event);
-            return;
-        }
 
         String leaveName = ColorUtil.translate(items.getString("leave-item", ""));
         if (displayName.equals(leaveName)) {
@@ -255,25 +269,24 @@ public class HotbarManager implements Listener {
         if (session == null) return;
 
         int slot = player.getInventory().getHeldItemSlot();
+        boolean leftClick = event.getAction() == Action.LEFT_CLICK_AIR
+                || event.getAction() == Action.LEFT_CLICK_BLOCK;
 
         switch (slot) {
-            case ReplaySession.SLOT_REWIND:
-                session.rewind(100);
+            case ReplaySession.SLOT_TIMELINE:
+                // Left = rewind 5 s, Right = fast-forward 5 s
+                if (leftClick) session.rewind(100);
+                else           session.fastForward(100);
                 break;
-            case ReplaySession.SLOT_SLOW:
-                session.setPlaybackSpeed(session.getPlaybackSpeed() - 0.25);
-                session.updateControlItems();
-                break;
-            case ReplaySession.SLOT_PAUSE:
+            case ReplaySession.SLOT_PAUSE_RESUME:
                 session.togglePause();
                 session.updateControlItems();
                 break;
-            case ReplaySession.SLOT_FAST:
-                session.setPlaybackSpeed(session.getPlaybackSpeed() + 0.25);
+            case ReplaySession.SLOT_SPEED:
+                // Left = slower, Right = faster
+                if (leftClick) session.setPlaybackSpeed(session.getPlaybackSpeed() - 0.25);
+                else           session.setPlaybackSpeed(session.getPlaybackSpeed() + 0.25);
                 session.updateControlItems();
-                break;
-            case ReplaySession.SLOT_FORWARD:
-                session.fastForward(100);
                 break;
             case ReplaySession.SLOT_REPLAY_AGAIN:
                 session.restart();

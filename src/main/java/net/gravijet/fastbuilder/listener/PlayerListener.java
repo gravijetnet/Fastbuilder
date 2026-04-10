@@ -63,10 +63,18 @@ public class PlayerListener implements Listener {
             }
         }
 
-        // 3. Absolute fallback: world spawn
-        player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
-                .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+        // 3. No free island found anywhere
+        if (player.hasPermission("fastbuilder.admin") || player.hasPermission("fastbuilder.setup")) {
+            player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            player.setGameMode(GameMode.CREATIVE);
+            player.setAllowFlight(true);
+            player.setFlying(true);
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+                    .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+        } else {
+            player.kickPlayer(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+                    .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+        }
     }
 
     private void finalizeJoin(Player player, PlayerData data, MapManager mm, MapData map, int island) {
@@ -82,14 +90,6 @@ public class PlayerListener implements Listener {
         }
 
         setupPlayerOnIsland(player, map, island);
-
-        // Force Creative for admin/setup users (spec requirement)
-        if (player.hasPermission("fastbuilder.admin") || player.hasPermission("fastbuilder.setup")) {
-            player.setGameMode(GameMode.CREATIVE);
-            player.setAllowFlight(true);
-            player.setFlying(true);
-        }
-
         mm.checkAutoscale(map);
     }
 

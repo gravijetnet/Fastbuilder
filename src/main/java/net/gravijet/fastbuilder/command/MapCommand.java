@@ -37,7 +37,7 @@ import java.util.List;
 public class MapCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
-            "setup", "rename", "regen", "seticon", "enable", "disable", "scale", "distance",
+            "setup", "rename", "regen", "seticon", "enable", "disable", "delete", "scale", "distance",
             "autoscale", "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign",
             "removedesign", "customlength", "info", "help"
     );
@@ -98,6 +98,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 break;
             case "disable":
                 handleDisable(player, args, mm);
+                break;
+            case "delete":
+                handleDelete(player, args, mm);
                 break;
             case "scale":
                 handleScale(player, args, mm);
@@ -255,13 +258,6 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 sendClickableContinue(player);
                 break;
             case SELECTING_SPAWN:
-                if (!session.isSpawnFacingEast() && !forceSpawnLoc) {
-                    String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-not-east");
-                    if (raw == null || raw.isEmpty()) raw = prefix + "&cSpawn must face East. Use &f/map setup continue --force-spawn-location &cto bypass.";
-                    raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-                    player.sendMessage(ColorUtil.translate(raw));
-                    return;
-                }
                 session.advanceToNpc();
                 player.sendMessage(ColorUtil.translate(prefix + "&aSpawn point saved!"));
                 player.sendMessage(ColorUtil.translate("&e&lStep 3: &fSet the NPC location."));
@@ -664,6 +660,57 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate(raw));
     }
 
+    // --- /map delete <map> [confirm] ---
+
+    private void handleDelete(Player player, String[] args, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.command.map.delete")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
+        if (args.length < 2) {
+            msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map delete <map>");
+            return;
+        }
+
+        MapData map = mm.getMap(args[1]);
+        if (map == null) {
+            msgMap(player, "map-not-found", args[1]);
+            return;
+        }
+
+        if (args.length < 3 || !args[2].equalsIgnoreCase("confirm")) {
+            String prefix = plugin.getConfigManager().getPrefix();
+            player.sendMessage(ColorUtil.translate(prefix
+                    + "&cYou are about to permanently delete map &f" + map.getName()
+                    + "&c. This cannot be undone!"));
+            sendDeleteConfirm(player, map.getName());
+            return;
+        }
+
+        String name = map.getName();
+        mm.deleteMap(name);
+        msg(player, plugin.getConfigManager().getPrefix() + "&aMap &c" + name + " &adeleted.");
+    }
+
+    private void sendDeleteConfirm(Player player, String mapName) {
+        net.md_5.bungee.api.chat.TextComponent line =
+                new net.md_5.bungee.api.chat.TextComponent(
+                        ColorUtil.translate("&7Click to confirm: "));
+        net.md_5.bungee.api.chat.TextComponent btn =
+                new net.md_5.bungee.api.chat.TextComponent(
+                        ColorUtil.translate("&c&l[Delete " + mapName + "]"));
+        btn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
+                "/map delete " + mapName + " confirm"));
+        btn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                new net.md_5.bungee.api.chat.BaseComponent[]{
+                        new net.md_5.bungee.api.chat.TextComponent(
+                                ColorUtil.translate("&cClick to permanently delete &f" + mapName))}));
+        line.addExtra(btn);
+        player.spigot().sendMessage(line);
+    }
+
     // --- /map scale <map> <count> ---
 
     private void handleScale(Player player, String[] args, MapManager mm) {
@@ -998,7 +1045,6 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         msg(player, prefix + "&fCustom length &aenabled &ffor &c" + map.getName()
                 + " &f(min: &c" + minBlocks + " &fblocks, max: &c" + maxBlocks + " &fblocks).");
-        msg(player, prefix + "&7Tip: Players can toggle custom length in their &fSettings &7menu.");
     }
 
     private String capitalize(String s) {
@@ -1099,7 +1145,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         if (page > 1) {
             net.md_5.bungee.api.chat.TextComponent prev =
-                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&c< "));
+                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&c\u00AB "));
             prev.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                     net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
                     "/map help " + (page - 1)));
@@ -1117,7 +1163,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         if (page < totalPages) {
             net.md_5.bungee.api.chat.TextComponent next =
-                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate(" &a>"));
+                    new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate(" &a\u00BB"));
             next.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                     net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND,
                     "/map help " + (page + 1)));
@@ -1147,6 +1193,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             {"fastbuilder.command.map.seticon",   "/map seticon <map> [block]",          "Set map display icon"},
             {"fastbuilder.command.map.enable",    "/map enable <map>",                   "Enable a map"},
             {"fastbuilder.command.map.disable",   "/map disable <map>",                  "Disable a map"},
+            {"fastbuilder.command.map.delete",    "/map delete <map> [confirm]",         "Permanently delete a map"},
             {"fastbuilder.command.map.scale",     "/map scale <map> <count>",            "Set island count"},
             {"fastbuilder.command.map.distance",  "/map distance <map> <blocks>",        "Set island spacing"},
             {"fastbuilder.command.map.autoscale", "/map autoscale <map> <true|false>",   "Toggle autoscaling"},
@@ -1154,7 +1201,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             {"fastbuilder.command.map.setrank",   "/map setmintime <map> <ms>",          "Set minimum valid run time"},
             {"fastbuilder.command.map.setrank",   "/map setmaxtime <map> <ms>",          "Set max run time (0=off)"},
             {"fastbuilder.command.map.setrank",   "/map setrank <map> <tier> <ms>",      "Set rank time threshold"},
-            {"fastbuilder.command.map.adddesign",       "/map adddesign <map> [key]",                              "Add alternative island design"},
+            {"fastbuilder.command.map.adddesign",       "/map adddesign <map> [<designKey>]",                     "Add alternative island design"},
             {"fastbuilder.command.map.adddesign",       "/map removedesign <map> <key>",                          "Remove alternative island design"},
             {"fastbuilder.command.map.setcustomlength", "/map customlength <map> <true|false> [minBlocks]",       "Enable custom run length on a map"},
         };
@@ -1203,11 +1250,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "seticon":
                 case "scale":
                 case "distance":
-                    return filter(mm.getMapNames(), args[1]);
-                case "enable":
-                    return filter(mm.getDisabledMapNames(), args[1]);
-                case "disable":
-                    return filter(mm.getEnabledMapNames(), args[1]);
+                case "delete":
                 case "autoscale":
                 case "setdeathy":
                 case "setmintime":
@@ -1217,7 +1260,11 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "adddesign":
                 case "removedesign":
                 case "info":
-                    return filter(mm.getMapNames(), args[1]);
+                    return filter(mm.getEnabledMapNames(), args[1]);
+                case "enable":
+                    return filter(mm.getDisabledMapNames(), args[1]);
+                case "disable":
+                    return filter(mm.getEnabledMapNames(), args[1]);
                 case "help":
                     return Arrays.asList("1", "2", "3");
                 default:
@@ -1253,6 +1300,13 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "autoscale":
                 case "customlength":
                     return filter(BOOLEANS, args[2]);
+                case "delete":
+                    return filter(Collections.singletonList("confirm"), args[2]);
+                case "removedesign": {
+                    MapData rmap = mm.getMap(args[1]);
+                    if (rmap != null) return filter(rmap.getAlternativeTemplates(), args[2]);
+                    return Collections.emptyList();
+                }
                 default:
                     return Collections.emptyList();
             }
