@@ -85,7 +85,6 @@ jobs:
         with:
           tag_name: latest
           name: "Fastbuilder Latest Build"
-          body: "This release always contains the newest version of the plugin."
           make_latest: true
           files: fastbuilder-latest.jar
         env:
