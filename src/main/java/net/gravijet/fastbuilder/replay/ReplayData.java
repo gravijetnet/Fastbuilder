@@ -11,6 +11,8 @@ public class ReplayData {
 
     private final UUID playerUuid;
     private final String playerName;
+    // Full display tag (rank prefix + name) captured at recording time. Empty on old replays.
+    private final String playerDisplayTag;
     private final String mapName;
     private final int islandIndex;
     private final long timestamp; // when the run happened
@@ -23,15 +25,23 @@ public class ReplayData {
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames) {
-        this(playerUuid, playerName, mapName, islandIndex, timestamp, successful, runTimeMillis,
+        this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
                 frames, new ArrayList<>());
     }
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames,
                       List<ReplayFrame.BlockPlacement> initialBlocks) {
+        this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
+                frames, initialBlocks);
+    }
+
+    public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
+                      int islandIndex, long timestamp, boolean successful, long runTimeMillis,
+                      List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
+        this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
         this.mapName = mapName;
         this.islandIndex = islandIndex;
         this.timestamp = timestamp;
@@ -43,6 +53,7 @@ public class ReplayData {
 
     public UUID getPlayerUuid() { return playerUuid; }
     public String getPlayerName() { return playerName; }
+    public String getPlayerDisplayTag() { return playerDisplayTag; }
     public String getMapName() { return mapName; }
     public int getIslandIndex() { return islandIndex; }
     public long getTimestamp() { return timestamp; }

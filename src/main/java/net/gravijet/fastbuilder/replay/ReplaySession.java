@@ -540,11 +540,22 @@ public class ReplaySession {
 
     private void spawnReplayNpc(Player viewer) {
         try {
-            String displayName = plugin.getReplayManager().getReplayDisplayName(replayData);
+            // Use the display tag (rank prefix + name) captured at recording time.
+            // For old replays without a stored tag, fall back to the resolved display name.
+            String tag = replayData.getPlayerDisplayTag();
+            String npcName;
+            if (tag != null && !tag.isEmpty()) {
+                // tag already contains §-codes from player.getDisplayName() at record time
+                npcName = tag;
+            } else {
+                // Fallback for pre-v5 replays: use configured name-mode resolution, no prefix
+                npcName = plugin.getReplayManager().getReplayDisplayName(replayData);
+            }
+
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
             net.citizensnpcs.api.npc.NPC npc = registry.createNPC(
                     org.bukkit.entity.EntityType.PLAYER,
-                    ColorUtil.translate("&5" + displayName)
+                    npcName
             );
 
             npc.data().set("player-skin-uuid", replayData.getPlayerUuid().toString());

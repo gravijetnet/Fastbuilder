@@ -101,10 +101,6 @@ public class FastBuilder extends JavaPlugin {
         net.gravijet.fastbuilder.command.BuildCommand buildCmd = new net.gravijet.fastbuilder.command.BuildCommand(this);
         getCommand("build").setExecutor(buildCmd);
 
-        net.gravijet.fastbuilder.command.LengthCommand lengthCmd = new net.gravijet.fastbuilder.command.LengthCommand(this);
-        getCommand("length").setExecutor(lengthCmd);
-        getCommand("length").setTabCompleter(lengthCmd);
-
         // Register listeners
         Bukkit.getPluginManager().registerEvents(new SetupListener(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);

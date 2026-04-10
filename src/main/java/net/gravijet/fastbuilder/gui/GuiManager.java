@@ -254,19 +254,34 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Navigation items (bottom row)
+        // Navigation — bottom row (all three buttons are always rendered)
         FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
 
+        // Back to Shop — center of bottom row
+        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String backName = itemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(maxSlots - 5, ItemBuilder.fromString(backMat).name(backName).build());
+
+        // Previous page — left corner; shows a disabled pane on page 1
         if (page > 1) {
-            String prevMat = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
+            String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
             String prevName = itemsConfig.getString("change-page.previous-page.name", "&c« Previous Page");
             inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
+        } else {
+            String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
+            String disName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+            inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
         }
 
+        // Next page — right corner; shows a disabled pane on the last page
         if (page < maxPage) {
-            String nextMat = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
-            String nextName = itemsConfig.getString("change-page.next-page.name", "&a» Next Page");
+            String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
+            String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page »");
             inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
+        } else {
+            String disMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
+            String disName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+            inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
         }
 
         blockSelectorPages.put(player.getUniqueId(), page);
@@ -305,17 +320,27 @@ public class GuiManager implements Listener {
                                 (data != null && data.hasInfiniteBlocks()) ? "&aEnabled" : "&cDisabled");
                         line = line.replace("%infinite_blocks_unlocked%",
                                 (data != null && data.hasInfiniteBlocksUnlocked()) ? "&aUnlocked" : "&cLocked");
-                        // Custom length placeholder — shows toggle status
+                        // Custom length — distance adjuster placeholders
                         String customLengthStr = "&cNot available";
+                        String clValueStr = "&8---";
+                        String clMinStr = "---";
+                        String clMaxStr = "---";
                         if (run != null) {
                             net.gravijet.fastbuilder.map.MapData clMap =
                                     plugin.getMapManager().getMap(run.getMapName());
                             if (clMap != null && clMap.hasCustomLength()) {
-                                boolean clEnabled = data != null && data.isCustomLengthEnabled(run.getMapName());
-                                customLengthStr = clEnabled ? "&aEnabled" : "&cDisabled";
+                                int clValue = data != null ? data.getCustomLength(run.getMapName()) : 0;
+                                if (clValue <= 0) clValue = clMap.getMinCustomLength();
+                                clValueStr = "&f" + clValue;
+                                clMinStr = String.valueOf(clMap.getMinCustomLength());
+                                clMaxStr = String.valueOf(clMap.getMaxCustomLength());
+                                customLengthStr = "&f" + clValue + " &7blocks";
                             }
                         }
                         line = line.replace("%custom_length%", customLengthStr);
+                        line = line.replace("%custom_length_value%", clValueStr);
+                        line = line.replace("%custom_length_min%", clMinStr);
+                        line = line.replace("%custom_length_max%", clMaxStr);
                         lore[i] = line;
                     }
 
@@ -518,24 +543,24 @@ public class GuiManager implements Listener {
         if (size > 27) size = 27; // enforce 3×9
         Inventory inv = Bukkit.createInventory(null, size, title);
 
-        // Category: Blocks (permission-gated)
+        // Category: Blocks (permission-gated) — Spec: Sandstone on slot 9
         if (plugin.getConfigManager().isShopCategoryVisible(player, "blocks")) {
-            inv.setItem(guis.getInt("shop.blocks-slot", 10), new ItemBuilder(Material.SANDSTONE)
+            inv.setItem(guis.getInt("shop.blocks-slot", 9), new ItemBuilder(Material.SANDSTONE)
                     .name("&eBlocks").lore("&7Click to browse building blocks", "", "&aClick to browse").build());
         }
-        // Category: Pickaxes (permission-gated)
+        // Category: Pickaxes (permission-gated) — Spec: Pickaxe Shop on slot 11
         if (plugin.getConfigManager().isShopCategoryVisible(player, "pickaxes")) {
-            inv.setItem(guis.getInt("shop.pickaxes-slot", 12), new ItemBuilder(Material.DIAMOND_PICKAXE)
+            inv.setItem(guis.getInt("shop.pickaxes-slot", 11), new ItemBuilder(Material.DIAMOND_PICKAXE)
                     .name("&bPickaxes &7& Tools").lore("&7Click to browse pickaxes and tools", "", "&aClick to browse").build());
         }
         // Category: Reset Animations (permission-gated)
         if (plugin.getConfigManager().isShopCategoryVisible(player, "animations")) {
-            inv.setItem(guis.getInt("shop.animations-slot", 14), new ItemBuilder(Material.FIREWORK)
+            inv.setItem(guis.getInt("shop.animations-slot", 15), new ItemBuilder(Material.FIREWORK)
                     .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
         }
         // Category: Death Sounds (permission-gated)
         if (plugin.getConfigManager().isShopCategoryVisible(player, "sounds")) {
-            inv.setItem(guis.getInt("shop.death-sounds-slot", 16), new ItemBuilder(Material.NOTE_BLOCK)
+            inv.setItem(guis.getInt("shop.death-sounds-slot", 17), new ItemBuilder(Material.NOTE_BLOCK)
                     .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
         }
 
@@ -576,18 +601,17 @@ public class GuiManager implements Listener {
         if (map == null) return;
 
         List<String> templates = map.getAllTemplates();
+        // Spec: Island Selector must be EXACTLY 3×9 (27 slots)
         String title = ColorUtil.translate("&aIsland Designs &7- &f" + map.getName());
-        int size = Math.min(54, ((templates.size() / 9) + 1) * 9);
-        if (size < 9) size = 9;
-
-        Inventory inv = Bukkit.createInventory(null, size, title);
+        Inventory inv = Bukkit.createInventory(null, 27, title);
 
         String selectedDesign = pData.getSelectedDesign(mapName);
-        // The default template key is the map's template file
         String defaultKey = map.getTemplateFile();
         if (selectedDesign == null) selectedDesign = defaultKey;
 
-        for (int i = 0; i < templates.size(); i++) {
+        // Content slots: 0-17 (first two rows), leaving row 3 for navigation
+        int maxContentSlots = 18;
+        for (int i = 0; i < templates.size() && i < maxContentSlots; i++) {
             String key = templates.get(i);
             boolean isDefault = key.equals(defaultKey);
             boolean selected = key.equalsIgnoreCase(selectedDesign);
@@ -595,22 +619,20 @@ public class GuiManager implements Listener {
 
             List<String> lore = new ArrayList<>();
             lore.add(ColorUtil.translate("&7Template: &f" + key));
-            if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
-            else lore.add(ColorUtil.translate("&eClick to select"));
-
-            ItemStack item = new ItemBuilder(Material.BOOK_AND_QUILL).name(displayName).lore(lore.toArray(new String[0])).build();
+            // Spec: Use Material.PAPER. No enchantments. Show selection via name color only.
             if (selected) {
-                org.bukkit.inventory.meta.ItemMeta im = item.getItemMeta();
-                if (im != null) {
-                    im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true);
-                    item.setItemMeta(im);
-                }
+                lore.add(ColorUtil.translate("&a&l» Currently selected"));
+            } else {
+                lore.add(ColorUtil.translate("&eClick to select this design instantly"));
             }
+
+            // Spec: Material.PAPER, no enchanted books, no glass panes, no enchantments
+            ItemStack item = new ItemBuilder(Material.PAPER).name(displayName).lore(lore.toArray(new String[0])).build();
             inv.setItem(i, item);
         }
 
-        // Back button
-        inv.setItem(size - 1, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // Spec: "Back to Shop" button in the bottom center slot (slot 22 = center of row 3 in 27-slot)
+        inv.setItem(22, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
         player.openInventory(inv);
     }
 
@@ -647,23 +669,40 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // One-Click Pick (moved here from main shop)
+        // One-Click Pick — placed at a configurable content-area slot (1-based in config, default 23)
         PlayerData ocpData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        boolean hasOcp = ocpData != null && ocpData.hasOneClickPick();
-        boolean ocpPurchased = ocpData != null && ocpData.hasPurchasedBlock("cosmetic:one_click_pick");
+        boolean hasOcp      = ocpData != null && ocpData.hasOneClickPick();
+        boolean ocpPurchased = (ocpData != null && ocpData.hasPurchasedBlock("cosmetic:one_click_pick"))
+                || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
         if (!player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick.hide")) {
-            int ocpPrice = guis.getInt("one-click-pick.price", 5000);
-            String ocpStatus = ocpPurchased ? (hasOcp ? "&a&lACTIVE" : "&7Owned - Click to enable") : "&cNot owned - Click to buy";
-            inv.setItem(maxSlots - 9, new ItemBuilder(Material.DIAMOND_AXE)
-                    .name("&bOne-Click Pick")
-                    .lore("&7Breaks placed blocks instantly on left-click",
-                            "&7Uses a &cDiamond Axe &7as the tool",
+            int    ocpPrice  = guis.getInt("one-click-pick.price", 5000);
+            int    ocpSlot   = guis.getInt("one-click-pick.slot", 23) - 1; // 1-based → 0-based
+            String ocpName   = guis.getString("one-click-pick.name", "&bOne-Click Pick");
+            String ocpStatus = ocpPurchased
+                    ? (hasOcp ? "&a&lACTIVE" : "&7Owned &8- &eClick to enable")
+                    : "&cNot owned &8- &eClick to buy";
+            inv.setItem(ocpSlot, new ItemBuilder(Material.DIAMOND_AXE)
+                    .name(ocpName)
+                    .lore("&7Insta-breaks your placed blocks on left-click",
                             "",
-                            ocpStatus, "", "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins")).build());
+                            ocpStatus,
+                            "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins"))
+                    .build());
         }
 
-        // Back button
-        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // Navigation — standardized bottom row (always visible, no pagination for this menu)
+        FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String backName = itemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(maxSlots - 5, ItemBuilder.fromString(backMat).name(backName).build());
+
+        String disPrevMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
+        String disPrevName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+        inv.setItem(maxSlots - 9, ItemBuilder.fromString(disPrevMat).name(disPrevName).build());
+
+        String disNextMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
+        String disNextName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+        inv.setItem(maxSlots - 1, ItemBuilder.fromString(disNextMat).name(disNextName).build());
 
         player.openInventory(inv);
     }
@@ -713,8 +752,19 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Back button
-        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // Navigation — standardized bottom row (always visible, single-page menu)
+        FileConfiguration animItemsConfig = plugin.getConfigManager().getItemsConfig();
+        String animBackMat  = animItemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String animBackName = animItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(maxSlots - 5, ItemBuilder.fromString(animBackMat).name(animBackName).build());
+
+        String animDisPrevMat  = animItemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
+        String animDisPrevName = animItemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+        inv.setItem(maxSlots - 9, ItemBuilder.fromString(animDisPrevMat).name(animDisPrevName).build());
+
+        String animDisNextMat  = animItemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
+        String animDisNextName = animItemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+        inv.setItem(maxSlots - 1, ItemBuilder.fromString(animDisNextMat).name(animDisNextName).build());
 
         player.openInventory(inv);
     }
@@ -767,7 +817,20 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        inv.setItem(maxSlots - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // Navigation — standardized bottom row (always visible, single-page menu)
+        FileConfiguration soundItemsConfig = plugin.getConfigManager().getItemsConfig();
+        String soundBackMat  = soundItemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String soundBackName = soundItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(maxSlots - 5, ItemBuilder.fromString(soundBackMat).name(soundBackName).build());
+
+        String soundDisPrevMat  = soundItemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
+        String soundDisPrevName = soundItemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+        inv.setItem(maxSlots - 9, ItemBuilder.fromString(soundDisPrevMat).name(soundDisPrevName).build());
+
+        String soundDisNextMat  = soundItemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
+        String soundDisNextName = soundItemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+        inv.setItem(maxSlots - 1, ItemBuilder.fromString(soundDisNextMat).name(soundDisNextName).build());
+
         player.openInventory(inv);
     }
 
@@ -895,9 +958,9 @@ public class GuiManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
-        Inventory top = event.getInventory();
+        Inventory top = event.getView().getTopInventory();
         if (top == null || top.getType() == InventoryType.CRAFTING) return;
-        String title = top.getTitle();
+        String title = event.getView().getTitle();
         if (title != null && isPluginGui(ColorUtil.strip(title))) {
             event.setCancelled(true);
         }
@@ -910,30 +973,32 @@ public class GuiManager implements Listener {
      * and our cancel verdict is respected by them.
      *
      * Strategy:
-     *   1. Identify the top inventory by title.
-     *   2. If it belongs to us, IMMEDIATELY cancel — stops all item movement regardless
-     *      of which sub-inventory (top or bottom player-inv) was clicked.
+     *   1. Identify the top inventory using event.getView().getTopInventory() — this is
+     *      always the plugin's GUI, even when the player clicks their own bottom inventory.
+     *   2. If the top inventory belongs to us, IMMEDIATELY cancel the entire event —
+     *      stops all item movement regardless of which sub-inventory was clicked.
      *   3. Only invoke action handlers when the click was inside the TOP inventory.
      */
     @EventHandler(priority = EventPriority.HIGH)
     public void onClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
 
-        Inventory top = event.getInventory();
-        // CRAFTING is the player's own default view — skip
+        // Always use the view's top inventory — reliable in 1.8.8 regardless of click source.
+        Inventory top = event.getView().getTopInventory();
         if (top == null || top.getType() == InventoryType.CRAFTING) return;
 
-        String title = top.getTitle();
+        // getView().getTitle() is the definitive title of the open inventory.
+        String title = event.getView().getTitle();
         if (title == null) return;
 
         String stripped = ColorUtil.strip(title);
         if (!isPluginGui(stripped)) return;
 
         // ---- Lock: cancel EVERYTHING in this inventory context ----
+        // This cancels shift-clicks from the bottom player-inventory too.
         event.setCancelled(true);
 
         // Only dispatch actions for clicks inside the top GUI panel.
-        // Shift-clicks from the bottom player-inventory are already blocked above.
         Inventory clicked = event.getClickedInventory();
         if (clicked == null || clicked != top) return;
 
@@ -1045,6 +1110,12 @@ public class GuiManager implements Listener {
         Integer currentPage = blockSelectorPages.get(player.getUniqueId());
         if (currentPage == null) currentPage = 1;
 
+        // Back to Shop button
+        if (slot == maxSlots - 5) {
+            openShop(player);
+            return;
+        }
+
         // Previous page button
         if (slot == maxSlots - 9 && currentPage > 1) {
             openBlockSelector(player, currentPage - 1);
@@ -1079,8 +1150,11 @@ public class GuiManager implements Listener {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
+        // Per-item permission: fastbuilder.block.<material> (e.g. fastbuilder.block.stained_clay.5)
+        String blockPerm = "fastbuilder.block." + mat.toLowerCase().replace(":", ".");
         boolean owned = price == 0 || data.hasPurchasedBlock(mat)
-                || player.hasPermission("fastbuilder.blocks.*");
+                || player.hasPermission("fastbuilder.blocks.*")
+                || player.hasPermission(blockPerm);
 
         if (!owned) {
             // Try to purchase
@@ -1147,64 +1221,115 @@ public class GuiManager implements Listener {
 
         String gui = settingsSlots.getString(slot + ".gui", "");
 
+        String prefix = plugin.getConfigManager().getPrefix();
+
         switch (gui) {
             case "infinite_blocks": {
                 PlayerData iData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (iData == null) break;
+                // Permission bypass: skip purchase entirely
+                if (player.hasPermission("fastbuilder.cosmetic.infiniteblocks")) {
+                    iData.setInfiniteBlocksUnlocked(true);
+                    boolean newState = !iData.hasInfiniteBlocks();
+                    iData.setInfiniteBlocks(newState);
+                    String stateStr = newState ? "&aenabled" : "&cdisabled";
+                    player.sendMessage(ColorUtil.translate(prefix + "&fInfinite Blocks " + stateStr + "&f."));
+                    openSettings(player);
+                    break;
+                }
                 if (!iData.hasInfiniteBlocksUnlocked()) {
                     int unlockCost = plugin.getConfigManager().getInfiniteBlocksUnlockCost();
                     if (iData.removeCoins(unlockCost)) {
                         iData.setInfiniteBlocksUnlocked(true);
                         iData.setInfiniteBlocks(true);
-                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        player.sendMessage(ColorUtil.translate(prefix
                                 + "&fInfinite Blocks unlocked and enabled for &c" + unlockCost + " &fcoins."));
                         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                     } else {
-                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        player.sendMessage(ColorUtil.translate(prefix
                                 + "&cNot enough coins! Infinite Blocks costs &f" + unlockCost + " &ccoins."));
                     }
                 } else {
                     boolean newState = !iData.hasInfiniteBlocks();
                     iData.setInfiniteBlocks(newState);
                     String stateStr = newState ? "&aenabled" : "&cdisabled";
-                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&fInfinite Blocks " + stateStr + "&f."));
+                    player.sendMessage(ColorUtil.translate(prefix + "&fInfinite Blocks " + stateStr + "&f."));
                 }
                 openSettings(player);
                 break;
             }
             case "reset_stats":
+                if (!player.hasPermission("fastbuilder.stats.reset")) {
+                    player.sendMessage(ColorUtil.translate(prefix
+                            + "&cYou don't have permission to reset your stats."));
+                    break;
+                }
                 player.closeInventory();
                 openConfirmStatsReset(player);
                 break;
             case "custom_length": {
+                if (!player.hasPermission("fastbuilder.feature.custom_length")) {
+                    player.sendMessage(ColorUtil.translate(prefix
+                            + "&cYou don't have permission to use custom length."));
+                    break;
+                }
                 net.gravijet.fastbuilder.gameplay.RunSession clRun = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
                 if (clRun == null) {
-                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    player.sendMessage(ColorUtil.translate(prefix
                             + "&cYou must be on an island to use custom length."));
                     break;
                 }
                 net.gravijet.fastbuilder.map.MapData clMap = plugin.getMapManager().getMap(clRun.getMapName());
                 if (clMap == null || !clMap.hasCustomLength()) {
-                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                    player.sendMessage(ColorUtil.translate(prefix
                             + "&cCustom length is not available on your current map."));
                     break;
                 }
-                // Toggle custom length on/off for this player
                 PlayerData clData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-                if (clData != null) {
-                    boolean nowEnabled = clData.toggleCustomLength(clRun.getMapName());
-                    String stateStr = nowEnabled ? "&aEnabled" : "&cDisabled";
-                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&fCustom length " + stateStr + "&f."
-                            + (nowEnabled ? " &7(min " + clMap.getMinCustomLength() + " blocks)" : "")));
-                    // Refresh settings to show updated status
-                    openSettings(player);
+                if (clData == null) break;
+
+                int clCurrent = clData.getCustomLength(clRun.getMapName());
+                if (clCurrent <= 0) clCurrent = clMap.getMinCustomLength();
+
+                // Determine delta from click type
+                int clDelta;
+                org.bukkit.event.inventory.ClickType clClick = event.getClick();
+                if (clClick == org.bukkit.event.inventory.ClickType.LEFT) clDelta = -1;
+                else if (clClick == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) clDelta = -10;
+                else if (clClick == org.bukkit.event.inventory.ClickType.RIGHT) clDelta = 1;
+                else if (clClick == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) clDelta = 10;
+                else break; // middle-click etc — ignore
+
+                int clNew = Math.max(clMap.getMinCustomLength(),
+                        Math.min(clMap.getMaxCustomLength(), clCurrent + clDelta));
+
+                if (clNew == clCurrent) {
+                    String limitMsg = (clDelta < 0)
+                            ? "&cAlready at minimum (" + clMap.getMinCustomLength() + " blocks)."
+                            : "&cAlready at maximum (" + clMap.getMaxCustomLength() + " blocks).";
+                    player.sendMessage(ColorUtil.translate(prefix + limitMsg));
+                    break;
                 }
+
+                clData.setCustomLength(clRun.getMapName(), clNew);
+
+                // Move the end-island platform physically
+                if (plugin.getGameplayManager() != null) {
+                    plugin.getGameplayManager().placeEndPlatform(player, clMap, clRun, clNew);
+                }
+
+                player.sendMessage(ColorUtil.translate(prefix
+                        + "&fCustom length set to &e" + clNew + " &fblocks."));
+                openSettings(player);
                 break;
             }
             case "practice_mode":
+                if (!player.hasPermission("fastbuilder.feature.practice_mode")) {
+                    player.sendMessage(ColorUtil.translate(prefix
+                            + "&cYou don't have permission to use practice mode."));
+                    break;
+                }
                 net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
                 if (run != null) {
@@ -1222,13 +1347,12 @@ public class GuiManager implements Listener {
                         // Also remove them from placed blocks list
                         run.getPlacedBlocks().removeAll(run.getPracticeBlocks());
                         run.getPracticeBlocks().clear();
-                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        player.sendMessage(ColorUtil.translate(prefix
                                 + "&fAll practice blocks have been cleared."));
                     }
 
                     String stateStr = newState ? "&aenabled" : "&cdisabled";
-                    player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                            + "&fPractice mode " + stateStr + "&f."));
+                    player.sendMessage(ColorUtil.translate(prefix + "&fPractice mode " + stateStr + "&f."));
                 }
                 // Update hotbar items to reflect practice mode change
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
@@ -1513,7 +1637,7 @@ public class GuiManager implements Listener {
 
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         int maxSlots = guis.getInt("pickaxe-selector.max-slots", 27);
-        int ocpSlot = maxSlots - 9;
+        int ocpSlot  = guis.getInt("one-click-pick.slot", 23) - 1; // must match openPickaxeSelector
         if (event.getSlot() == ocpSlot) {
             handleOneClickPickShopClick(player);
             return;
@@ -1530,7 +1654,11 @@ public class GuiManager implements Listener {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        boolean owned = price == 0 || data.hasPurchasedBlock("pickaxe:" + mat) || player.hasPermission("fastbuilder.blocks.*");
+        // Per-item permission: fastbuilder.pickaxe.<material>
+        String pickPerm = "fastbuilder.pickaxe." + mat.toLowerCase().replace(":", ".");
+        boolean owned = price == 0 || data.hasPurchasedBlock("pickaxe:" + mat)
+                || player.hasPermission("fastbuilder.blocks.*")
+                || player.hasPermission(pickPerm);
         if (!owned) {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
@@ -1577,7 +1705,9 @@ public class GuiManager implements Listener {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        boolean owned = price == 0 || data.hasPurchasedBlock("anim:" + animId);
+        // Per-item permission: fastbuilder.animation.<id>
+        boolean owned = price == 0 || data.hasPurchasedBlock("anim:" + animId)
+                || player.hasPermission("fastbuilder.animation." + animId.toLowerCase());
         if (!owned) {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
@@ -1623,7 +1753,9 @@ public class GuiManager implements Listener {
         if (data == null) return;
 
         String prefix = plugin.getConfigManager().getPrefix();
-        boolean owned = price == 0 || data.hasPurchasedBlock("sound:" + soundId);
+        // Per-item permission: fastbuilder.sound.<id>
+        boolean owned = price == 0 || data.hasPurchasedBlock("sound:" + soundId)
+                || player.hasPermission("fastbuilder.sound." + soundId.toLowerCase());
         if (!owned) {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
@@ -1684,8 +1816,45 @@ public class GuiManager implements Listener {
 
         pData.setSelectedDesign(mapName, templateKey);
         player.closeInventory();
+
+        // Spec: "Clicking a design must instantly change the island and clear all blocks immediately."
+        net.gravijet.fastbuilder.gameplay.RunSession designSession =
+                plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        if (designSession != null) {
+            int islandIdx = designSession.getIslandIndex();
+            final org.bukkit.Location islandMin = map.getIslandMin(islandIdx);
+            final org.bukkit.Location islandMax = map.getIslandMax(islandIdx);
+            final String finalTemplateKey = templateKey;
+            final net.gravijet.fastbuilder.map.MapData finalMap = map;
+
+            // Clear all placed blocks immediately
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+
+            // Clear the island area and paste the new template
+            plugin.getFawePaster().clearRegion(
+                    map.getWorld(),
+                    islandMin.getBlockX(), islandMin.getBlockY(), islandMin.getBlockZ(),
+                    islandMax.getBlockX(), islandMax.getBlockY(), islandMax.getBlockZ(),
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            plugin.getFawePaster().pasteTemplate(
+                                    finalMap.getWorld(),
+                                    finalTemplateKey,
+                                    islandMin.getBlockX(), islandMin.getBlockY(), islandMin.getBlockZ(),
+                                    null
+                            );
+                        }
+                    }
+            );
+
+            // Reset the session so the run starts fresh
+            designSession.reset();
+            if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
+        }
+
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fIsland design selected: &c" + templateKey
-                + "&f. It will apply on your next island reset."));
+                + "&fIsland design &capplied instantly: &f" + templateKey));
     }
 }

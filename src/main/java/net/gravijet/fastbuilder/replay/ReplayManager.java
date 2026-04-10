@@ -41,7 +41,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 4; // v4 adds handItemId, handItemData per frame
+    private static final int VERSION = 5; // v5 adds playerDisplayTag (rank prefix + name)
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -96,8 +96,13 @@ public class ReplayManager {
             }
         }
 
+        // Capture the player's display tag (rank prefix + name) at the moment of recording.
+        // player.getDisplayName() is set by rank plugins (LuckPerms, GroupManager, etc.) and
+        // contains §-codes already — Citizens accepts §-codes directly for NPC names.
+        String displayTag = player.getDisplayName();
+
         activeRecorders.put(player.getUniqueId(),
-                new ReplayRecorder(player.getUniqueId(), player.getName(), mapName, islandIndex, initialBlocks));
+                new ReplayRecorder(player.getUniqueId(), player.getName(), displayTag, mapName, islandIndex, initialBlocks));
     }
 
     public void recordBlockPlace(UUID playerUuid, Location loc, int blockId, byte blockData) {
@@ -263,6 +268,7 @@ public class ReplayManager {
             out.writeInt(VERSION);
             out.writeUTF(data.getPlayerUuid().toString());
             out.writeUTF(data.getPlayerName());
+            out.writeUTF(data.getPlayerDisplayTag()); // v5: rank-prefixed display tag
             out.writeUTF(data.getMapName());
             out.writeInt(data.getIslandIndex());
             out.writeLong(data.getTimestamp());
@@ -331,11 +337,12 @@ public class ReplayManager {
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 
             int version = in.readInt();
-            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version);
+            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version); // currently supports v1–v5
 
 
             UUID uuid        = UUID.fromString(in.readUTF());
             String name      = in.readUTF();
+            String displayTag = version >= 5 ? in.readUTF() : ""; // v5: rank-prefixed display tag
             String mapName   = in.readUTF();
             int islandIndex  = in.readInt();
             long timestamp   = in.readLong();
@@ -402,7 +409,7 @@ public class ReplayManager {
                         sneaking, sprinting, swingArm, handItemId, handItemData, placement));
             }
 
-            return new ReplayData(uuid, name, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);
+            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);
         }
     }
 
