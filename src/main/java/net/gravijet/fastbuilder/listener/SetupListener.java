@@ -100,10 +100,6 @@ public class SetupListener implements Listener {
             String raw = plugin.getConfigManager().getAdminMessage("setup-spawn-saved");
             raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
             player.sendMessage(ColorUtil.translate(raw));
-            if (!session.isSpawnFacingEast()) {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&eWarning: Spawn is not facing East. Use &f/map setup continue --force-spawn-location &eto bypass."));
-            }
             sendClickableContinue(player);
         }
     }
@@ -191,25 +187,26 @@ public class SetupListener implements Listener {
     }
 
     /**
-     * Send a clickable "/map setup finish" message.
+     * Send a clickable "/map setup finish <name>" suggestion.
+     * Uses SUGGEST_COMMAND so the admin fills in the map name before pressing Enter.
      */
     private void sendClickableFinish(Player player) {
         try {
-            net.md_5.bungee.api.chat.TextComponent prefix = new net.md_5.bungee.api.chat.TextComponent(
-                    net.md_5.bungee.api.ChatColor.GRAY + "When ready: ");
-            net.md_5.bungee.api.chat.TextComponent btn = new net.md_5.bungee.api.chat.TextComponent(
-                    net.md_5.bungee.api.ChatColor.RED + "" + net.md_5.bungee.api.ChatColor.BOLD + "[/map setup finish]");
-            btn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
-                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/map setup finish"));
-            btn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+            net.md_5.bungee.api.chat.TextComponent msg = new net.md_5.bungee.api.chat.TextComponent(
+                    net.md_5.bungee.api.ChatColor.GRAY + "When ready: "
+                    + net.md_5.bungee.api.ChatColor.RED + "" + net.md_5.bungee.api.ChatColor.BOLD
+                    + "[/map setup finish <name>]");
+            msg.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, "/map setup finish "));
+            msg.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                     net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
                     new net.md_5.bungee.api.chat.BaseComponent[]{
                             new net.md_5.bungee.api.chat.TextComponent(
-                                    net.md_5.bungee.api.ChatColor.YELLOW + "Click to save the island template")}));
-            prefix.addExtra(btn);
-            player.spigot().sendMessage(prefix);
+                                    net.md_5.bungee.api.ChatColor.YELLOW
+                                    + "Click to fill — then type the map name and press Enter")}));
+            player.spigot().sendMessage(msg);
         } catch (Exception e) {
-            player.sendMessage(ColorUtil.translate("&7When ready, type: &c/map setup finish"));
+            player.sendMessage(ColorUtil.translate("&7When ready, type: &c/map setup finish <name>"));
         }
     }
 

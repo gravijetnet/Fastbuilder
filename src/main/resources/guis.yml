@@ -867,165 +867,222 @@ shop:
   designs-slot: 13
   animations-slot: 15
   death-sounds-slot: 17
+  # Fully configurable shop category buttons.
+  # material: ItemBuilder string (e.g. "EMERALD_BLOCK:0"), name: color-coded display name,
+  # lore: list of lore lines (empty list uses the built-in default).
+  items:
+    blocks:
+      material: "SANDSTONE:0"
+      name: "&eBlocks"
+      lore:
+        - "&7Click to browse building blocks"
+        - ""
+        - "&aClick to browse"
+    pickaxes:
+      material: "DIAMOND_PICKAXE:0"
+      name: "&bPickaxe Shop"
+      lore:
+        - "&7Click to browse pickaxes and tools"
+        - ""
+        - "&aClick to browse"
+    # Island Designs icon when the current map HAS alternative designs
+    designs-active:
+      material: "EMERALD_BLOCK:0"
+      name: "&aIsland Designs"
+      lore:
+        - "&7Choose a design for your island"
+        - ""
+        - "&aClick to browse"
+    # Island Designs icon when the current map has NO alternative designs
+    designs-inactive:
+      material: "EMERALD_BLOCK:0"
+      name: "&7Island Designs"
+      lore:
+        - "&7No designs available for this map"
+    animations:
+      material: "FIREWORK:0"
+      name: "&dReset Animations"
+      lore:
+        - "&7Click to browse reset animations"
+        - ""
+        - "&aClick to browse"
+    sounds:
+      material: "NOTE_BLOCK:0"
+      name: "&6Death Sounds"
+      lore:
+        - "&7Click to browse death sounds"
+        - ""
+        - "&aClick to browse"
 
 # Death Sound Selector GUI
 death-sound-selector:
   name: "Death Sounds"
   max-slots: 27
 
-# Pickaxe Selector GUI
+# Pickaxe Shop GUI
+# Mirrors the Block Selector style: paginated, gray filler, prev/next/back nav in bottom row.
+# name supports %page% and %max_page% placeholders.
 pickaxe-selector:
-  name: "Pickaxes &7& Tools"
-  max-slots: 54
+  name: "Pickaxe Shop - %page%"
+  max-slots: 45
 
+# Paginated tool entries: pickaxe-selector-slots.<page>.<1-based slot>
+# Placeholders in lore: %price% (0 = Free), %block_status%
 pickaxe-selector-slots:
   1:
-    name: "Stone Pickaxe"
-    material: "STONE_PICKAXE:0"
-    price: 0
-    lore:
-      - "&ePrice: Free"
-      - "%block_status%"
-  2:
-    name: "Iron Pickaxe"
-    material: "IRON_PICKAXE:0"
-    price: 500
-    lore:
-      - "&ePrice: 500"
-      - "%block_status%"
-  3:
-    name: "Diamond Pickaxe"
-    material: "DIAMOND_PICKAXE:0"
-    price: 0
-    lore:
-      - "&ePrice: Free"
-      - "%block_status%"
-  4:
-    name: "Gold Pickaxe"
-    material: "GOLD_PICKAXE:0"
-    price: 1000
-    lore:
-      - "&ePrice: 1000"
-      - "%block_status%"
-  5:
-    name: "Wooden Pickaxe"
-    material: "WOOD_PICKAXE:0"
-    price: 100
-    lore:
-      - "&ePrice: 100"
-      - "%block_status%"
-  6:
-    name: "Shears"
-    material: "SHEARS:0"
-    price: 400
-    lore:
-      - "&ePrice: 400"
-      - "%block_status%"
-  7:
-    name: "Wooden Axe"
-    material: "WOOD_AXE:0"
-    price: 200
-    lore:
-      - "&ePrice: 200"
-      - "%block_status%"
-  8:
-    name: "Stone Axe"
-    material: "STONE_AXE:0"
-    price: 300
-    lore:
-      - "&ePrice: 300"
-      - "%block_status%"
-  9:
-    name: "Iron Axe"
-    material: "IRON_AXE:0"
-    price: 600
-    lore:
-      - "&ePrice: 600"
-      - "%block_status%"
-  10:
-    name: "Gold Axe"
-    material: "GOLD_AXE:0"
-    price: 800
-    lore:
-      - "&ePrice: 800"
-      - "%block_status%"
-  11:
-    name: "Diamond Axe"
-    material: "DIAMOND_AXE:0"
-    price: 1200
-    lore:
-      - "&ePrice: 1200"
-      - "%block_status%"
-  12:
-    name: "Wooden Shovel"
-    material: "WOOD_SPADE:0"
-    price: 100
-    lore:
-      - "&ePrice: 100"
-      - "%block_status%"
-  13:
-    name: "Stone Shovel"
-    material: "STONE_SPADE:0"
-    price: 200
-    lore:
-      - "&ePrice: 200"
-      - "%block_status%"
-  14:
-    name: "Iron Shovel"
-    material: "IRON_SPADE:0"
-    price: 400
-    lore:
-      - "&ePrice: 400"
-      - "%block_status%"
-  15:
-    name: "Gold Shovel"
-    material: "GOLD_SPADE:0"
-    price: 600
-    lore:
-      - "&ePrice: 600"
-      - "%block_status%"
-  16:
-    name: "Diamond Shovel"
-    material: "DIAMOND_SPADE:0"
-    price: 800
-    lore:
-      - "&ePrice: 800"
-      - "%block_status%"
-  17:
-    name: "Wooden Hoe"
-    material: "WOOD_HOE:0"
-    price: 100
-    lore:
-      - "&ePrice: 100"
-      - "%block_status%"
-  18:
-    name: "Stone Hoe"
-    material: "STONE_HOE:0"
-    price: 200
-    lore:
-      - "&ePrice: 200"
-      - "%block_status%"
-  19:
-    name: "Iron Hoe"
-    material: "IRON_HOE:0"
-    price: 300
-    lore:
-      - "&ePrice: 300"
-      - "%block_status%"
-  20:
-    name: "Gold Hoe"
-    material: "GOLD_HOE:0"
-    price: 500
-    lore:
-      - "&ePrice: 500"
-      - "%block_status%"
-  21:
-    name: "Diamond Hoe"
-    material: "DIAMOND_HOE:0"
-    price: 800
-    lore:
-      - "&ePrice: 800"
-      - "%block_status%"
+    # ── Pickaxes ──────────────────────────────────────────────────
+    1:
+      name: "Stone Pickaxe"
+      material: "STONE_PICKAXE:0"
+      price: 0
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    2:
+      name: "Iron Pickaxe"
+      material: "IRON_PICKAXE:0"
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    3:
+      name: "Gold Pickaxe"
+      material: "GOLD_PICKAXE:0"
+      price: 1000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    4:
+      name: "Diamond Pickaxe"
+      material: "DIAMOND_PICKAXE:0"
+      price: 0
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    5:
+      name: "Wooden Pickaxe"
+      material: "WOOD_PICKAXE:0"
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    # ── Axes ──────────────────────────────────────────────────────
+    6:
+      name: "Wooden Axe"
+      material: "WOOD_AXE:0"
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    7:
+      name: "Stone Axe"
+      material: "STONE_AXE:0"
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    8:
+      name: "Iron Axe"
+      material: "IRON_AXE:0"
+      price: 600
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    9:
+      name: "Gold Axe"
+      material: "GOLD_AXE:0"
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    10:
+      name: "Diamond Axe"
+      material: "DIAMOND_AXE:0"
+      price: 1200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    # ── Shovels ───────────────────────────────────────────────────
+    11:
+      name: "Wooden Shovel"
+      material: "WOOD_SPADE:0"
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    12:
+      name: "Stone Shovel"
+      material: "STONE_SPADE:0"
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    13:
+      name: "Iron Shovel"
+      material: "IRON_SPADE:0"
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    14:
+      name: "Gold Shovel"
+      material: "GOLD_SPADE:0"
+      price: 600
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    15:
+      name: "Diamond Shovel"
+      material: "DIAMOND_SPADE:0"
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    # ── Hoes ──────────────────────────────────────────────────────
+    16:
+      name: "Wooden Hoe"
+      material: "WOOD_HOE:0"
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    17:
+      name: "Stone Hoe"
+      material: "STONE_HOE:0"
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    18:
+      name: "Iron Hoe"
+      material: "IRON_HOE:0"
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    19:
+      name: "Gold Hoe"
+      material: "GOLD_HOE:0"
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    20:
+      name: "Diamond Hoe"
+      material: "DIAMOND_HOE:0"
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    # ── Shears ────────────────────────────────────────────────────
+    21:
+      name: "Shears"
+      material: "SHEARS:0"
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    # One-Click Pick occupies slot 23 on this page (see one-click-pick section below)
 
 # Animation Selector GUI
 animation-selector:
@@ -1278,14 +1335,18 @@ death-sound-selector-slots:
       - "&7Slime attack sound"
       - "&ePrice: 250"
 
-# One-Click Pick cosmetic (single entry, toggle-style)
-# slot: 1-based position inside the pickaxe selector content area (must not overlap nav row)
+# One-Click Pick cosmetic (toggle-style entry injected into the Pickaxe Shop)
+# page: which pickaxe-selector page to render it on (1-based)
+# slot: 1-based position inside that page's content area (must not overlap the nav row)
+# Lore supports %price% placeholder (replaced with coin cost or "Owned").
+# The status line (&a&lACTIVE / &7Owned / &cNot owned) is appended automatically.
 one-click-pick:
   name: "&bOne-Click Pick"
   material: "DIAMOND_AXE:0"
   price: 5000
+  page: 1
   slot: 23
   lore:
     - "&7Insta-breaks your placed blocks on left-click"
     - "&7Equip any tool — no dig time required"
-    - "&ePrice: 5000"
+    - "&ePrice: %price%"

@@ -30,12 +30,12 @@ public class MapData {
 
     // Spawn offset relative to island min corner
     private double spawnOffsetX, spawnOffsetY, spawnOffsetZ;
-    // Spawn yaw/pitch - always overridden to East (-90) in getIslandSpawn()
     private float spawnYaw, spawnPitch;
 
     // NPC offset relative to island min corner
     private double npcOffsetX, npcOffsetY, npcOffsetZ;
     private float npcYaw;
+    private float npcPitch;
 
     // Hologram offset relative to island min corner
     private double hologramOffsetX, hologramOffsetY, hologramOffsetZ;
@@ -107,6 +107,7 @@ public class MapData {
         config.set("npc.y", npcOffsetY);
         config.set("npc.z", npcOffsetZ);
         config.set("npc.yaw", npcYaw);
+        config.set("npc.pitch", npcPitch);
         config.set("hologram.x", hologramOffsetX);
         config.set("hologram.y", hologramOffsetY);
         config.set("hologram.z", hologramOffsetZ);
@@ -153,6 +154,7 @@ public class MapData {
         npcOffsetY = config.getDouble("npc.y");
         npcOffsetZ = config.getDouble("npc.z");
         npcYaw = (float) config.getDouble("npc.yaw");
+        npcPitch = (float) config.getDouble("npc.pitch", 0);
         hologramOffsetX = config.getDouble("hologram.x", 0);
         hologramOffsetY = config.getDouble("hologram.y", 0);
         hologramOffsetZ = config.getDouble("hologram.z", 0);
@@ -192,13 +194,12 @@ public class MapData {
 
     /**
      * Get the absolute spawn location for a specific island instance.
-     * Always faces East (yaw -90) as per spec.
      */
     public Location getIslandSpawn(int islandIndex) {
         Location origin = getOrigin();
         origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * distance + spawnOffsetZ);
-        origin.setYaw(-90f); // Always face East (positive X direction)
-        origin.setPitch(0f);
+        origin.setYaw(spawnYaw);
+        origin.setPitch(spawnPitch);
         return origin;
     }
 
@@ -209,7 +210,7 @@ public class MapData {
         Location origin = getOrigin();
         origin.add(npcOffsetX, npcOffsetY, (long) islandIndex * distance + npcOffsetZ);
         origin.setYaw(npcYaw);
-        origin.setPitch(0f);
+        origin.setPitch(npcPitch);
         return origin;
     }
 
@@ -308,6 +309,9 @@ public class MapData {
     public void setNpcOffsetZ(double z) { this.npcOffsetZ = z; }
     public float getNpcYaw() { return npcYaw; }
     public void setNpcYaw(float yaw) { this.npcYaw = yaw; }
+
+    public float getNpcPitch() { return npcPitch; }
+    public void setNpcPitch(float pitch) { this.npcPitch = pitch; }
 
     public double getHologramOffsetX() { return hologramOffsetX; }
     public void setHologramOffsetX(double x) { this.hologramOffsetX = x; }

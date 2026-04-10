@@ -48,7 +48,7 @@ public class GuiManager implements Listener {
     private static final String MAP_SELECTOR_PREFIX = "Map Selector";
     private static final String REPLAYS_PREFIX = "Replays";
     private static final String SHOP_PREFIX = "Shop";
-    private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Selector";
+    private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Shop";
     private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
     private static final String DEATH_SOUND_SELECTOR_PREFIX = "Death Sounds";
     private static final String STATS_PREFIX = "Stats";
@@ -537,56 +537,67 @@ public class GuiManager implements Listener {
     public void openShop(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         String title = ColorUtil.translate(guis.getString("shop.name", "Shop"));
-        // Shop is strictly 3×9 (27 slots)
         int size = guis.getInt("shop.max-slots", 27);
         if (size < 27) size = 27;
         if (size > 27) size = 27; // enforce 3×9
         Inventory inv = Bukkit.createInventory(null, size, title);
 
-        // Category: Blocks (permission-gated) — Spec: Sandstone on slot 9
         if (plugin.getConfigManager().isShopCategoryVisible(player, "blocks")) {
-            inv.setItem(guis.getInt("shop.blocks-slot", 9), new ItemBuilder(Material.SANDSTONE)
-                    .name("&eBlocks").lore("&7Click to browse building blocks", "", "&aClick to browse").build());
+            inv.setItem(guis.getInt("shop.blocks-slot", 9),
+                    buildShopCategoryItem(guis, "shop.items.blocks", "SANDSTONE:0", "&eBlocks",
+                            new String[]{"&7Click to browse building blocks", "", "&aClick to browse"}));
         }
-        // Category: Pickaxes (permission-gated) — Spec: Pickaxe Shop on slot 11
         if (plugin.getConfigManager().isShopCategoryVisible(player, "pickaxes")) {
-            inv.setItem(guis.getInt("shop.pickaxes-slot", 11), new ItemBuilder(Material.DIAMOND_PICKAXE)
-                    .name("&bPickaxes &7& Tools").lore("&7Click to browse pickaxes and tools", "", "&aClick to browse").build());
+            inv.setItem(guis.getInt("shop.pickaxes-slot", 11),
+                    buildShopCategoryItem(guis, "shop.items.pickaxes", "DIAMOND_PICKAXE:0", "&bPickaxe Shop",
+                            new String[]{"&7Click to browse pickaxes and tools", "", "&aClick to browse"}));
         }
-        // Category: Reset Animations (permission-gated)
         if (plugin.getConfigManager().isShopCategoryVisible(player, "animations")) {
-            inv.setItem(guis.getInt("shop.animations-slot", 15), new ItemBuilder(Material.FIREWORK)
-                    .name("&dReset Animations").lore("&7Click to browse reset animations", "", "&aClick to browse").build());
+            inv.setItem(guis.getInt("shop.animations-slot", 15),
+                    buildShopCategoryItem(guis, "shop.items.animations", "FIREWORK:0", "&dReset Animations",
+                            new String[]{"&7Click to browse reset animations", "", "&aClick to browse"}));
         }
-        // Category: Death Sounds (permission-gated)
         if (plugin.getConfigManager().isShopCategoryVisible(player, "sounds")) {
-            inv.setItem(guis.getInt("shop.death-sounds-slot", 17), new ItemBuilder(Material.NOTE_BLOCK)
-                    .name("&6Death Sounds").lore("&7Click to browse death sounds", "", "&aClick to browse").build());
+            inv.setItem(guis.getInt("shop.death-sounds-slot", 17),
+                    buildShopCategoryItem(guis, "shop.items.sounds", "NOTE_BLOCK:0", "&6Death Sounds",
+                            new String[]{"&7Click to browse death sounds", "", "&aClick to browse"}));
         }
 
-        // Category: Island Designs (only shown if the player's current map has alt designs)
-        net.gravijet.fastbuilder.player.PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        boolean hasDesigns = false;
-        String currentMapForDesign = shopData != null ? shopData.getLastMap() : null;
-        if (currentMapForDesign != null) {
-            net.gravijet.fastbuilder.map.MapData designMap = plugin.getMapManager().getMap(currentMapForDesign);
-            hasDesigns = designMap != null && !designMap.getAlternativeTemplates().isEmpty();
-        }
-        int designsSlot = guis.getInt("shop.designs-slot", 13);
+        // Island Designs — always shown (EMERALD_BLOCK in both states, configurable).
         if (plugin.getConfigManager().isShopCategoryVisible(player, "designs")) {
-            if (hasDesigns) {
-                // Use an appealing block (not a glass pane) for the designs icon
-                inv.setItem(designsSlot, new ItemBuilder(Material.EMERALD_BLOCK)
-                        .name("&aIsland Designs").lore("&7Choose a design for your island", "", "&aClick to browse").build());
-            } else {
-                inv.setItem(designsSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 8)
-                        .name("&7Island Designs").lore("&cNo designs available for this map").build());
+            PlayerData shopData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            boolean hasDesigns = false;
+            String currentMap = shopData != null ? shopData.getLastMap() : null;
+            if (currentMap != null) {
+                MapData designMap = plugin.getMapManager().getMap(currentMap);
+                hasDesigns = designMap != null && !designMap.getAlternativeTemplates().isEmpty();
             }
-        }
 
-        // One-Click Pick has been moved to the Pickaxe Shop — not shown here.
+            String configPath = hasDesigns ? "shop.items.designs-active" : "shop.items.designs-inactive";
+            String defaultName = hasDesigns ? "&aIsland Designs" : "&7Island Designs";
+            String[] defaultLore = hasDesigns
+                    ? new String[]{"&7Choose a design for your island", "", "&aClick to browse"}
+                    : new String[]{"&7No designs available for this map"};
+
+            inv.setItem(guis.getInt("shop.designs-slot", 13),
+                    buildShopCategoryItem(guis, configPath, "EMERALD_BLOCK:0", defaultName, defaultLore));
+        }
 
         player.openInventory(inv);
+    }
+
+    /**
+     * Builds a shop category {@link ItemStack} from config, falling back to hardcoded defaults
+     * when the config path is absent.
+     */
+    private ItemStack buildShopCategoryItem(FileConfiguration guis, String path,
+                                             String defaultMat, String defaultName,
+                                             String[] defaultLore) {
+        String mat  = guis.getString(path + ".material", defaultMat);
+        String name = guis.getString(path + ".name",     defaultName);
+        List<String> loreList = guis.getStringList(path + ".lore");
+        String[] lore = loreList.isEmpty() ? defaultLore : loreList.toArray(new String[0]);
+        return ItemBuilder.fromString(mat).name(name).lore(lore).build();
     }
 
     /**
@@ -636,74 +647,124 @@ public class GuiManager implements Listener {
         player.openInventory(inv);
     }
 
-    public void openPickaxeSelector(Player player) {
+    public void openPickaxeSelector(Player player, int page) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
-        String title = ColorUtil.translate(guis.getString("pickaxe-selector.name", PICKAXE_SELECTOR_PREFIX));
-        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 27);
-        Inventory inv = Bukkit.createInventory(null, maxSlots, title);
+        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 45);
+        String titleTemplate = guis.getString("pickaxe-selector.name", "Pickaxe Shop - %page%");
 
-        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("pickaxe-selector-slots");
-        if (slotsSection == null) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNo pickaxes configured."));
+        ConfigurationSection pageSection = guis.getConfigurationSection("pickaxe-selector-slots." + page);
+        if (pageSection == null) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNo tools on this page."));
             return;
         }
 
+        // Count total pages
+        int maxPage = 1;
+        ConfigurationSection allPagesSection = guis.getConfigurationSection("pickaxe-selector-slots");
+        if (allPagesSection != null) {
+            for (String key : allPagesSection.getKeys(false)) {
+                try {
+                    int p = Integer.parseInt(key);
+                    if (p > maxPage) maxPage = p;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        String title = ColorUtil.translate(titleTemplate
+                .replace("%page%", String.valueOf(page))
+                .replace("%max_page%", String.valueOf(maxPage)));
+        Inventory inv = Bukkit.createInventory(null, maxSlots, title);
+
+        // Fill ALL slots with gray filler first (mirrors block selector style)
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < maxSlots; i++) inv.setItem(i, filler);
+
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        String purchasedStatus = guis.getString("block-status.purchased", "&aYou already own this!");
+        String purchasedStatus   = guis.getString("block-status.purchased",     "&aYou already own this!");
         String notPurchasedStatus = guis.getString("block-status.not-purchased", "&cYou don't own this yet!");
 
-        for (String slotKey : slotsSection.getKeys(false)) {
+        // Render tool items from the current page's section
+        for (String slotKey : pageSection.getKeys(false)) {
             try {
-                int slotIndex = Integer.parseInt(slotKey) - 1;
-                if (slotIndex < 0 || slotIndex >= maxSlots) continue;
-                String name = slotsSection.getString(slotKey + ".name", "Pickaxe");
-                String mat = slotsSection.getString(slotKey + ".material", "DIAMOND_PICKAXE:0");
-                int price = slotsSection.getInt(slotKey + ".price", 0);
-                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("pickaxe:" + mat)) || player.hasPermission("fastbuilder.blocks.*");
-                java.util.List<String> loreTemplate = slotsSection.getStringList(slotKey + ".lore");
+                int slotIndex = Integer.parseInt(slotKey) - 1; // 1-based → 0-based
+                if (slotIndex < 0 || slotIndex >= maxSlots - 9) continue; // leave bottom nav row
+
+                String name  = pageSection.getString(slotKey + ".name",     "Tool");
+                String mat   = pageSection.getString(slotKey + ".material", "STONE_PICKAXE:0");
+                int    price = pageSection.getInt(slotKey    + ".price",    0);
+
+                String pickPerm = "fastbuilder.pickaxe." + mat.toLowerCase().replace(":", ".");
+                boolean owned = price == 0
+                        || (data != null && data.hasPurchasedBlock("pickaxe:" + mat))
+                        || player.hasPermission("fastbuilder.blocks.*")
+                        || player.hasPermission(pickPerm);
+
+                List<String> loreTemplate = pageSection.getStringList(slotKey + ".lore");
                 String[] lore = new String[loreTemplate.size()];
                 for (int i = 0; i < loreTemplate.size(); i++) {
-                    lore[i] = loreTemplate.get(i).replace("%price%", price == 0 ? "Free" : String.valueOf(price)).replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
+                    lore[i] = loreTemplate.get(i)
+                            .replace("%price%", price == 0 ? "Free" : String.valueOf(price))
+                            .replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
                 }
                 inv.setItem(slotIndex, ItemBuilder.fromString(mat).name("&r" + name).lore(lore).build());
             } catch (NumberFormatException ignored) {}
         }
 
-        // One-Click Pick — placed at a configurable content-area slot (1-based in config, default 23)
-        PlayerData ocpData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        boolean hasOcp      = ocpData != null && ocpData.hasOneClickPick();
-        boolean ocpPurchased = (ocpData != null && ocpData.hasPurchasedBlock("cosmetic:one_click_pick"))
-                || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
-        if (!player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick.hide")) {
-            int    ocpPrice  = guis.getInt("one-click-pick.price", 5000);
-            int    ocpSlot   = guis.getInt("one-click-pick.slot", 23) - 1; // 1-based → 0-based
-            String ocpName   = guis.getString("one-click-pick.name", "&bOne-Click Pick");
+        // One-Click Pick — rendered on its configured page at its configured slot
+        int ocpPage = guis.getInt("one-click-pick.page", 1);
+        if (page == ocpPage && !player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick.hide")) {
+            boolean hasOcp       = data != null && data.hasOneClickPick();
+            boolean ocpPurchased = (data != null && data.hasPurchasedBlock("cosmetic:one_click_pick"))
+                    || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
+
+            int    ocpPrice = guis.getInt("one-click-pick.price",  5000);
+            int    ocpSlot  = guis.getInt("one-click-pick.slot",   23) - 1; // 1-based → 0-based
+            String ocpName  = guis.getString("one-click-pick.name", "&bOne-Click Pick");
             String ocpStatus = ocpPurchased
                     ? (hasOcp ? "&a&lACTIVE" : "&7Owned &8- &eClick to enable")
                     : "&cNot owned &8- &eClick to buy";
+
+            List<String> ocpLoreTemplate = guis.getStringList("one-click-pick.lore");
+            List<String> ocpLore = new ArrayList<>();
+            for (String line : ocpLoreTemplate) {
+                ocpLore.add(line.replace("%price%", ocpPurchased ? "Owned" : String.valueOf(ocpPrice)));
+            }
+            ocpLore.add(ColorUtil.translate(ocpStatus));
+
             inv.setItem(ocpSlot, new ItemBuilder(Material.DIAMOND_AXE)
                     .name(ocpName)
-                    .lore("&7Insta-breaks your placed blocks on left-click",
-                            "",
-                            ocpStatus,
-                            "&ePrice: " + (ocpPurchased ? "Owned" : ocpPrice + " coins"))
+                    .lore(ocpLore.toArray(new String[0]))
                     .build());
         }
 
-        // Navigation — standardized bottom row (always visible, no pagination for this menu)
+        // Navigation — bottom row (same structure as block selector)
         FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+
         String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
-        String backName = itemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        String backName = itemsConfig.getString("change-page.back-to-shop.name",     "&cBack to Shop");
         inv.setItem(maxSlots - 5, ItemBuilder.fromString(backMat).name(backName).build());
 
-        String disPrevMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
-        String disPrevName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
-        inv.setItem(maxSlots - 9, ItemBuilder.fromString(disPrevMat).name(disPrevName).build());
+        if (page > 1) {
+            String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
+            String prevName = itemsConfig.getString("change-page.previous-page.name",     "&c« Previous Page");
+            inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
+        } else {
+            String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
+            String disName = itemsConfig.getString("change-page.no-previous-page.name",     "&8« No Previous Page");
+            inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
+        }
 
-        String disNextMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
-        String disNextName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
-        inv.setItem(maxSlots - 1, ItemBuilder.fromString(disNextMat).name(disNextName).build());
+        if (page < maxPage) {
+            String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
+            String nextName = itemsConfig.getString("change-page.next-page.name",     "&aNext Page »");
+            inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
+        } else {
+            String disMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
+            String disName = itemsConfig.getString("change-page.no-next-page.name",     "&8No Next Page »");
+            inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
+        }
 
+        pickaxePages.put(player.getUniqueId(), page);
         player.openInventory(inv);
     }
 
@@ -1571,22 +1632,22 @@ public class GuiManager implements Listener {
 
     private void handleShopClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
-        ItemStack item = event.getCurrentItem();
-        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
-        String name = ColorUtil.strip(item.getItemMeta().getDisplayName());
+        int slot = event.getSlot();
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+
         player.closeInventory();
-        if (name.equals("Blocks")) {
+
+        if (slot == guis.getInt("shop.blocks-slot", 9)) {
             openBlockSelector(player, 1);
-        } else if (name.startsWith("Pickaxes")) {
-            openPickaxeSelector(player);
-        } else if (name.equals("Reset Animations")) {
-            openAnimationSelector(player);
-        } else if (name.equals("Death Sounds")) {
-            openDeathSoundSelector(player);
-        } else if (name.equals("Island Designs")) {
+        } else if (slot == guis.getInt("shop.pickaxes-slot", 11)) {
+            openPickaxeSelector(player, 1);
+        } else if (slot == guis.getInt("shop.designs-slot", 13)) {
             openDesignSelector(player);
+        } else if (slot == guis.getInt("shop.animations-slot", 15)) {
+            openAnimationSelector(player);
+        } else if (slot == guis.getInt("shop.death-sounds-slot", 17)) {
+            openDeathSoundSelector(player);
         }
-        // One-Click Pick is now in the Pickaxe Shop
     }
 
     /** Handles One-Click Pick purchase/toggle from within the Pickaxe Shop. */
@@ -1621,56 +1682,90 @@ public class GuiManager implements Listener {
             player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick "
                     + (data.hasOneClickPick() ? "&aenabled" : "&cdisabled") + "&f."));
         }
-        openPickaxeSelector(player);
+        // Reopen on the OCP's configured page so the player sees the updated status
+        int ocpPage = plugin.getConfigManager().getGuisConfig().getInt("one-click-pick.page", 1);
+        openPickaxeSelector(player, ocpPage);
     }
 
     private void handlePickaxeSelectorClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
-        ItemStack item = event.getCurrentItem();
-        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
-        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
-        if (displayName.equals("Back to Shop")) {
-            player.closeInventory();
+        int slot = event.getSlot();
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 45);
+
+        Integer currentPage = pickaxePages.get(player.getUniqueId());
+        if (currentPage == null) currentPage = 1;
+
+        // Back to Shop
+        if (slot == maxSlots - 5) {
             openShop(player);
             return;
         }
 
-        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
-        int maxSlots = guis.getInt("pickaxe-selector.max-slots", 27);
-        int ocpSlot  = guis.getInt("one-click-pick.slot", 23) - 1; // must match openPickaxeSelector
-        if (event.getSlot() == ocpSlot) {
+        // Previous page
+        if (slot == maxSlots - 9 && currentPage > 1) {
+            openPickaxeSelector(player, currentPage - 1);
+            return;
+        }
+
+        // Next page
+        int maxPage = 1;
+        ConfigurationSection allPagesSection = guis.getConfigurationSection("pickaxe-selector-slots");
+        if (allPagesSection != null) {
+            for (String key : allPagesSection.getKeys(false)) {
+                try {
+                    int p = Integer.parseInt(key);
+                    if (p > maxPage) maxPage = p;
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        if (slot == maxSlots - 1 && currentPage < maxPage) {
+            openPickaxeSelector(player, currentPage + 1);
+            return;
+        }
+
+        // One-Click Pick — slot-based detection, page-aware
+        int ocpPage = guis.getInt("one-click-pick.page", 1);
+        int ocpSlot = guis.getInt("one-click-pick.slot", 23) - 1; // 1-based → 0-based
+        if (currentPage == ocpPage && slot == ocpSlot) {
             handleOneClickPickShopClick(player);
             return;
         }
 
-        org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("pickaxe-selector-slots");
-        if (slotsSection == null) return;
+        // Regular tool — look up by page + slot
+        ConfigurationSection pageSection = guis.getConfigurationSection("pickaxe-selector-slots." + currentPage);
+        if (pageSection == null) return;
 
-        int slot = event.getSlot() + 1;
-        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+        int itemKey = slot + 1; // 0-based slot → 1-based config key
+        if (!pageSection.isConfigurationSection(String.valueOf(itemKey))) return;
 
-        String mat = slotsSection.getString(slot + ".material", "DIAMOND_PICKAXE:0");
-        int price = slotsSection.getInt(slot + ".price", 0);
+        String mat   = pageSection.getString(itemKey + ".material", "STONE_PICKAXE:0");
+        int    price = pageSection.getInt(itemKey    + ".price",    0);
+        String name  = pageSection.getString(itemKey + ".name",     "Tool");
+
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        // Per-item permission: fastbuilder.pickaxe.<material>
         String pickPerm = "fastbuilder.pickaxe." + mat.toLowerCase().replace(":", ".");
-        boolean owned = price == 0 || data.hasPurchasedBlock("pickaxe:" + mat)
+        boolean owned = price == 0
+                || data.hasPurchasedBlock("pickaxe:" + mat)
                 || player.hasPermission("fastbuilder.blocks.*")
                 || player.hasPermission(pickPerm);
+
+        String prefix = plugin.getConfigManager().getPrefix();
+
         if (!owned) {
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock("pickaxe:" + mat);
-                // Auto-equip on purchase
                 data.setSelectedPickaxe(mat);
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-                String pName = slotsSection.getString(slot + ".name", "Pickaxe");
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fPickaxe purchased and selected: &c" + pName + " &7(&f" + price + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(prefix + "&fTool purchased and selected: &c" + name
+                        + " &7(&f" + price + " coins&7)"));
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
             }
             return;
         }
@@ -1678,8 +1773,7 @@ public class GuiManager implements Listener {
         data.setSelectedPickaxe(mat);
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-        String pName = slotsSection.getString(slot + ".name", "Pickaxe");
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected pickaxe: &c" + pName));
+        player.sendMessage(ColorUtil.translate(prefix + "&fSelected tool: &c" + name));
     }
 
     private void handleAnimationSelectorClick(InventoryClickEvent event) {

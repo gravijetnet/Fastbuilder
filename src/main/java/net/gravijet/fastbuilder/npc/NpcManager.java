@@ -4,8 +4,6 @@ import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -23,14 +21,30 @@ public class NpcManager implements Listener {
     private final FastBuilder plugin;
     private final Map<UUID, Integer> playerNpcs = new HashMap<>();
 
+    private static final String MARKER_KEY = "fastbuilder-npc";
+
     public NpcManager(FastBuilder plugin) {
         this.plugin = plugin;
         Bukkit.getPluginManager().registerEvents(this, plugin);
+        cleanupOrphanedNpcs();
+    }
+
+    /** Destroy any NPCs left behind by a previous crash. */
+    private void cleanupOrphanedNpcs() {
+        try {
+            net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
+            for (net.citizensnpcs.api.npc.NPC npc : registry) {
+                if ("true".equals(npc.data().get(MARKER_KEY))) {
+                    npc.destroy();
+                }
+            }
+        } catch (NoClassDefFoundError | Exception ignored) {}
     }
 
     /**
      * Spawn a Map Selector NPC for a player at the given location.
-     * Adjusts Y so the NPC stands on top of a solid block, not inside one.
+     * The NPC is spawned at the exact stored location — the admin is responsible for
+     * positioning it correctly during setup.
      */
     @SuppressWarnings("deprecation")
     public void spawnNpc(Player player, Location npcLocation) {
@@ -38,25 +52,7 @@ public class NpcManager implements Listener {
 
         despawnNpc(player.getUniqueId());
 
-        // Find the highest solid block at or below the intended Y, then spawn one block above it.
-        // This guarantees the NPC stands on the surface rather than inside a block,
-        // regardless of floating-point rounding or how the location was stored.
         Location adjusted = npcLocation.clone();
-        int targetY = (int) Math.floor(adjusted.getY());
-        org.bukkit.World npcWorld = adjusted.getWorld();
-        if (npcWorld != null) {
-            int groundY = targetY; // default: no solid block found, stay put
-            for (int dy = 0; dy >= -5; dy--) {
-                Block b = npcWorld.getBlockAt(adjusted.getBlockX(), targetY + dy, adjusted.getBlockZ());
-                if (b != null && b.getType() != Material.AIR) {
-                    groundY = targetY + dy + 1; // stand on top of this solid block
-                    break;
-                }
-            }
-            adjusted.setY(groundY);
-        } else {
-            adjusted.setY(targetY);
-        }
 
         try {
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
@@ -66,6 +62,8 @@ public class NpcManager implements Listener {
             // Apply the player's own skin so the NPC mirrors the viewer
             npc.data().set("player-skin-uuid", player.getUniqueId().toString());
             npc.data().set("player-skin-name", player.getName());
+            // Mark as a FastBuilder NPC so we can clean up orphans after a crash
+            npc.data().setPersistent(MARKER_KEY, "true");
 
             npc.spawn(adjusted);
             npc.setProtected(true);
