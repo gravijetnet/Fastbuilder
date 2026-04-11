@@ -241,13 +241,21 @@ public class FastScoreboard {
         if (session != null && session.isRunning()) {
             currentTime = TimeUtil.formatTime(session.getElapsed());
         } else {
-            currentTime = "0,000";
+            long lastTime = (plugin.getGameplayManager() != null)
+                    ? plugin.getGameplayManager().getLastFinishTime(player.getUniqueId()) : -1L;
+            currentTime = lastTime > 0 ? TimeUtil.formatTime(lastTime) : "0,000";
         }
 
         String coins  = data != null ? String.valueOf(data.getCoins()) : "0";
 
-        String blocks = "0";
-        if (session != null) blocks = String.valueOf(session.getPlacedBlocks().size());
+        String blocks;
+        if (session != null && session.isRunning()) {
+            blocks = String.valueOf(session.getPlacedBlocks().size());
+        } else {
+            int lastBlocks = (plugin.getGameplayManager() != null)
+                    ? plugin.getGameplayManager().getLastFinishBlocks(player.getUniqueId()) : -1;
+            blocks = lastBlocks >= 0 ? String.valueOf(lastBlocks) : "0";
+        }
 
         // Session top-10
         List<String[]> topList = (plugin.getGameplayManager() != null)

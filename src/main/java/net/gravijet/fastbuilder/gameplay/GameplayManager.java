@@ -38,10 +38,12 @@ public class GameplayManager {
 
     private int actionbarTaskId = -1;
 
-    // Per-player end-island platform blocks (placed when custom length changes)
+    // Legacy end-platform: simple row of glass panes (used when map.hasEndIsland() == false)
     private final Map<UUID, List<Location>> endPlatforms = new HashMap<>();
-    // Original block states under the end platform (for restoration on clear)
     private final Map<UUID, Map<String, int[]>> endPlatformOrigStates = new HashMap<>();
+
+    // New end-island system: stores the placed region for each player {x, y, z, w, h, l}
+    private final Map<UUID, int[]> endIslandRegions = new HashMap<>();
 
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
@@ -79,6 +81,8 @@ public class GameplayManager {
         DEATH_SOUNDS.put("SnareDrum",      "NOTE_SNARE_DRUM");// note-block snare     ~0.2s
         DEATH_SOUNDS.put("ExpPickup",      "ORB_PICKUP");     // XP orb pickup        ~0.2s
         DEATH_SOUNDS.put("SlimeHit",       "SLIME_ATTACK");   // slime attack         ~0.4s
+        DEATH_SOUNDS.put("Villager",       "VILLAGER_IDLE");  // villager idle hmm    ~0.6s
+        DEATH_SOUNDS.put("Chicken",        "CHICKEN_IDLE");   // chicken cluck        ~0.3s
     }
 
     // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
@@ -89,6 +93,10 @@ public class GameplayManager {
     // Kept for backward compat
     private long globalSessionBestTime = -1;
     private String globalSessionBestPlayer = null;
+
+    // Last finished run data — shown on scoreboard/actionbar until the next run starts
+    private final Map<UUID, Long>    lastFinishTimes  = new HashMap<>();
+    private final Map<UUID, Integer> lastFinishBlocks = new HashMap<>();
 
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -107,6 +115,20 @@ public class GameplayManager {
 
     public void removeSession(UUID uuid) {
         activeSessions.remove(uuid);
+        lastFinishTimes.remove(uuid);
+        lastFinishBlocks.remove(uuid);
+    }
+
+    /** Time (ms) from the player's most recent completed run, or -1 if none this session. */
+    public long getLastFinishTime(UUID uuid) {
+        Long t = lastFinishTimes.get(uuid);
+        return t != null ? t : -1L;
+    }
+
+    /** Block count from the player's most recent completed run, or -1 if none. */
+    public int getLastFinishBlocks(UUID uuid) {
+        Integer b = lastFinishBlocks.get(uuid);
+        return b != null ? b : -1;
     }
 
     /**
@@ -132,6 +154,9 @@ public class GameplayManager {
                         + "&cClear your practice blocks before starting a real run."));
                 return;
             }
+            // New run starting — clear the persistent last-finish display
+            lastFinishTimes.remove(player.getUniqueId());
+            lastFinishBlocks.remove(player.getUniqueId());
             session.start();
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().startRecording(player, session.getMapName(), session.getIslandIndex());
@@ -234,12 +259,13 @@ public class GameplayManager {
                 || (statsMap != null && statsMap.isInfinite())
                 || playerCustomLengthActive;
 
+        boolean isNewPB = false;  // hoisted — set below if stats are tracked
         if (!statsDisabled) {
             PlayerData.MapStats stats = data.getOrCreateStats(session.getMapName());
             stats.totalAttempts++;
             stats.successfulAttempts++;
 
-            boolean isNewPB = !stats.hasBestTime() || time < stats.bestTime;
+            isNewPB = !stats.hasBestTime() || time < stats.bestTime;
             long oldBest = stats.bestTime;
             if (isNewPB) stats.bestTime = time;
             stats.totalSuccessTime += time;
@@ -329,8 +355,12 @@ public class GameplayManager {
                     ColorUtil.translate(noteSuffix));
         }
 
-        // Massive celebration
-        launchCelebration(player.getLocation());
+        // Store last-finish data for scoreboard/actionbar persistence
+        lastFinishTimes.put(uuid, time);
+        lastFinishBlocks.put(uuid, session.getPlacedBlocks().size());
+
+        // Massive celebration — full visual fireworks only on a new PB
+        launchCelebration(player, player.getLocation(), isNewPB);
 
         plugin.getScoreboardManager().updateScoreboard(player);
 
@@ -348,26 +378,37 @@ public class GameplayManager {
     }
 
     /**
-     * Launch a massive firework celebration with intense sounds.
+     * Launch a finish celebration.
+     * On a new PB: spawn full firework entities visible to the whole server.
+     * On a normal finish: play firework sounds only for the finishing player.
      */
-    private void launchCelebration(final Location location) {
+    private void launchCelebration(final Player player, final Location location, final boolean isPB) {
         final Random rand = new Random();
 
-        // Launch 8 fireworks spread over ~3 seconds (firework sounds only, as on mcplayhd)
         for (int wave = 0; wave < 8; wave++) {
             final int delay = wave * 7; // ~0.35s between waves
             Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
                 @Override
                 public void run() {
-                    // Center firework
-                    spawnFirework(location, rand);
-                    // Two offset fireworks per wave
-                    Location off1 = location.clone().add(
-                            (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
-                    Location off2 = location.clone().add(
-                            (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
-                    spawnFirework(off1, rand);
-                    spawnFirework(off2, rand);
+                    if (isPB) {
+                        // Full entity-based fireworks — server-wide visual + audio
+                        spawnFirework(location, rand);
+                        Location off1 = location.clone().add(
+                                (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
+                        Location off2 = location.clone().add(
+                                (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
+                        spawnFirework(off1, rand);
+                        spawnFirework(off2, rand);
+                    } else {
+                        // Sound-only for the finishing player (no visual entity)
+                        if (!player.isOnline()) return;
+                        try {
+                            player.playSound(location,
+                                    org.bukkit.Sound.valueOf("FIREWORK_LAUNCH"), 1.0f, 1.0f);
+                            player.playSound(location,
+                                    org.bukkit.Sound.valueOf("FIREWORK_BLAST"), 1.0f, 1.0f);
+                        } catch (IllegalArgumentException ignored) {}
+                    }
                 }
             }, delay);
         }
@@ -537,9 +578,17 @@ public class GameplayManager {
         List<Long> carriedBests = new ArrayList<>(session.getSessionBests());
         boolean carriedPractice = session.isPracticeMode();
 
-        // Clear placed blocks and end platform on old island (instant, no animation)
+        net.gravijet.fastbuilder.player.PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+
+        // Revert old island to default design (so the next player gets a clean slate)
+        revertIslandDesign(map, oldIsland);
+
+        // Clear placed blocks and end island on old island (instant, no animation)
         clearAllPlacedBlocks(uuid);
         clearEndPlatform(uuid);
+
+        // Reset session custom-length so the new island starts at base distance
+        if (data != null) data.setCustomLength(map.getName(), 0);
 
         // Cleanup old island integrations
         if (plugin.getCpsListener() != null) plugin.getCpsListener().cleanupPlayer(uuid);
@@ -552,11 +601,11 @@ public class GameplayManager {
 
         // Assign new island
         plugin.getMapManager().assignIsland(map.getName(), targetIsland, uuid, player.getName());
-        net.gravijet.fastbuilder.player.PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
         if (data != null) data.setLastIsland(targetIsland);
 
-        // Teleport to new island spawn
+        // Teleport to new island spawn and ensure the player is in Survival
         player.teleport(map.getIslandSpawn(targetIsland));
+        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
 
         // Create new session and carry over session bests + practice mode
         RunSession newSession = createSession(uuid, map.getName(), targetIsland);
@@ -570,12 +619,68 @@ public class GameplayManager {
         if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(targetIsland));
         if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(map.getName(), targetIsland, player);
 
-        // Restore end platform on the new island if the player has custom length active
-        if (data != null && map.hasCustomLength() && data.getCustomLength(map.getName()) > 0) {
-            placeEndPlatform(player, map, newSession, data.getCustomLength(map.getName()));
+        // Restore end island at base distance on the new island slot
+        if (map.hasCustomLength()) {
+            int len = map.hasEndIsland() ? map.getBaseCustomLength() : map.getMinCustomLength();
+            if (len > 0) placeEndPlatform(player, map, newSession, len);
         }
 
+        // Apply the player's selected design on the new island
+        applyPlayerDesign(player, map, targetIsland);
+
         plugin.getScoreboardManager().updateScoreboard(player);
+    }
+
+    // =========================================================================
+    // Island design helpers
+    // =========================================================================
+
+    /**
+     * Re-paste the default island template at island slot {@code islandIndex}, erasing any
+     * custom design the previous player had applied. Called before a player leaves or switches.
+     * The operation is async-batched so it does not freeze the server.
+     */
+    public void revertIslandDesign(net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
+        if (map.getTemplateFile() == null) return;
+        org.bukkit.Location min = map.getIslandMin(islandIndex);
+        org.bukkit.Location max = map.getIslandMax(islandIndex);
+        if (min == null || map.getWorld() == null) return;
+
+        plugin.getFawePaster().clearRegion(
+                map.getWorld(),
+                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
+                max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                () -> plugin.getFawePaster().pasteTemplate(
+                        map.getWorld(), map.getTemplateFile(),
+                        min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
+        );
+    }
+
+    /**
+     * Apply the player's selected island design to the given island slot.
+     * Does nothing if the player has the default design selected (or no selection).
+     */
+    public void applyPlayerDesign(Player player, net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null) return;
+
+        String selectedDesign = pData.getSelectedDesign(map.getName());
+        if (selectedDesign == null || selectedDesign.equals(map.getTemplateFile())) return;
+        if (!map.getAllTemplates().contains(selectedDesign)) return;
+
+        org.bukkit.Location min = map.getIslandMin(islandIndex);
+        org.bukkit.Location max = map.getIslandMax(islandIndex);
+        if (min == null || map.getWorld() == null) return;
+
+        plugin.getFawePaster().clearRegion(
+                map.getWorld(),
+                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
+                max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                () -> plugin.getFawePaster().pasteTemplate(
+                        map.getWorld(), selectedDesign,
+                        min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
+        );
     }
 
     // =========================================================================
@@ -583,36 +688,65 @@ public class GameplayManager {
     // =========================================================================
 
     /**
-     * Place (or replace) the end-island platform for a player.
-     * The platform is placed at spawnX + customLength along the player's Z lane,
-     * at the finish-zone Y level. Existing blocks at that position are saved so
-     * they can be restored when the platform is cleared.
+     * Place (or replace) the end-island / end-platform for a player.
      *
-     * @param player       The player who owns the platform
-     * @param map          The active map
-     * @param session      The player's current run session (for island index)
-     * @param customLength How many blocks from spawn the end island sits
+     * <ul>
+     *   <li>When {@code map.hasEndIsland()} is true: clears the old region and pastes the
+     *       end-island template at the new position (real-time schematic movement).</li>
+     *   <li>Otherwise (legacy): places a thin row of glass-pane blocks as before.</li>
+     * </ul>
      */
-    @SuppressWarnings("deprecation")
     public void placeEndPlatform(Player player, MapData map, RunSession session, int customLength) {
         UUID uuid = player.getUniqueId();
-        clearEndPlatform(uuid); // always remove the old one first
+        clearEndPlatform(uuid);
 
         if (customLength <= 0 || !map.hasCustomLength()) return;
 
-        customLength = Math.max(map.getMinCustomLength(),
-                Math.min(map.getMaxCustomLength(), customLength));
+        // Clamp to effective bounds
+        customLength = Math.max(map.getEffectiveMinCustomLength(),
+                Math.min(map.getEffectiveMaxCustomLength(), customLength));
 
-        // X: spawn position + custom distance
+        if (map.hasEndIsland()) {
+            placeEndIslandTemplate(uuid, map, session.getIslandIndex(), customLength);
+        } else {
+            placeEndPlatformLegacy(uuid, map, session, customLength);
+        }
+    }
+
+    /** New system: paste the end-island template at the computed position. */
+    private void placeEndIslandTemplate(UUID uuid, MapData map, int islandIndex, int customLength) {
+        org.bukkit.World world = map.getWorld();
+        if (world == null) return;
+
+        // endX = east edge of start island + gap to west edge of end island
+        int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
+        int endY = map.getOriginY() + map.getEndIslandYOffset();
+        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+
+        // Record the region so we can clear it later
+        endIslandRegions.put(uuid, new int[]{
+            endX, endY, endZ,
+            map.getEndIslandWidth(), map.getEndIslandHeight(), map.getEndIslandLength()
+        });
+
+        // Clear the target area first, then paste the template into it
+        int clearMaxX = endX + map.getEndIslandWidth()  - 1;
+        int clearMaxY = endY + map.getEndIslandHeight() - 1;
+        int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
+        plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
+            plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
+        );
+    }
+
+    /** Legacy system: a thin row of glass-pane blocks. */
+    @SuppressWarnings("deprecation")
+    private void placeEndPlatformLegacy(UUID uuid, MapData map, RunSession session, int customLength) {
         int platformX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
-        // Y: bottom of the finish zone (so the player stands on the platform)
         int platformY = map.getOriginY() + map.getFinishMinY();
-        // Z range: finish zone Z extent for this island slot
-        int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getDistance();
+        int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getActualZStep();
         int minZ = islandBaseZ + map.getFinishMinZ();
         int maxZ = islandBaseZ + map.getFinishMaxZ();
 
-        // Optional depth override — centre the platform in the Z range
         int configDepth = plugin.getConfigManager().getEndPlatformDepth();
         if (configDepth > 0 && (maxZ - minZ + 1) > configDepth) {
             int zCenter = (minZ + maxZ) / 2;
@@ -620,7 +754,6 @@ public class GameplayManager {
             maxZ = minZ + configDepth - 1;
         }
 
-        // Parse material from config (format "MATERIAL_NAME:data")
         String matStr = plugin.getConfigManager().getEndPlatformMaterial();
         Material mat;
         byte matData = 0;
@@ -635,7 +768,7 @@ public class GameplayManager {
             if (mat == null || mat == Material.AIR) throw new IllegalArgumentException("bad material");
         } catch (Exception e) {
             mat = Material.STAINED_GLASS_PANE;
-            matData = 5; // lime
+            matData = 5;
         }
 
         org.bukkit.World world = map.getWorld();
@@ -643,7 +776,6 @@ public class GameplayManager {
 
         List<Location> platform = new ArrayList<>();
         Map<String, int[]> origStates = new HashMap<>();
-
         for (int z = minZ; z <= maxZ; z++) {
             Location loc = new Location(world, platformX, platformY, z);
             org.bukkit.block.Block block = loc.getBlock();
@@ -652,36 +784,70 @@ public class GameplayManager {
             block.setTypeIdAndData(mat.getId(), matData, false);
             platform.add(loc);
         }
-
         endPlatforms.put(uuid, platform);
         endPlatformOrigStates.put(uuid, origStates);
     }
 
     /**
-     * Remove the end-island platform for a player, restoring original block states.
+     * Remove the end-island / end-platform for a player.
+     * Handles both the new end-island template system and the legacy glass-pane platform.
      */
-    @SuppressWarnings("deprecation")
     public void clearEndPlatform(UUID uuid) {
+        // New end-island template system
+        int[] region = endIslandRegions.remove(uuid);
+        if (region != null) {
+            // Find the map for this player to get the world
+            RunSession sess = activeSessions.get(uuid);
+            if (sess != null) {
+                net.gravijet.fastbuilder.map.MapData m =
+                        plugin.getMapManager().getMap(sess.getMapName());
+                if (m != null && m.getWorld() != null) {
+                    plugin.getFawePaster().clearRegion(
+                            m.getWorld(),
+                            region[0], region[1], region[2],
+                            region[0] + region[3] - 1,
+                            region[1] + region[4] - 1,
+                            region[2] + region[5] - 1,
+                            null);
+                }
+            }
+        }
+
+        // Legacy end-platform (glass pane rows)
+        @SuppressWarnings("deprecation")
         List<Location> platform = endPlatforms.remove(uuid);
         Map<String, int[]> origStates = endPlatformOrigStates.remove(uuid);
-        if (platform == null) return;
-        for (Location loc : platform) {
-            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-            int[] orig = origStates != null ? origStates.get(key) : null;
-            org.bukkit.block.Block block = loc.getBlock();
-            if (orig != null && orig[0] != 0) {
-                block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-            } else {
-                block.setType(Material.AIR);
+        if (platform != null) {
+            for (Location loc : platform) {
+                String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+                int[] orig = origStates != null ? origStates.get(key) : null;
+                org.bukkit.block.Block block = loc.getBlock();
+                if (orig != null && orig[0] != 0) {
+                    //noinspection deprecation
+                    block.setTypeIdAndData(orig[0], (byte) orig[1], false);
+                } else {
+                    block.setType(Material.AIR);
+                }
             }
         }
     }
 
-    /** Remove all active end platforms (called on plugin disable). */
+    /** Remove all active end platforms/islands (called on plugin disable). */
     public void clearAllEndPlatforms() {
         for (UUID uuid : new ArrayList<>(endPlatforms.keySet())) {
             clearEndPlatform(uuid);
         }
+        for (UUID uuid : new ArrayList<>(endIslandRegions.keySet())) {
+            clearEndPlatform(uuid);
+        }
+    }
+
+    /**
+     * Returns the current end-island position for a player, or null if none.
+     * Returns {endX, endY, endZ, endWidth, endHeight, endLength}.
+     */
+    public int[] getEndIslandRegion(UUID uuid) {
+        return endIslandRegions.get(uuid);
     }
 
     /**
@@ -1195,8 +1361,14 @@ public class GameplayManager {
                     // Respect the only-when-running setting
                     if (onlyWhenRunning && !session.isRunning()) continue;
 
-                    String timer = session.isRunning()
-                            ? TimeUtil.formatTime(session.getElapsed()) : "00:00.000";
+                    String timer;
+                    if (session.isRunning()) {
+                        timer = TimeUtil.formatTime(session.getElapsed());
+                    } else {
+                        long lastTime = lastFinishTimes.containsKey(entry.getKey())
+                                ? lastFinishTimes.get(entry.getKey()) : -1L;
+                        timer = lastTime > 0 ? TimeUtil.formatTime(lastTime) : "0,000";
+                    }
 
                     // Support both %time% and %timer% placeholders
                     String msg = actionBarFormat

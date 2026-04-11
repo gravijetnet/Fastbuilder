@@ -206,6 +206,14 @@ public class ReplayManager {
     public ReplaySession getPlaybackSession(UUID viewerUuid) { return activeSessions.get(viewerUuid); }
     public boolean isInPlayback(UUID uuid) { return activeSessions.containsKey(uuid); }
 
+    /** Find a replay session by its NPC entity ID (used to route NPC right-click events). */
+    public ReplaySession getPlaybackSessionByNpcId(int npcId) {
+        for (ReplaySession session : activeSessions.values()) {
+            if (session.getNpcId() == npcId) return session;
+        }
+        return null;
+    }
+
     // -------------------------------------------------------------------------
     // Queries
     // -------------------------------------------------------------------------

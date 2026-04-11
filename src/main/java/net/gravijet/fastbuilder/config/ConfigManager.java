@@ -8,7 +8,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 
 /**
@@ -73,6 +75,16 @@ public class ConfigManager {
 
     public int getCoinsPerHour() {
         return mainConfig.getInt("coins-per-hour", 150);
+    }
+
+    /** Minimum seconds between random playtime coin drops (default 120 = 2 min). */
+    public int getCoinsDropIntervalMin() {
+        return mainConfig.getInt("coins-drop-interval-min", 120);
+    }
+
+    /** Maximum seconds between random playtime coin drops (default 600 = 10 min). */
+    public int getCoinsDropIntervalMax() {
+        return mainConfig.getInt("coins-drop-interval-max", 600);
     }
 
     public int getFinishHeightTolerance() {
@@ -266,6 +278,30 @@ public class ConfigManager {
     /** Ticks between batches in sequential block-clear animations. */
     public int getAnimationTickInterval() {
         return mainConfig.getInt("animation.tick-interval", 1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Booster Shop
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the list of booster definitions from config.
+     * Each entry has: multiplier (double), duration-minutes (int), price (int).
+     */
+    public List<Map<String, Object>> getBoosterShopEntries() {
+        List<?> raw = mainConfig.getList("booster-shop", Collections.emptyList());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object obj : raw) {
+            if (!(obj instanceof Map)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> entry = (Map<String, Object>) obj;
+            Map<String, Object> safe = new HashMap<>();
+            safe.put("multiplier",        entry.getOrDefault("multiplier", 1.5));
+            safe.put("duration-minutes",  entry.getOrDefault("duration-minutes", 30));
+            safe.put("price",             entry.getOrDefault("price", 200));
+            result.add(safe);
+        }
+        return result;
     }
 
     // -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
@@ -18,9 +19,16 @@ import java.util.UUID;
 
 /**
  * Active replay playback session.
+ *
  * The replay is rendered in an isolated area at (REPLAY_AREA_X, Y, Z),
  * away from all live maps. All frame coordinates are offset from their
  * original island positions to the replay area.
+ *
+ * Smooth slow-motion: the NPC position is updated every server tick via
+ * linear interpolation between the previous and next recorded frame.
+ * This prevents the "jitter" caused by only moving the NPC at frame
+ * boundaries (which left the entity idle for multiple ticks at slow speeds,
+ * allowing gravity/Citizens corrections to create oscillation).
  */
 public class ReplaySession {
 
@@ -37,13 +45,25 @@ public class ReplaySession {
     private final UUID viewerUuid;
     private final ReplayData replayData;
 
+    // Integer index into replayData.getFrames() – the next frame to be processed
     private int currentTick = 0;
+    // Fractional progress into the current frame interval (0.0 – <1.0).
+    // Advances by playbackSpeed each server tick.  When it crosses 1.0 the
+    // integer currentTick advances and the excess carries over.
+    private double playbackFraction = 0.0;
+
     private double playbackSpeed = 1.0;
     private boolean paused = false;
     private boolean ended = false;
     private int taskId = -1;
 
     private int npcId = -1;
+
+    // Whether the viewer is currently looking through the NPC's eyes
+    private boolean inNpcCamera = false;
+    // Last hand-item sent to the camera hotbar (for dirty-checking)
+    private int  lastCameraHandItemId   = 0;
+    private byte lastCameraHandItemData = 0;
 
     // Blocks placed during playback (offset-adjusted coordinates), for cleanup
     private final List<Location> placedBlocks = new ArrayList<>();
@@ -57,9 +77,9 @@ public class ReplaySession {
     private int offsetZ;
 
     // Hotbar slot assignments — 3 controls centred in slots 3-5, stop at 8
-    public static final int SLOT_TIMELINE     = 3;   // L=Rewind / R=FastForward
-    public static final int SLOT_PAUSE_RESUME = 4;   // click to toggle pause
-    public static final int SLOT_SPEED        = 5;   // L=Slower / R=Faster
+    public static final int SLOT_TIMELINE     = 3;   // Stick   – L=Rewind / R=FastForward
+    public static final int SLOT_PAUSE_RESUME = 4;   // Dye     – click to toggle
+    public static final int SLOT_SPEED        = 5;   // BlazeRod – L=Slower / R=Faster
     public static final int SLOT_REPLAY_AGAIN = 7;
     public static final int SLOT_STOP         = 8;
 
@@ -98,7 +118,7 @@ public class ReplaySession {
         // Offset: translate original island origin → replay area origin
         int islandOriginX = map.getOriginX();
         int islandOriginY = map.getOriginY();
-        int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getDistance();
+        int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getActualZStep();
 
         offsetX = replayAreaX - islandOriginX;
         offsetY = REPLAY_AREA_Y - islandOriginY;
@@ -131,7 +151,7 @@ public class ReplaySession {
                 map.getWorld(),
                 map.getTemplateFile(),
                 replayAreaX, REPLAY_AREA_Y, replayAreaZ,
-                map.getDistance(),
+                map.getActualZStep(),
                 0, 1,
                 new Runnable() {
                     @Override
@@ -139,9 +159,7 @@ public class ReplaySession {
                         Player v = Bukkit.getPlayer(viewerUuid);
                         if (v == null || !v.isOnline()) return;
 
-                        // Place initial blocks (blocks that were on the island at recording start)
                         placeInitialBlocks(map.getWorld());
-
                         v.teleport(viewerWatchLocation);
                         spawnReplayNpc(v);
                         startPlaybackLoop();
@@ -152,7 +170,7 @@ public class ReplaySession {
 
     @SuppressWarnings("deprecation")
     private void placeInitialBlocks(org.bukkit.World world) {
-        for (net.gravijet.fastbuilder.replay.ReplayFrame.BlockPlacement bp : replayData.getInitialBlocks()) {
+        for (ReplayFrame.BlockPlacement bp : replayData.getInitialBlocks()) {
             int bx = bp.getBlockX() + offsetX;
             int by = bp.getBlockY() + offsetY;
             int bz = bp.getBlockZ() + offsetZ;
@@ -162,10 +180,12 @@ public class ReplaySession {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Playback loop
+    // -------------------------------------------------------------------------
+
     private void startPlaybackLoop() {
         taskId = new BukkitRunnable() {
-            private double tickAccumulator = 0;
-
             @Override
             public void run() {
                 if (paused) return;
@@ -176,12 +196,22 @@ public class ReplaySession {
                     return;
                 }
 
-                tickAccumulator += playbackSpeed;
+                // Advance fractional playback position
+                playbackFraction += playbackSpeed;
 
-                while (tickAccumulator >= 1.0 && currentTick < replayData.getFrames().size()) {
-                    playFrame(p, currentTick);
+                // Process all complete frames that fall inside this tick's advance
+                while (playbackFraction >= 1.0 && currentTick < replayData.getFrames().size()) {
+                    processFrameEffects(p, currentTick);
                     currentTick++;
-                    tickAccumulator -= 1.0;
+                    playbackFraction -= 1.0;
+                }
+
+                // Move NPC every tick using interpolated position (smooth at any speed)
+                updateNpcPosition(p);
+
+                // If viewer is in NPC-camera mode, keep the hotbar hand-item current
+                if (inNpcCamera) {
+                    refreshCameraHandItem(p);
                 }
 
                 if (!ended && currentTick >= replayData.getFrames().size()) {
@@ -195,6 +225,94 @@ public class ReplaySession {
     }
 
     // -------------------------------------------------------------------------
+    // Per-frame effects  (block placements, arm-swing, hand item, NPC metadata)
+    // Does NOT move the NPC – movement is handled by updateNpcPosition() every tick.
+    // -------------------------------------------------------------------------
+
+    @SuppressWarnings("deprecation")
+    private void processFrameEffects(Player viewer, int frameIndex) {
+        if (frameIndex < 0 || frameIndex >= replayData.getFrames().size()) return;
+
+        ReplayFrame frame = replayData.getFrames().get(frameIndex);
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map == null) return;
+
+        World world = map.getWorld();
+        if (world == null) return;
+
+        // Head rotation, sneak/sprint metadata, arm-swing
+        applyNmsState(viewer, frame);
+
+        // Hand item equipment packet
+        if (frame.getHandItemId() != 0) {
+            applyHandItem(viewer, frame.getHandItemId(), frame.getHandItemData());
+        }
+
+        // Block placement
+        if (frame.hasBlockPlacement()) {
+            ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
+            int bx = bp.getBlockX() + offsetX;
+            int by = bp.getBlockY() + offsetY;
+            int bz = bp.getBlockZ() + offsetZ;
+            Block block = world.getBlockAt(bx, by, bz);
+            block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
+            placedBlocks.add(block.getLocation().clone());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Smooth NPC position (called every tick)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Interpolates the NPC position between the previous and next recorded frame
+     * using the current playbackFraction (0 = at previous frame, 1 = at next frame).
+     * Calling this every tick produces smooth movement at any playback speed.
+     */
+    private void updateNpcPosition(Player viewer) {
+        if (npcId < 0) return;
+
+        List<ReplayFrame> frames = replayData.getFrames();
+        if (frames.isEmpty()) return;
+
+        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
+        if (map == null || map.getWorld() == null) return;
+
+        // prevIdx = last processed frame; nextIdx = next frame to process
+        int prevIdx = Math.max(0, currentTick - 1);
+        int nextIdx = Math.min(currentTick, frames.size() - 1);
+
+        ReplayFrame prev = frames.get(prevIdx);
+        ReplayFrame next = frames.get(nextIdx);
+
+        // t=0 means "at previous frame position"; t=1 means "at next frame position"
+        double t = (prevIdx == nextIdx) ? 0.0 : Math.min(1.0, Math.max(0.0, playbackFraction));
+
+        double x = lerp(prev.getX(), next.getX(), t) + offsetX;
+        double y = lerp(prev.getY(), next.getY(), t) + offsetY;
+        double z = lerp(prev.getZ(), next.getZ(), t) + offsetZ;
+        float  yaw   = lerpAngle(prev.getYaw(),   next.getYaw(),   (float) t);
+        float  pitch = lerpAngle(prev.getPitch(), next.getPitch(), (float) t);
+
+        moveReplayNpc(new Location(map.getWorld(), x, y, z, yaw, pitch));
+    }
+
+    private static double lerp(double a, double b, double t) {
+        return a + (b - a) * t;
+    }
+
+    /**
+     * Lerp that takes the shortest arc through angle wrap-around (±180°).
+     * Prevents the NPC spinning the long way when yaw crosses the ±180 boundary.
+     */
+    private static float lerpAngle(float a, float b, float t) {
+        float diff = b - a;
+        while (diff >  180f) diff -= 360f;
+        while (diff < -180f) diff += 360f;
+        return a + diff * t;
+    }
+
+    // -------------------------------------------------------------------------
     // Stop
     // -------------------------------------------------------------------------
 
@@ -202,6 +320,13 @@ public class ReplaySession {
         if (taskId != -1) {
             Bukkit.getScheduler().cancelTask(taskId);
             taskId = -1;
+        }
+
+        // If the viewer is in NPC-camera mode, reset the camera first
+        if (inNpcCamera) {
+            Player v = Bukkit.getPlayer(viewerUuid);
+            if (v != null) sendCameraFollowPacket(v, false);
+            inNpcCamera = false;
         }
 
         // Clear blocks placed during playback
@@ -219,7 +344,7 @@ public class ReplaySession {
                     map.getWorld(),
                     replayAreaX, REPLAY_AREA_Y, REPLAY_BASE_Z,
                     map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
-                    map.getDistance(), 0, 1, null);
+                    map.getActualZStep(), 0, 1, null);
         }
 
         despawnReplayNpc();
@@ -260,6 +385,13 @@ public class ReplaySession {
             taskId = -1;
         }
 
+        // Exit camera mode if active
+        if (inNpcCamera) {
+            Player v = Bukkit.getPlayer(viewerUuid);
+            if (v != null) sendCameraFollowPacket(v, false);
+            inNpcCamera = false;
+        }
+
         // Clear blocks placed during this playback
         for (Location loc : placedBlocks) {
             Block block = loc.getBlock();
@@ -268,6 +400,7 @@ public class ReplaySession {
         placedBlocks.clear();
 
         currentTick = 0;
+        playbackFraction = 0.0;
         ended = false;
         paused = false;
 
@@ -287,7 +420,7 @@ public class ReplaySession {
                     map.getWorld(),
                     map.getTemplateFile(),
                     replayAreaX, REPLAY_AREA_Y, REPLAY_BASE_Z,
-                    map.getDistance(),
+                    map.getActualZStep(),
                     0, 1,
                     new Runnable() {
                         @Override
@@ -309,152 +442,8 @@ public class ReplaySession {
     // Playback controls
     // -------------------------------------------------------------------------
 
-    @SuppressWarnings("deprecation")
-    private void playFrame(Player viewer, int frameIndex) {
-        if (frameIndex < 0 || frameIndex >= replayData.getFrames().size()) return;
-
-        ReplayFrame frame = replayData.getFrames().get(frameIndex);
-        MapData map = plugin.getMapManager().getMap(replayData.getMapName());
-        if (map == null) return;
-
-        World world = map.getWorld();
-        if (world == null) return;
-
-        // Move NPC with offset applied (handles position + body/look via EntityTeleport)
-        moveReplayNpc(new Location(world,
-                frame.getX() + offsetX,
-                frame.getY() + offsetY,
-                frame.getZ() + offsetZ,
-                frame.getYaw(), frame.getPitch()));
-
-        // Apply head rotation, sneak/sprint metadata, arm-swing, and hand item
-        applyNmsState(viewer, frame);
-        if (frame.getHandItemId() != 0) {
-            applyHandItem(viewer, frame.getHandItemId(), frame.getHandItemData());
-        }
-
-        // Place block with offset applied
-        if (frame.hasBlockPlacement()) {
-            ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
-            int bx = bp.getBlockX() + offsetX;
-            int by = bp.getBlockY() + offsetY;
-            int bz = bp.getBlockZ() + offsetZ;
-            Block block = world.getBlockAt(bx, by, bz);
-            block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
-            placedBlocks.add(block.getLocation().clone());
-        }
-    }
-
-    /**
-     * Sends NMS packets to the viewer to reflect the full visual state of the NPC:
-     * head yaw, sneak/sprint metadata, and arm-swing animation.
-     *
-     * Uses reflection (same pattern as GameplayManager) so NMS classes are never
-     * imported directly, keeping the compile dependency on spigot-api only.
-     * Wrapped defensively — any failure silently no-ops so playback continues.
-     */
-    private void applyNmsState(Player viewer, ReplayFrame frame) {
-        if (npcId < 0) return;
-        try {
-            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
-            if (npc == null || !npc.isSpawned()) return;
-
-            org.bukkit.entity.Entity entity = npc.getEntity();
-            if (!(entity instanceof org.bukkit.entity.Player)) return;
-
-            String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-
-            // Resolve NMS entity and viewer connection via reflection
-            Object nmsEntity = entity.getClass().getMethod("getHandle").invoke(entity);
-            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
-            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
-
-            Class<?> packetIface = nmsClass(ver, "Packet");
-            Class<?> entityClass = nmsClass(ver, "Entity");
-
-            // --- Head yaw ---
-            byte headYawByte = (byte) (frame.getHeadYaw() * 256.0F / 360.0F);
-            Object headPacket = nmsClass(ver, "PacketPlayOutEntityHeadRotation")
-                    .getConstructor(entityClass, byte.class)
-                    .newInstance(nmsEntity, headYawByte);
-            sendPacketViaConn(viewerConn, packetIface, headPacket);
-
-            // --- Sneak / sprint metadata (DataWatcher index 0, entity flags byte) ---
-            // bit 1 (0x02) = crouching, bit 3 (0x08) = sprinting
-            Object dw = nmsEntity.getClass().getMethod("getDataWatcher").invoke(nmsEntity);
-            byte flags = 0;
-            try {
-                flags = ((Number) dw.getClass().getMethod("getByte", int.class).invoke(dw, 0)).byteValue();
-            } catch (Exception ignored) {}
-            if (frame.isSneaking())  flags |= 0x02; else flags &= ~0x02;
-            if (frame.isSprinting()) flags |= 0x08; else flags &= ~0x08;
-            dw.getClass().getMethod("watch", int.class, Object.class).invoke(dw, 0, flags);
-
-            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
-            Class<?> dwClass = nmsClass(ver, "DataWatcher");
-            Object metaPacket = nmsClass(ver, "PacketPlayOutEntityMetadata")
-                    .getConstructor(int.class, dwClass, boolean.class)
-                    .newInstance(entityId, dw, false);
-            sendPacketViaConn(viewerConn, packetIface, metaPacket);
-
-            // --- Arm-swing animation (type 0) ---
-            if (frame.isSwingingArm()) {
-                Object animPacket = nmsClass(ver, "PacketPlayOutAnimation")
-                        .getConstructor(entityClass, int.class)
-                        .newInstance(nmsEntity, 0);
-                sendPacketViaConn(viewerConn, packetIface, animPacket);
-            }
-        } catch (Exception ignored) {}
-    }
-
-    /**
-     * Sends a PacketPlayOutEntityEquipment to the viewer so the NPC visually holds
-     * the correct item (the one the player had in hand during the recorded run).
-     */
-    @SuppressWarnings("deprecation")
-    private void applyHandItem(Player viewer, int itemId, byte itemData) {
-        if (npcId < 0) return;
-        try {
-            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
-            if (npc == null || !npc.isSpawned()) return;
-
-            org.bukkit.entity.Entity entity = npc.getEntity();
-            if (!(entity instanceof org.bukkit.entity.Player)) return;
-
-            String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-
-            Object nmsEntity = entity.getClass().getMethod("getHandle").invoke(entity);
-            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
-            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
-
-            // Build ItemStack NMS object
-            org.bukkit.Material mat = org.bukkit.Material.getMaterial(itemId);
-            if (mat == null || mat == org.bukkit.Material.AIR) return;
-            org.bukkit.inventory.ItemStack bukkit = new org.bukkit.inventory.ItemStack(mat, 1, itemData);
-
-            Class<?> craftItemStackClass = Class.forName("org.bukkit.craftbukkit." + ver + ".inventory.CraftItemStack");
-            Object nmsItem = craftItemStackClass.getMethod("asNMSCopy", org.bukkit.inventory.ItemStack.class)
-                    .invoke(null, bukkit);
-
-            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
-            Class<?> itemStackClass = nmsClass(ver, "ItemStack");
-            Object equipPacket = nmsClass(ver, "PacketPlayOutEntityEquipment")
-                    .getConstructor(int.class, int.class, itemStackClass)
-                    .newInstance(entityId, 0, nmsItem); // slot 0 = main hand in 1.8
-            sendPacketViaConn(viewerConn, nmsClass(ver, "Packet"), equipPacket);
-        } catch (Exception ignored) {}
-    }
-
-    private static Class<?> nmsClass(String version, String name) throws ClassNotFoundException {
-        return Class.forName("net.minecraft.server." + version + "." + name);
-    }
-
-    private static void sendPacketViaConn(Object conn, Class<?> packetIface, Object packet)
-            throws Exception {
-        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, packet);
-    }
-
     public void rewind(int ticks) {
+        playbackFraction = 0.0;
         int newTick = Math.max(0, currentTick - ticks);
         MapData map = plugin.getMapManager().getMap(replayData.getMapName());
 
@@ -479,18 +468,27 @@ public class ReplaySession {
 
         // Re-apply blocks up to new position
         Player viewer = Bukkit.getPlayer(viewerUuid);
-        if (viewer != null) {
+        if (viewer != null && map != null && map.getWorld() != null) {
             for (int i = 0; i < currentTick && i < replayData.getFrames().size(); i++) {
-                if (replayData.getFrames().get(i).hasBlockPlacement()) {
-                    playFrame(viewer, i);
+                ReplayFrame frame = replayData.getFrames().get(i);
+                if (frame.hasBlockPlacement()) {
+                    ReplayFrame.BlockPlacement bp = frame.getBlockPlacement();
+                    map.getWorld().getBlockAt(
+                            bp.getBlockX() + offsetX,
+                            bp.getBlockY() + offsetY,
+                            bp.getBlockZ() + offsetZ)
+                            .setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
                 }
             }
+            updateNpcPosition(viewer);
+            if (inNpcCamera) refreshCameraHandItem(viewer);
         }
     }
 
     @SuppressWarnings("deprecation")
     public void fastForward(int ticks) {
-        int targetTick = Math.min(replayData.getFrames().size() - 1, currentTick + ticks);
+        playbackFraction = 0.0;
+        int targetTick = Math.min(replayData.getFrames().size(), currentTick + ticks);
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer == null) return;
 
@@ -514,17 +512,22 @@ public class ReplaySession {
             }
         }
 
-        // Snap NPC to the target frame in a single teleport so the client sees it move
         currentTick = targetTick;
-        playFrame(viewer, currentTick);
-        currentTick++;
         ended = false;
+
+        // Snap NPC immediately to the target position
+        updateNpcPosition(viewer);
+        if (inNpcCamera) refreshCameraHandItem(viewer);
     }
 
     public void togglePause() { paused = !paused; }
 
+    /**
+     * Set playback speed.  Supported range: 0.05× (1 frame/second) to 4×.
+     * The interpolated-position system makes any speed below 1× smooth.
+     */
     public void setPlaybackSpeed(double speed) {
-        this.playbackSpeed = Math.max(0.25, Math.min(4.0, speed));
+        this.playbackSpeed = Math.max(0.05, Math.min(4.0, speed));
     }
 
     public double getPlaybackSpeed()         { return playbackSpeed; }
@@ -533,6 +536,8 @@ public class ReplaySession {
     public ReplayData getReplayData()        { return replayData; }
     public Location getViewerWatchLocation() { return viewerWatchLocation; }
     public int getReplaySlot()               { return replaySlot; }
+    public int getNpcId()                    { return npcId; }
+    public boolean isInNpcCamera()           { return inNpcCamera; }
 
     /**
      * Returns true when {@code loc} is further than {@link #REPLAY_BOUNDARY_MARGIN} blocks
@@ -554,25 +559,37 @@ public class ReplaySession {
     private void giveControlItems(Player player) {
         player.getInventory().clear();
 
+        // Slot 3 – Timeline (Stick)
+        // Instructions are shown in BOTH the display name and the lore.
         player.getInventory().setItem(SLOT_TIMELINE,
-                new ItemBuilder(Material.WATCH)
-                        .name("&6Timeline")
-                        .lore("&7Left-click: &eRewind 5s", "&7Right-click: &aForward 5s")
+                new ItemBuilder(Material.STICK)
+                        .name("&e\u2190 Rewind  &8|  &aFast-Forward \u2192")
+                        .lore("&7Left-Click:  &eRewind 5s",
+                              "&7Right-Click: &aFast-Forward 5s")
                         .build());
 
+        // Slot 4 – Play / Pause (Lime Dye = playing, Gray Dye = paused)
+        boolean playing = !paused;
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
-                new ItemBuilder(Material.BLAZE_ROD)
-                        .name(paused ? "&a&lResume" : "&e&lPause")
-                        .lore("&7Click to toggle")
+                new ItemBuilder(Material.INK_SACK, playing ? (byte) 10 : (byte) 8)
+                        .name(playing
+                                ? "&a\u25BA Playing  &7\u2014 Click to Pause"
+                                : "&7\u25A0 Paused  &a\u2014 Click to Play")
+                        .lore("&7Click to toggle playback")
                         .build());
 
+        // Slot 5 – Replay Speed (Blaze Rod)
+        // Instructions are shown in BOTH the display name and the lore.
+        String speedStr = formatSpeed(playbackSpeed);
         player.getInventory().setItem(SLOT_SPEED,
-                new ItemBuilder(Material.FEATHER)
-                        .name("&bPlayback Speed")
-                        .lore("&7Left-click: &cSlower  &7Right-click: &aFaster",
-                              "&7Current: &e" + String.format("%.2fx", playbackSpeed))
+                new ItemBuilder(Material.BLAZE_ROD)
+                        .name("&c- Slower  &8|  &a+ Faster  &7(&e" + speedStr + "x&7)")
+                        .lore("&7Left-Click:  &cDecrease Speed",
+                              "&7Right-Click: &aIncrease Speed",
+                              "&7Current:     &e" + speedStr + "x")
                         .build());
 
+        // Slot 8 – Leave
         player.getInventory().setItem(SLOT_STOP,
                 new ItemBuilder(Material.BARRIER)
                         .name("&c&lLeave Replay")
@@ -580,11 +597,16 @@ public class ReplaySession {
     }
 
     private void showReplayEndItems(Player player) {
-        // Refresh the pause button to reflect the finished state, add Play Again
+        // Exit NPC camera if active before showing end items
+        if (inNpcCamera) {
+            sendCameraFollowPacket(player, false);
+            inNpcCamera = false;
+        }
+
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
-                new ItemBuilder(Material.BLAZE_ROD)
-                        .name("&a&lReplay Finished")
-                        .lore("&7Watch again or leave")
+                new ItemBuilder(Material.INK_SACK, (byte) 8)  // gray = stopped
+                        .name("&7\u25A0 Replay Finished  &7\u2014 Watch again or leave")
+                        .lore("&7Click &aPlay Again &7or &cLeave Replay&7.")
                         .build());
         player.getInventory().setItem(SLOT_REPLAY_AGAIN,
                 new ItemBuilder(Material.EMERALD)
@@ -597,7 +619,241 @@ public class ReplaySession {
 
     public void updateControlItems() {
         Player viewer = Bukkit.getPlayer(viewerUuid);
-        if (viewer != null) giveControlItems(viewer);
+        if (viewer == null) return;
+        if (inNpcCamera) {
+            refreshCameraHandItem(viewer);
+        } else {
+            giveControlItems(viewer);
+        }
+    }
+
+    /** Format a speed value with no redundant trailing zeros: 1.0→"1", 0.5→"0.5", 0.05→"0.05". */
+    private static String formatSpeed(double speed) {
+        String s = String.format("%.2f", speed);
+        // Strip trailing zeros after the decimal point
+        s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
+        return s;
+    }
+
+    // -------------------------------------------------------------------------
+    // NPC Camera (spectator perspective)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Toggle first-person camera through the replay NPC's eyes.
+     * Triggered when the viewer right-clicks the replay NPC.
+     */
+    public void toggleNpcCamera(Player viewer) {
+        inNpcCamera = !inNpcCamera;
+        sendCameraFollowPacket(viewer, inNpcCamera);
+
+        if (inNpcCamera) {
+            giveCameraHotbar(viewer);
+        } else {
+            giveControlItems(viewer);
+        }
+    }
+
+    /**
+     * Send PacketPlayOutCamera to the viewer to lock/unlock their camera to the NPC.
+     * {@code followNpc = true}  → viewer sees through the NPC's eyes.
+     * {@code followNpc = false} → camera returns to the viewer's own entity.
+     */
+    private void sendCameraFollowPacket(Player viewer, boolean followNpc) {
+        if (npcId < 0 && followNpc) return;
+        try {
+            String ver = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+
+            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+            Object viewerConn   = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
+            Class<?> packetIface = nmsClass(ver, "Packet");
+
+            Object targetNmsEntity;
+            if (followNpc) {
+                net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
+                if (npc == null || !npc.isSpawned()) return;
+                targetNmsEntity = npc.getEntity().getClass().getMethod("getHandle").invoke(npc.getEntity());
+            } else {
+                // Reset to viewer's own entity
+                targetNmsEntity = viewerHandle;
+            }
+
+            Class<?> entityClass = nmsClass(ver, "Entity");
+            Object camPacket = nmsClass(ver, "PacketPlayOutCamera")
+                    .getConstructor(entityClass)
+                    .newInstance(targetNmsEntity);
+
+            sendPacketViaConn(viewerConn, packetIface, camPacket);
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Replace the viewer's hotbar with a minimal "camera mode" layout:
+     * – Slot 4 (centre): the replay player's current hand item.
+     * – Slot 8 (SLOT_STOP): an "Exit Camera" button.
+     */
+    @SuppressWarnings("deprecation")
+    private void giveCameraHotbar(Player viewer) {
+        viewer.getInventory().clear();
+
+        // Show the currently-held item from the most recently processed frame
+        int frameIdx = Math.max(0, Math.min(currentTick, replayData.getFrames().size() - 1));
+        if (!replayData.getFrames().isEmpty()) {
+            ReplayFrame frame = replayData.getFrames().get(frameIdx);
+            int  itemId   = frame.getHandItemId();
+            byte itemData = frame.getHandItemData();
+            lastCameraHandItemId   = itemId;
+            lastCameraHandItemData = itemData;
+
+            if (itemId != 0) {
+                Material mat = Material.getMaterial(itemId);
+                if (mat != null && mat != Material.AIR) {
+                    viewer.getInventory().setItem(4, new ItemStack(mat, 1, itemData));
+                }
+            }
+        }
+
+        viewer.getInventory().setItem(SLOT_STOP,
+                new ItemBuilder(Material.BARRIER)
+                        .name("&c&lExit Camera &7(or right-click NPC)")
+                        .build());
+    }
+
+    /**
+     * Called every tick while in camera mode to keep the displayed hand item
+     * in sync with the currently playing frame.  Uses dirty-checking so the
+     * inventory packet is only sent when the item actually changes.
+     */
+    @SuppressWarnings("deprecation")
+    private void refreshCameraHandItem(Player viewer) {
+        if (replayData.getFrames().isEmpty()) return;
+        int frameIdx = Math.max(0, currentTick - 1);
+        if (frameIdx >= replayData.getFrames().size()) return;
+
+        ReplayFrame frame = replayData.getFrames().get(frameIdx);
+        int  itemId   = frame.getHandItemId();
+        byte itemData = frame.getHandItemData();
+
+        if (itemId == lastCameraHandItemId && itemData == lastCameraHandItemData) return;
+        lastCameraHandItemId   = itemId;
+        lastCameraHandItemData = itemData;
+
+        if (itemId == 0) {
+            viewer.getInventory().setItem(4, null);
+        } else {
+            Material mat = Material.getMaterial(itemId);
+            if (mat != null && mat != Material.AIR) {
+                viewer.getInventory().setItem(4, new ItemStack(mat, 1, itemData));
+            } else {
+                viewer.getInventory().setItem(4, null);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // NMS packet helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sends NMS packets to the viewer to reflect the full visual state of the NPC:
+     * head yaw, sneak/sprint metadata, and arm-swing animation.
+     */
+    private void applyNmsState(Player viewer, ReplayFrame frame) {
+        if (npcId < 0) return;
+        try {
+            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
+            if (npc == null || !npc.isSpawned()) return;
+
+            org.bukkit.entity.Entity entity = npc.getEntity();
+            if (!(entity instanceof org.bukkit.entity.Player)) return;
+
+            String ver = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+
+            Object nmsEntity   = entity.getClass().getMethod("getHandle").invoke(entity);
+            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
+
+            Class<?> packetIface = nmsClass(ver, "Packet");
+            Class<?> entityClass = nmsClass(ver, "Entity");
+
+            // Head yaw
+            byte headYawByte = (byte) (frame.getHeadYaw() * 256.0F / 360.0F);
+            Object headPacket = nmsClass(ver, "PacketPlayOutEntityHeadRotation")
+                    .getConstructor(entityClass, byte.class)
+                    .newInstance(nmsEntity, headYawByte);
+            sendPacketViaConn(viewerConn, packetIface, headPacket);
+
+            // Sneak / sprint flags in entity metadata byte (DataWatcher index 0)
+            Object dw = nmsEntity.getClass().getMethod("getDataWatcher").invoke(nmsEntity);
+            byte flags = 0;
+            try {
+                flags = ((Number) dw.getClass().getMethod("getByte", int.class).invoke(dw, 0)).byteValue();
+            } catch (Exception ignored) {}
+            if (frame.isSneaking())  flags |= 0x02; else flags &= ~0x02;
+            if (frame.isSprinting()) flags |= 0x08; else flags &= ~0x08;
+            dw.getClass().getMethod("watch", int.class, Object.class).invoke(dw, 0, flags);
+
+            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
+            Class<?> dwClass = nmsClass(ver, "DataWatcher");
+            Object metaPacket = nmsClass(ver, "PacketPlayOutEntityMetadata")
+                    .getConstructor(int.class, dwClass, boolean.class)
+                    .newInstance(entityId, dw, false);
+            sendPacketViaConn(viewerConn, packetIface, metaPacket);
+
+            // Arm-swing animation
+            if (frame.isSwingingArm()) {
+                Object animPacket = nmsClass(ver, "PacketPlayOutAnimation")
+                        .getConstructor(entityClass, int.class)
+                        .newInstance(nmsEntity, 0);
+                sendPacketViaConn(viewerConn, packetIface, animPacket);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Sends a PacketPlayOutEntityEquipment so the NPC visually holds the
+     * item the player had in hand during the recorded run.
+     */
+    @SuppressWarnings("deprecation")
+    private void applyHandItem(Player viewer, int itemId, byte itemData) {
+        if (npcId < 0) return;
+        try {
+            net.citizensnpcs.api.npc.NPC npc = net.citizensnpcs.api.CitizensAPI.getNPCRegistry().getById(npcId);
+            if (npc == null || !npc.isSpawned()) return;
+
+            org.bukkit.entity.Entity entity = npc.getEntity();
+            if (!(entity instanceof org.bukkit.entity.Player)) return;
+
+            String ver = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+
+            Object nmsEntity   = entity.getClass().getMethod("getHandle").invoke(entity);
+            Object viewerHandle = viewer.getClass().getMethod("getHandle").invoke(viewer);
+            Object viewerConn  = viewerHandle.getClass().getField("playerConnection").get(viewerHandle);
+
+            org.bukkit.Material mat = org.bukkit.Material.getMaterial(itemId);
+            if (mat == null || mat == org.bukkit.Material.AIR) return;
+            org.bukkit.inventory.ItemStack bukkit = new org.bukkit.inventory.ItemStack(mat, 1, itemData);
+
+            Class<?> craftItemStackClass = Class.forName("org.bukkit.craftbukkit." + ver + ".inventory.CraftItemStack");
+            Object nmsItem = craftItemStackClass.getMethod("asNMSCopy", org.bukkit.inventory.ItemStack.class)
+                    .invoke(null, bukkit);
+
+            int entityId = ((Number) nmsEntity.getClass().getMethod("getId").invoke(nmsEntity)).intValue();
+            Class<?> itemStackClass = nmsClass(ver, "ItemStack");
+            Object equipPacket = nmsClass(ver, "PacketPlayOutEntityEquipment")
+                    .getConstructor(int.class, int.class, itemStackClass)
+                    .newInstance(entityId, 0, nmsItem);
+            sendPacketViaConn(viewerConn, nmsClass(ver, "Packet"), equipPacket);
+        } catch (Exception ignored) {}
+    }
+
+    private static Class<?> nmsClass(String version, String name) throws ClassNotFoundException {
+        return Class.forName("net.minecraft.server." + version + "." + name);
+    }
+
+    private static void sendPacketViaConn(Object conn, Class<?> packetIface, Object packet)
+            throws Exception {
+        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, packet);
     }
 
     // -------------------------------------------------------------------------
@@ -606,15 +862,11 @@ public class ReplaySession {
 
     private void spawnReplayNpc(Player viewer) {
         try {
-            // Use the display tag (rank prefix + name) captured at recording time.
-            // For old replays without a stored tag, fall back to the resolved display name.
             String tag = replayData.getPlayerDisplayTag();
             String npcName;
             if (tag != null && !tag.isEmpty()) {
-                // tag already contains §-codes from player.getDisplayName() at record time
                 npcName = tag;
             } else {
-                // Fallback for pre-v5 replays: use configured name-mode resolution, no prefix
                 npcName = plugin.getReplayManager().getReplayDisplayName(replayData);
             }
 
@@ -639,6 +891,12 @@ public class ReplaySession {
             }
 
             npcId = npc.getId();
+
+            // Disable Citizens navigator so it doesn't fight our per-tick teleports
+            try {
+                npc.getNavigator().cancelNavigation();
+            } catch (Exception ignored) {}
+
         } catch (NoClassDefFoundError | Exception e) {
             plugin.getLogger().warning("Could not spawn replay NPC: " + e.getMessage());
         }

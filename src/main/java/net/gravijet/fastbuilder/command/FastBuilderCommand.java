@@ -138,9 +138,18 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         }
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            if (prevData != null && prevData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData oldMap =
+                        plugin.getMapManager().getMap(prevData.getLastMap());
+                if (oldMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(oldMap, prevData.getLastIsland());
+                }
+            }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
             plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
+        if (prevData != null) prevData.clearCustomLengths();
         if (plugin.getCpsListener() != null) {
             plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
         }
@@ -168,7 +177,12 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         player.setFoodLevel(20);
         player.setHealth(player.getMaxHealth());
         if (plugin.getGameplayManager() != null) {
-            plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+            net.gravijet.fastbuilder.gameplay.RunSession fbSess =
+                    plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+            if (map.hasEndIsland()) {
+                plugin.getGameplayManager().placeEndPlatform(player, map, fbSess, map.getBaseCustomLength());
+            }
+            plugin.getGameplayManager().applyPlayerDesign(player, map, island);
         }
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
@@ -199,12 +213,52 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             msg(player, plugin.getConfigManager().getMessage("no-permission"));
             return;
         }
-        // Full cleanup before leaving
-        plugin.getMapManager().freeAllIslands(player.getUniqueId());
+
+        // Stop active replay / recording
+        if (plugin.getReplayManager() != null) {
+            if (plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+                plugin.getReplayManager().stopPlayback(player.getUniqueId());
+            }
+            plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+        }
+
+        // Full session cleanup: blocks, end platform, island design, session state
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            PlayerData leaveData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (leaveData != null && leaveData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData leaveMap =
+                        plugin.getMapManager().getMap(leaveData.getLastMap());
+                if (leaveMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(leaveMap, leaveData.getLastIsland());
+                }
+                leaveData.clearCustomLengths();
+            }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
+
+        // Despawn NPC
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+
+        // Remove hologram
+        if (plugin.getHologramManager() != null) {
+            PlayerData d = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (d != null && d.getLastMap() != null) {
+                plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
+            }
+        }
+
+        // Clean up CPS hologram
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        }
+
+        // Free all island slots
+        plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         String action = plugin.getConfigManager().getLeaveAction();
         switch (action) {
@@ -218,8 +272,12 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                     player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
                 } catch (IOException e) {
                     plugin.getLogger().warning("Failed to send player to lobby via BungeeCord.");
-                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                    player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
                 }
+                break;
+            }
+            case "KICK": {
+                player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
                 break;
             }
             case "COMMAND": {
@@ -236,7 +294,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 break;
         }
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&fYou left the game.");
+        // Only send the message for non-kick actions (kick reason serves as the message)
+        if (!action.equals("KICK") && !action.equals("BUNGEE")) {
+            msg(player, plugin.getConfigManager().getPrefix() + "&fYou left the game.");
+        }
     }
 
     // --- /fb reset ---

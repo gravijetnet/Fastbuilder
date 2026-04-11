@@ -53,6 +53,11 @@ public class NpcManager implements Listener {
         despawnNpc(player.getUniqueId());
 
         Location adjusted = npcLocation.clone();
+        // If the block at the stored location is solid the NPC would spawn inside it.
+        // Move up by one block so it always stands on top of the surface.
+        if (adjusted.getBlock().getType().isSolid()) {
+            adjusted.setY(adjusted.getBlockY() + 1);
+        }
 
         try {
             net.citizensnpcs.api.npc.NPCRegistry registry = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
@@ -126,9 +131,20 @@ public class NpcManager implements Listener {
         Player player = event.getClicker();
         int clickedNpcId = event.getNPC().getId();
 
+        // Gameplay NPC → open the Map Selector GUI
         Integer playerNpcId = playerNpcs.get(player.getUniqueId());
         if (playerNpcId != null && playerNpcId == clickedNpcId) {
             plugin.getGuiManager().openMapSelector(player);
+            return;
+        }
+
+        // Replay NPC → toggle first-person camera perspective
+        if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+            net.gravijet.fastbuilder.replay.ReplaySession session =
+                    plugin.getReplayManager().getPlaybackSessionByNpcId(clickedNpcId);
+            if (session != null && session.getViewerUuid().equals(player.getUniqueId())) {
+                session.toggleNpcCamera(player);
+            }
         }
     }
 }

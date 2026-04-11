@@ -64,6 +64,19 @@ public interface StorageProvider {
     void invalidateBestTimesCache(String mapName);
 
     /**
+     * Return the top {@code limit} players for {@code mapName} sorted by personal-best
+     * time ascending (fastest first).
+     *
+     * <p>Each entry is a {@code (playerName, bestTimeMs)} pair.  Returns an empty list
+     * if no records exist.  Safe to call from an async thread.
+     *
+     * @param mapName case-sensitive map name
+     * @param limit   maximum number of entries to return
+     * @return ordered list of (name, ms) entries, never null
+     */
+    java.util.List<java.util.Map.Entry<String, Long>> getTopPlayerTimesForMap(String mapName, int limit);
+
+    /**
      * Cleanly shut down the backend (flush pending writes, close connections).
      * Called from the main thread during plugin disable.
      */

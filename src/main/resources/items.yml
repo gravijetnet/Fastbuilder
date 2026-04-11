@@ -36,12 +36,12 @@ change-page:
       - "&7Click to go to the previous page."
   # Shown when there is no previous/next page (always-visible disabled state)
   no-previous-page:
-    material: STAINED_GLASS_PANE:8
+    material: ARROW:0
     name: "&8« No Previous Page"
     lore:
       - "&7You are on the first page."
   no-next-page:
-    material: STAINED_GLASS_PANE:8
+    material: ARROW:0
     name: "&8No Next Page »"
     lore:
       - "&7You are on the last page."

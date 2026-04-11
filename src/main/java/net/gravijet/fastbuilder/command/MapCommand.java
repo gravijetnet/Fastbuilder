@@ -152,13 +152,19 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 1) {
             // /map setup — start new setup (normal)
-            startSetup(player, mm, false);
+            startSetup(player, mm, false, false);
             return;
         }
 
         // /map setup --infinite — start as infinite map
         if (args[1].equalsIgnoreCase("--infinite")) {
-            startSetup(player, mm, true);
+            startSetup(player, mm, true, false);
+            return;
+        }
+
+        // /map setup --customlength — start with separate end island + real-time distance
+        if (args[1].equalsIgnoreCase("--customlength")) {
+            startSetup(player, mm, false, true);
             return;
         }
 
@@ -185,16 +191,17 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void startSetup(Player player, MapManager mm, boolean infinite) {
+    private void startSetup(Player player, MapManager mm, boolean infinite, boolean customLength) {
         // Cancel existing session
         mm.removeSetupSession(player.getUniqueId());
 
         // Setup area is at -1000, 20, -1000 (dedicated build area, not the grid)
         Location origin = new Location(player.getWorld(), -1000, 20, -1000);
 
-        // Start session and flag infinite mode early if requested
+        // Start session and flag modes early
         SetupSession session = mm.startSetupSession(player.getUniqueId(), origin);
         if (infinite) session.setInfinite(true);
+        if (customLength) session.setCustomLengthMode(true);
 
         // Prepare player
         player.teleport(origin);
@@ -215,10 +222,13 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.getInventory().setItem(0, rod);
 
         String prefix = plugin.getConfigManager().getPrefix();
-        player.sendMessage(ColorUtil.translate(prefix + "&aMap Setup Wizard started!"
-                + (infinite ? " &7(Infinite Mode)" : "")));
+        String modeTag = infinite ? " &7(Infinite Mode)" : customLength ? " &7(Custom Length Mode)" : "";
+        player.sendMessage(ColorUtil.translate(prefix + "&aMap Setup Wizard started!" + modeTag));
         player.sendMessage(ColorUtil.translate("&7You have been teleported to the setup area."));
-        player.sendMessage(ColorUtil.translate("&e&lStep 1: &fSelect your island area."));
+        if (customLength) {
+            player.sendMessage(ColorUtil.translate("&6&lCustom Length Mode: &7Build your &bStart Island &7and &bEnd Island &7in this area."));
+        }
+        player.sendMessage(ColorUtil.translate("&e&lStep 1: &fSelect your &bstart island &7area."));
         player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bPosition 1 &7(one corner)."));
         player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bPosition 2 &7(opposite corner)."));
         player.sendMessage(ColorUtil.translate("&7Build your island template here, then type:"));
@@ -275,15 +285,16 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage(ColorUtil.translate("&7  Then type:"));
                 sendClickableContinue(player);
                 break;
-            case SELECTING_HOLOGRAM:
-                // Check --infinite flag on continue OR if map was flagged infinite at setup start
+            case SELECTING_HOLOGRAM: {
+                // Determine mode: infinite takes priority, then customLength, then normal
                 boolean isInfiniteFlag = session.isInfinite();
+                boolean isCLMode = session.isCustomLengthMode();
                 for (String a : args) {
                     if ("--infinite".equalsIgnoreCase(a)) { isInfiniteFlag = true; break; }
                 }
 
                 if (isInfiniteFlag) {
-                    // Infinite mode: skip finish zone — save template now and jump to naming
+                    // Infinite mode: skip finish zone — save start template and jump to naming
                     session.setInfinite(true);
                     Location setupMin = session.getIslandMin();
                     Location setupMax = session.getIslandMax();
@@ -306,6 +317,33 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     player.sendMessage(ColorUtil.translate("&7No finish zone required for infinite maps."));
                     player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map:"));
                     sendClickableFinish(player);
+
+                } else if (isCLMode) {
+                    // Custom-length mode: save start island template, then select the end island
+                    Location setupMin = session.getIslandMin();
+                    Location setupMax = session.getIslandMax();
+                    if (setupMin == null || setupMax == null) {
+                        msg(player, "&cIsland selection is missing. Restart setup.");
+                        return;
+                    }
+                    String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
+                    boolean saved = plugin.getFawePaster().saveTemplate(
+                            setupMin.getWorld(),
+                            setupMin.getBlockX(), setupMin.getBlockY(), setupMin.getBlockZ(),
+                            setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
+                            tempName);
+                    if (!saved) {
+                        msg(player, "&cFailed to save start island template. Check console for errors.");
+                        return;
+                    }
+                    session.advanceToEndIsland();
+                    player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
+                    player.sendMessage(ColorUtil.translate("&e&lStep 5 (Custom Length): &fSelect your &bEnd Island &7region."));
+                    player.sendMessage(ColorUtil.translate("&7  Build the End Island somewhere to the &c+X &7side of the Start Island."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bEnd Pos 1 &7(one corner)."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bEnd Pos 2 &7(opposite corner)."));
+                    sendClickableContinue(player);
+
                 } else {
                     session.advanceToFinish();
                     player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
@@ -316,6 +354,36 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     sendClickableFinish(player);
                 }
                 break;
+            }
+            case SELECTING_END_ISLAND: {
+                // Save the end island template and finalize into AWAITING_NAME
+                Location endMin = session.getEndIslandMin();
+                Location endMax = session.getEndIslandMax();
+                if (endMin == null || endMax == null) {
+                    msgAdmin(player, "setup-not-ready");
+                    return;
+                }
+                String endTempName = "setup_" + player.getUniqueId().toString().substring(0, 8) + "_end";
+                boolean savedEnd = plugin.getFawePaster().saveTemplate(
+                        endMin.getWorld(),
+                        endMin.getBlockX(), endMin.getBlockY(), endMin.getBlockZ(),
+                        endMax.getBlockX(), endMax.getBlockY(), endMax.getBlockZ(),
+                        endTempName);
+                if (!savedEnd) {
+                    msg(player, "&cFailed to save end island template. Check console for errors.");
+                    return;
+                }
+                int baseLen = session.getBaseCustomLength();
+                if (baseLen <= 0) {
+                    msg(player, "&cEnd Island must be placed to the &c+X &cside of the Start Island spawn. Base distance is " + baseLen + " — check placement.");
+                    return;
+                }
+                session.finalizeEndIsland();
+                player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island saved! Base distance: &f" + baseLen + " &ablocks."));
+                player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map:"));
+                sendClickableFinish(player);
+                break;
+            }
             default:
                 msgAdmin(player, "setup-not-ready");
                 break;
@@ -368,7 +436,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Rename temp template to final name
+        // Rename start template to final name
         String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
         java.io.File tempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), tempName + ".template");
         java.io.File finalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), name.toLowerCase() + ".template");
@@ -382,12 +450,35 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         if (session.isInfinite()) {
             map.setInfinite(true);
         }
+
+        // Custom-length mode: rename end island template and store end-island metadata
+        if (session.isCustomLengthMode()) {
+            String endTempName = "setup_" + player.getUniqueId().toString().substring(0, 8) + "_end";
+            java.io.File endTempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endTempName + ".template");
+            String endFinalKey = name.toLowerCase() + "_end";
+            java.io.File endFinalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endFinalKey + ".template");
+            if (endTempFile.exists()) endTempFile.renameTo(endFinalFile);
+
+            map.setEndIslandTemplateFile(endFinalKey);
+            map.setEndIslandWidth(session.getEndIslandWidth());
+            map.setEndIslandHeight(session.getEndIslandHeight());
+            map.setEndIslandLength(session.getEndIslandLength());
+            map.setBaseCustomLength(session.getBaseCustomLength());
+            map.setEndIslandYOffset(session.getEndIslandYOffset());
+            map.setEndIslandZOffset(session.getEndIslandZOffset());
+
+            String prefix2 = plugin.getConfigManager().getPrefix();
+            player.sendMessage(ColorUtil.translate(prefix2 + "&7End Island: &f"
+                    + session.getEndIslandWidth() + "×" + session.getEndIslandHeight() + "×" + session.getEndIslandLength()
+                    + " &7— base distance: &f" + session.getBaseCustomLength() + " blocks"));
+        }
+
         mm.saveMap(map);
 
         // Paste initial islands
         mm.pasteInitialIsland(map);
 
-        // Clear setup build area
+        // Clear the start island build area
         Location setupMin = session.getIslandMin();
         Location setupMax = session.getIslandMax();
         if (setupMin != null && setupMax != null) {
@@ -396,6 +487,19 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     setupMin.getBlockX(), setupMin.getBlockY(), setupMin.getBlockZ(),
                     setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
                     null);
+        }
+
+        // Clear the end island build area if in custom-length mode
+        if (session.isCustomLengthMode()) {
+            Location endMin = session.getEndIslandMin();
+            Location endMax = session.getEndIslandMax();
+            if (endMin != null && endMax != null) {
+                plugin.getFawePaster().clearRegion(
+                        endMin.getWorld(),
+                        endMin.getBlockX(), endMin.getBlockY(), endMin.getBlockZ(),
+                        endMax.getBlockX(), endMax.getBlockY(), endMax.getBlockZ(),
+                        null);
+            }
         }
 
         mm.removeSetupSession(player.getUniqueId());
@@ -420,7 +524,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 int isl = pData.getLastIsland();
                 if (isl >= 0) {
                     player.teleport(pMap.getIslandSpawn(isl));
-                    if (plugin.getGameplayManager() != null) plugin.getGameplayManager().createSession(player.getUniqueId(), pMap.getName(), isl);
+                    if (plugin.getGameplayManager() != null) {
+                        net.gravijet.fastbuilder.gameplay.RunSession retSess =
+                                plugin.getGameplayManager().createSession(player.getUniqueId(), pMap.getName(), isl);
+                        if (pMap.hasEndIsland()) {
+                            plugin.getGameplayManager().placeEndPlatform(player, pMap, retSess, pMap.getBaseCustomLength());
+                        }
+                        plugin.getGameplayManager().applyPlayerDesign(player, pMap, isl);
+                    }
                     if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                     plugin.getScoreboardManager().createScoreboard(player);
                     if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, pMap.getIslandNpcLocation(isl));
@@ -472,16 +583,33 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("  &8» &cEnabled: &f" + map.isEnabled()));
         player.sendMessage(ColorUtil.translate("  &8» &cIslands: &f" + occupied + "/" + total
                 + " &7(autoscale: " + map.isAutoscale() + ")"));
-        player.sendMessage(ColorUtil.translate("  &8» &cDistance: &f" + map.getDistance() + " blocks"));
+        player.sendMessage(ColorUtil.translate("  &8» &cIsland gap: &f" + map.getDistance()
+                + " blocks &7(total Z step: " + map.getActualZStep() + ")"));
         player.sendMessage(ColorUtil.translate("  &8» &cInfinite: &f" + map.isInfinite()));
-        player.sendMessage(ColorUtil.translate("  &8» &cCustom Length: &f"
-                + (map.hasCustomLength() ? "enabled (min " + map.getMinCustomLength() + " blocks)" : "disabled")));
+        // Custom length status — differentiate end-island mode from legacy bounds mode
+        if (map.hasEndIsland()) {
+            player.sendMessage(ColorUtil.translate("  &8» &cCustom Length: &aEnd Island mode"
+                    + " &7(base: &f" + map.getBaseCustomLength() + " &7blocks"
+                    + ", range: &f" + map.getEffectiveMinCustomLength()
+                    + "-" + map.getEffectiveMaxCustomLength() + "&7)"));
+        } else if (map.hasCustomLength()) {
+            player.sendMessage(ColorUtil.translate("  &8» &cCustom Length: &fenabled"
+                    + " &7(range: &f" + map.getMinCustomLength()
+                    + "-" + map.getMaxCustomLength() + " blocks&7)"));
+        } else {
+            player.sendMessage(ColorUtil.translate("  &8» &cCustom Length: &7disabled"));
+        }
         player.sendMessage(ColorUtil.translate("  &8» &cOrigin: &f"
                 + map.getOriginX() + ", " + map.getOriginY() + ", " + map.getOriginZ()
                 + " &7(" + map.getWorldName() + ")"));
         player.sendMessage(ColorUtil.translate("  &8» &cIsland size: &f"
                 + map.getIslandWidth() + "×" + map.getIslandHeight() + "×" + map.getIslandLength()));
         player.sendMessage(ColorUtil.translate("  &8» &cTemplate: &f" + map.getTemplateFile()));
+        if (map.getEndIslandTemplateFile() != null && !map.getEndIslandTemplateFile().isEmpty()) {
+            player.sendMessage(ColorUtil.translate("  &8» &cEnd Island: &f" + map.getEndIslandTemplateFile()
+                    + " &7(" + map.getEndIslandWidth() + "×" + map.getEndIslandHeight()
+                    + "×" + map.getEndIslandLength() + ")"));
+        }
         if (!map.getAlternativeTemplates().isEmpty()) {
             player.sendMessage(ColorUtil.translate("  &8» &cDesigns: &f" + map.getAlternativeTemplates().size() + " alternative(s)"));
         }
@@ -772,8 +900,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // distance is now the gap (southernmost of one island to northernmost of next)
         int actualDistance = Math.max(1, blocks);
-        int oldDistance = map.getDistance();
+        int oldDistance = map.getDistance(); // old gap
         map.setDistance(actualDistance);
         mm.saveMap(map);
 

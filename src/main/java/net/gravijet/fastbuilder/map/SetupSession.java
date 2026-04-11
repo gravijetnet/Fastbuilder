@@ -23,6 +23,7 @@ public class SetupSession {
         SELECTING_NPC,
         SELECTING_HOLOGRAM,
         SELECTING_FINISH,
+        SELECTING_END_ISLAND,   // custom-length mode: select the end island region
         AWAITING_NAME
     }
 
@@ -31,6 +32,8 @@ public class SetupSession {
     private boolean forceSpawnLocation = false;
     // Set during setup if the admin flags this as an infinite map (no finish zone)
     private boolean infinite = false;
+    // Set during setup if the admin uses --customlength (separate end island, real-time movement)
+    private boolean customLengthMode = false;
 
     // Map origin (where the admin was teleported)
     private Location setupOrigin;
@@ -51,6 +54,10 @@ public class SetupSession {
     // Finish zone (absolute world coordinates)
     private Location finishPos1;
     private Location finishPos2;
+
+    // End island selection for custom-length mode (absolute world coordinates)
+    private Location endIslandPos1;
+    private Location endIslandPos2;
 
     public SetupSession(UUID playerUuid, Location setupOrigin) {
         this.playerUuid = playerUuid;
@@ -99,6 +106,27 @@ public class SetupSession {
         return true;
     }
 
+    /**
+     * Advances from SELECTING_HOLOGRAM to SELECTING_END_ISLAND.
+     * Used in custom-length mode: the admin separately selects the end island region.
+     */
+    public boolean advanceToEndIsland() {
+        if (state != State.SELECTING_HOLOGRAM) return false;
+        if (hologramPoint == null) return false;
+        state = State.SELECTING_END_ISLAND;
+        return true;
+    }
+
+    /**
+     * Finalizes end island selection and advances to AWAITING_NAME.
+     */
+    public boolean finalizeEndIsland() {
+        if (state != State.SELECTING_END_ISLAND) return false;
+        if (endIslandPos1 == null || endIslandPos2 == null) return false;
+        state = State.AWAITING_NAME;
+        return true;
+    }
+
     public boolean finalize_() {
         if (state != State.SELECTING_FINISH) return false;
         if (finishPos1 == null || finishPos2 == null) return false;
@@ -116,6 +144,8 @@ public class SetupSession {
                 return npcPoint != null;
             case SELECTING_HOLOGRAM:
                 return hologramPoint != null;
+            case SELECTING_END_ISLAND:
+                return endIslandPos1 != null && endIslandPos2 != null;
             default:
                 return false;
         }
@@ -276,4 +306,81 @@ public class SetupSession {
 
     public Location getFinishPos2() { return finishPos2; }
     public void setFinishPos2(Location pos) { this.finishPos2 = pos; }
+
+    public boolean isCustomLengthMode() { return customLengthMode; }
+    public void setCustomLengthMode(boolean mode) { this.customLengthMode = mode; }
+
+    public Location getEndIslandPos1() { return endIslandPos1; }
+    public void setEndIslandPos1(Location pos) { this.endIslandPos1 = pos; }
+
+    public Location getEndIslandPos2() { return endIslandPos2; }
+    public void setEndIslandPos2(Location pos) { this.endIslandPos2 = pos; }
+
+    // --- End island computed values ---
+
+    public Location getEndIslandMin() {
+        if (endIslandPos1 == null || endIslandPos2 == null) return null;
+        return new Location(endIslandPos1.getWorld(),
+                Math.min(endIslandPos1.getBlockX(), endIslandPos2.getBlockX()),
+                Math.min(endIslandPos1.getBlockY(), endIslandPos2.getBlockY()),
+                Math.min(endIslandPos1.getBlockZ(), endIslandPos2.getBlockZ()));
+    }
+
+    public Location getEndIslandMax() {
+        if (endIslandPos1 == null || endIslandPos2 == null) return null;
+        return new Location(endIslandPos1.getWorld(),
+                Math.max(endIslandPos1.getBlockX(), endIslandPos2.getBlockX()),
+                Math.max(endIslandPos1.getBlockY(), endIslandPos2.getBlockY()),
+                Math.max(endIslandPos1.getBlockZ(), endIslandPos2.getBlockZ()));
+    }
+
+    public int getEndIslandWidth() {
+        Location min = getEndIslandMin(); Location max = getEndIslandMax();
+        return (min == null || max == null) ? 0 : max.getBlockX() - min.getBlockX() + 1;
+    }
+
+    public int getEndIslandHeight() {
+        Location min = getEndIslandMin(); Location max = getEndIslandMax();
+        return (min == null || max == null) ? 0 : max.getBlockY() - min.getBlockY() + 1;
+    }
+
+    public int getEndIslandLength() {
+        Location min = getEndIslandMin(); Location max = getEndIslandMax();
+        return (min == null || max == null) ? 0 : max.getBlockZ() - min.getBlockZ() + 1;
+    }
+
+    /**
+     * Base custom length = block distance from the easternmost block of the Start-Island
+     * to the westernmost block of the End-Island (east edge → west edge, in +X direction).
+     *
+     * A value of 1 means the end island starts directly adjacent (touching) the start island.
+     */
+    public int getBaseCustomLength() {
+        Location islandMin = getIslandMin();
+        Location endMin = getEndIslandMin();
+        if (islandMin == null || endMin == null) return 0;
+        int startEastX = islandMin.getBlockX() + getIslandWidth() - 1; // easternmost block of start island
+        return endMin.getBlockX() - startEastX;
+    }
+
+    /**
+     * Y offset of the end island's min corner relative to the start island's min Y.
+     */
+    public int getEndIslandYOffset() {
+        Location islandMin = getIslandMin();
+        Location endMin = getEndIslandMin();
+        if (islandMin == null || endMin == null) return 0;
+        return endMin.getBlockY() - islandMin.getBlockY();
+    }
+
+    /**
+     * Z offset of the end island's min corner relative to the start island's min Z.
+     * Usually 0 (both in the same Z corridor), but captured to be safe.
+     */
+    public int getEndIslandZOffset() {
+        Location islandMin = getIslandMin();
+        Location endMin = getEndIslandMin();
+        if (islandMin == null || endMin == null) return 0;
+        return endMin.getBlockZ() - islandMin.getBlockZ();
+    }
 }

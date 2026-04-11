@@ -65,10 +65,22 @@ public class MapData {
     private boolean infinite = false;
 
     // Custom length: per-player adjustable run distance (blocks from spawn to finish).
-    // 0 = feature disabled for this map. When enabled, players can set their own length
-    // within [minCustomLength, maxCustomLength].
+    // Legacy bounds mode: minCustomLength/maxCustomLength define the allowed range.
+    // New end-island mode: endIslandTemplateFile is set and baseCustomLength is the default.
     private int minCustomLength = 0;
     private int maxCustomLength = 0;
+
+    // End-island custom length: a separate physical island template that shifts in real-time.
+    // When endIslandTemplateFile is non-null, this system replaces the simple end-platform.
+    private String endIslandTemplateFile = null;
+    private int endIslandWidth  = 0;
+    private int endIslandHeight = 0;
+    private int endIslandLength = 0;
+    // Base distance: default X gap from the start island's spawn to the end island's min-X.
+    private int baseCustomLength = 0;
+    // Y and Z offsets of the end island's min corner relative to originY / island-slot Z.
+    private int endIslandYOffset = 0;
+    private int endIslandZOffset = 0;
 
     // Time-based rank requirements (ms). -1 = not configured. Diamond > Gold > Silver > Bronze.
     private long diamondTime = -1;
@@ -118,6 +130,7 @@ public class MapData {
         config.set("finish.max.y", finishMaxY);
         config.set("finish.max.z", finishMaxZ);
         config.set("distance", distance);
+        config.set("distance-version", 2); // gap-only format (not total Z step)
         config.set("scale", scale);
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
@@ -128,6 +141,13 @@ public class MapData {
         config.set("infinite", infinite ? true : null);
         config.set("custom-length.min", minCustomLength > 0 ? minCustomLength : null);
         config.set("custom-length.max", maxCustomLength > 0 ? maxCustomLength : null);
+        config.set("custom-length.base", baseCustomLength > 0 ? baseCustomLength : null);
+        config.set("custom-length.end-template", endIslandTemplateFile != null && !endIslandTemplateFile.isEmpty() ? endIslandTemplateFile : null);
+        config.set("custom-length.end-width",  endIslandWidth  > 0 ? endIslandWidth  : null);
+        config.set("custom-length.end-height", endIslandHeight > 0 ? endIslandHeight : null);
+        config.set("custom-length.end-length", endIslandLength > 0 ? endIslandLength : null);
+        config.set("custom-length.end-y-offset", endIslandYOffset != 0 ? endIslandYOffset : null);
+        config.set("custom-length.end-z-offset", endIslandZOffset != 0 ? endIslandZOffset : null);
         config.set("rank.diamond", diamondTime > 0 ? diamondTime : null);
         config.set("rank.gold", goldTime > 0 ? goldTime : null);
         config.set("rank.silver", silverTime > 0 ? silverTime : null);
@@ -145,6 +165,16 @@ public class MapData {
         islandWidth = config.getInt("island.width");
         islandHeight = config.getInt("island.height");
         islandLength = config.getInt("island.length");
+
+        // Load raw distance, then migrate legacy format.
+        // Old format: distance = islandLength + gap (total Z step).
+        // New format: distance = gap only (southernmost to northernmost).
+        // Maps without the "distance-version" key are old format.
+        distance = config.getInt("distance");
+        if (!config.contains("distance-version") && islandLength > 0 && distance >= islandLength) {
+            distance -= islandLength;
+        }
+
         spawnOffsetX = config.getDouble("spawn.x");
         spawnOffsetY = config.getDouble("spawn.y");
         spawnOffsetZ = config.getDouble("spawn.z");
@@ -164,7 +194,6 @@ public class MapData {
         finishMaxX = config.getInt("finish.max.x");
         finishMaxY = config.getInt("finish.max.y");
         finishMaxZ = config.getInt("finish.max.z");
-        distance = config.getInt("distance");
         scale = config.getInt("scale", 1);
         autoscale = config.getBoolean("autoscale", false);
         templateFile = config.getString("template");
@@ -176,6 +205,13 @@ public class MapData {
         infinite = config.getBoolean("infinite", false);
         minCustomLength = config.getInt("custom-length.min", 0);
         maxCustomLength = config.getInt("custom-length.max", 0);
+        baseCustomLength    = config.getInt("custom-length.base",       0);
+        endIslandTemplateFile = config.getString("custom-length.end-template", null);
+        endIslandWidth  = config.getInt("custom-length.end-width",  0);
+        endIslandHeight = config.getInt("custom-length.end-height", 0);
+        endIslandLength = config.getInt("custom-length.end-length", 0);
+        endIslandYOffset = config.getInt("custom-length.end-y-offset", 0);
+        endIslandZOffset = config.getInt("custom-length.end-z-offset", 0);
         diamondTime = config.getLong("rank.diamond", -1);
         goldTime = config.getLong("rank.gold", -1);
         silverTime = config.getLong("rank.silver", -1);
@@ -193,11 +229,20 @@ public class MapData {
     }
 
     /**
+     * The actual Z separation between adjacent island slots.
+     * {@code distance} stores only the gap between islands (southernmost of island N
+     * to northernmost of island N+1). The total step is {@code islandLength + distance}.
+     */
+    public int getActualZStep() {
+        return islandLength > 0 ? islandLength + distance : distance;
+    }
+
+    /**
      * Get the absolute spawn location for a specific island instance.
      */
     public Location getIslandSpawn(int islandIndex) {
         Location origin = getOrigin();
-        origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * distance + spawnOffsetZ);
+        origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * getActualZStep() + spawnOffsetZ);
         origin.setYaw(spawnYaw);
         origin.setPitch(spawnPitch);
         return origin;
@@ -208,7 +253,7 @@ public class MapData {
      */
     public Location getIslandNpcLocation(int islandIndex) {
         Location origin = getOrigin();
-        origin.add(npcOffsetX, npcOffsetY, (long) islandIndex * distance + npcOffsetZ);
+        origin.add(npcOffsetX, npcOffsetY, (long) islandIndex * getActualZStep() + npcOffsetZ);
         origin.setYaw(npcYaw);
         origin.setPitch(npcPitch);
         return origin;
@@ -225,19 +270,19 @@ public class MapData {
             return spawn.clone().add(0, 3, 0);
         }
         Location origin = getOrigin();
-        origin.add(hologramOffsetX, hologramOffsetY, (long) islandIndex * distance + hologramOffsetZ);
+        origin.add(hologramOffsetX, hologramOffsetY, (long) islandIndex * getActualZStep() + hologramOffsetZ);
         return origin;
     }
 
     public Location getIslandMin(int islandIndex) {
-        return new Location(getWorld(), originX, originY, originZ + (long) islandIndex * distance);
+        return new Location(getWorld(), originX, originY, originZ + (long) islandIndex * getActualZStep());
     }
 
     public Location getIslandMax(int islandIndex) {
         return new Location(getWorld(),
                 originX + islandWidth - 1,
                 originY + islandHeight - 1,
-                originZ + (long) islandIndex * distance + islandLength - 1);
+                originZ + (long) islandIndex * getActualZStep() + islandLength - 1);
     }
 
     // --- Getters/Setters ---
@@ -381,10 +426,57 @@ public class MapData {
     public int getMaxCustomLength() { return maxCustomLength; }
     public void setMaxCustomLength(int max) { this.maxCustomLength = max; }
 
-    /** Returns true if the custom length feature is active for this map. */
+    /** Returns true if the full end-island system is configured (new mode). */
+    public boolean hasEndIsland() {
+        return endIslandTemplateFile != null && !endIslandTemplateFile.isEmpty() && baseCustomLength > 0;
+    }
+
+    /** Returns true if the custom length feature is active for this map (either mode). */
     public boolean hasCustomLength() {
+        if (hasEndIsland()) return true;
         return minCustomLength > 0 && maxCustomLength > 0 && maxCustomLength >= minCustomLength;
     }
+
+    /**
+     * Effective minimum custom length. For end-island maps without explicit bounds,
+     * defaults to half the base distance (minimum 1).
+     */
+    public int getEffectiveMinCustomLength() {
+        if (minCustomLength > 0) return minCustomLength;
+        if (baseCustomLength > 0) return Math.max(1, baseCustomLength / 2);
+        return 1;
+    }
+
+    /**
+     * Effective maximum custom length. For end-island maps without explicit bounds,
+     * defaults to 2× the base distance.
+     */
+    public int getEffectiveMaxCustomLength() {
+        if (maxCustomLength > 0) return maxCustomLength;
+        if (baseCustomLength > 0) return baseCustomLength * 2;
+        return 200;
+    }
+
+    public String getEndIslandTemplateFile() { return endIslandTemplateFile; }
+    public void setEndIslandTemplateFile(String f) { this.endIslandTemplateFile = f; }
+
+    public int getEndIslandWidth()  { return endIslandWidth; }
+    public void setEndIslandWidth(int w)  { this.endIslandWidth = w; }
+
+    public int getEndIslandHeight() { return endIslandHeight; }
+    public void setEndIslandHeight(int h) { this.endIslandHeight = h; }
+
+    public int getEndIslandLength() { return endIslandLength; }
+    public void setEndIslandLength(int l) { this.endIslandLength = l; }
+
+    public int getBaseCustomLength() { return baseCustomLength; }
+    public void setBaseCustomLength(int base) { this.baseCustomLength = base; }
+
+    public int getEndIslandYOffset() { return endIslandYOffset; }
+    public void setEndIslandYOffset(int y) { this.endIslandYOffset = y; }
+
+    public int getEndIslandZOffset() { return endIslandZOffset; }
+    public void setEndIslandZOffset(int z) { this.endIslandZOffset = z; }
 
     /**
      * Returns the highest rank the player achieves with the given best time.

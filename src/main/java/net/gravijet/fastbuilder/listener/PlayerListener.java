@@ -116,6 +116,16 @@ public class PlayerListener implements Listener {
                 plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             }
             plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            // Revert island to default design so the next player gets a clean slate
+            PlayerData qDesignData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (qDesignData != null && qDesignData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData qMap =
+                        plugin.getMapManager().getMap(qDesignData.getLastMap());
+                if (qMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(qMap, qDesignData.getLastIsland());
+                }
+                qDesignData.clearCustomLengths();
+            }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
             plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
         }
@@ -187,12 +197,19 @@ public class PlayerListener implements Listener {
         if (plugin.getGameplayManager() != null) {
             net.gravijet.fastbuilder.gameplay.RunSession sess =
                     plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
-            // Restore end platform if the player had a custom length set for this map
             PlayerData pJoinData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-            if (pJoinData != null && map.hasCustomLength() && pJoinData.getCustomLength(map.getName()) > 0) {
+            // Place end island / platform on join
+            if (map.hasEndIsland()) {
+                // Custom lengths are session-only; always start at base distance on join
+                plugin.getGameplayManager().placeEndPlatform(
+                        player, map, sess, map.getBaseCustomLength());
+            } else if (pJoinData != null && map.hasCustomLength()
+                    && pJoinData.getCustomLength(map.getName()) > 0) {
                 plugin.getGameplayManager().placeEndPlatform(
                         player, map, sess, pJoinData.getCustomLength(map.getName()));
             }
+            // Apply the player's selected island design (does nothing if default)
+            plugin.getGameplayManager().applyPlayerDesign(player, map, island);
         }
 
         if (plugin.getHotbarManager() != null) {
