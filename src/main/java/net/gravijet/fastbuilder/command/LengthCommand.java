@@ -61,12 +61,14 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
         // /length with no args — show current setting and limits
         if (args.length == 0) {
             int current = pData.getCustomLength(map.getName());
-            String currentStr = current > 0 ? String.valueOf(current) + " blocks" : "default";
+            String currentStr = current > 0 ? current + " blocks"
+                    : (map.getBaseCustomLength() > 0
+                    ? "base (" + map.getBaseCustomLength() + " blocks)" : "default");
             player.sendMessage(ColorUtil.translate(prefix
                     + "&fCurrent length: &c" + currentStr
-                    + "  &7(allowed: &f" + map.getMinCustomLength()
-                    + " - " + map.getMaxCustomLength() + " blocks&7)"));
-            player.sendMessage(ColorUtil.translate("&7Use &f/length <blocks> &7to set, or &f/length reset &7to restore default."));
+                    + "  &7(allowed: &f" + map.getEffectiveMinCustomLength()
+                    + " - " + map.getEffectiveMaxCustomLength() + " blocks&7)"));
+            player.sendMessage(ColorUtil.translate("&7Use &f/length <blocks> &7to set, or &f/length reset &7to restore base distance."));
             return true;
         }
 
@@ -75,8 +77,15 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
         // /length reset
         if (arg.equals("reset")) {
             pData.setCustomLength(map.getName(), 0);
-            plugin.getPlayerManager().savePlayerData(player.getUniqueId());
-            player.sendMessage(ColorUtil.translate(prefix + "&fRun length reset to default for &c" + map.getName() + "&f."));
+            int resetTo = map.getBaseCustomLength() > 0 ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+            // Move the end island back to base distance
+            if (plugin.getGameplayManager() != null) {
+                plugin.getGameplayManager().placeEndPlatform(player, map, session, resetTo);
+            }
+            String resetLabel = map.getBaseCustomLength() > 0
+                    ? "base distance (" + resetTo + " blocks)" : "default";
+            player.sendMessage(ColorUtil.translate(prefix + "&fRun length reset to " + resetLabel
+                    + " for &c" + map.getName() + "&f."));
             return true;
         }
 
@@ -89,15 +98,18 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (length < map.getMinCustomLength() || length > map.getMaxCustomLength()) {
+        if (length < map.getEffectiveMinCustomLength() || length > map.getEffectiveMaxCustomLength()) {
             player.sendMessage(ColorUtil.translate(prefix
-                    + "&cLength must be between &f" + map.getMinCustomLength()
-                    + " &cand &f" + map.getMaxCustomLength() + " &cblocks."));
+                    + "&cLength must be between &f" + map.getEffectiveMinCustomLength()
+                    + " &cand &f" + map.getEffectiveMaxCustomLength() + " &cblocks."));
             return true;
         }
 
         pData.setCustomLength(map.getName(), length);
-        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
+        // Move the end island to the new position
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().placeEndPlatform(player, map, session, length);
+        }
         player.sendMessage(ColorUtil.translate(prefix
                 + "&fRun length set to &c" + length + " blocks &ffor &c" + map.getName() + "&f."));
         return true;

@@ -25,10 +25,40 @@ default-map: "SuperShort"
 
 # Economy
 reset-stats-cost: 2000
-# Playtime reward: coins awarded per hour of active playtime
+# Playtime reward: coins awarded per hour of active playtime (long-run average)
 coins-per-hour: 150
-# Base coins awarded per completion (scales dynamically with time — faster = more)
+# Drop interval (seconds). Set both to the same value for a fixed timer.
+# Default: 900 (15 minutes). Coins per drop scale with the interval so the
+# hourly average stays constant regardless of the window chosen.
+coins-drop-interval-min: 900
+coins-drop-interval-max: 900
+# Base coins awarded per completion (the formula uses this × 2 as the maximum
+# payout for a near-instant run; the hard cap is always 20 before boosters).
 coins-per-completion: 10
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Booster Shop
+# Each entry defines a purchasable temporary coin booster.
+# multiplier: coin multiplier applied to all rewards (e.g. 1.5 = 50 % more coins)
+# duration-minutes: how long the booster lasts
+# price: cost in coins
+# ──────────────────────────────────────────────────────────────────────────────
+booster-shop:
+  - multiplier: 1.5
+    duration-minutes: 30
+    price: 200
+  - multiplier: 2.0
+    duration-minutes: 30
+    price: 400
+  - multiplier: 3.0
+    duration-minutes: 30
+    price: 750
+  - multiplier: 1.5
+    duration-minutes: 60
+    price: 350
+  - multiplier: 2.0
+    duration-minutes: 60
+    price: 700
 
 # Maximum distance from island edge before teleport to spawn (blocks)
 max-distance: 4
@@ -151,11 +181,13 @@ animation:
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Leave item: given to the player in hotbar slot 8 so they can leave the server/game.
-# action: "BUNGEE" → send to lobby-server via BungeeCord
-#          "SPAWN"  → teleport to world spawn
+# action: "KICK"    → kick the player (BungeeCord/Velocity routes them to fallback)
+#          "BUNGEE"  → send to lobby-server via BungeeCord plugin messaging
+#          "SPAWN"   → teleport to world spawn (single-server setups)
 #          "COMMAND" → run leave-command as the player
+# The item can be hidden by setting leave-item-toggled: true in items.yml.
 leave-item:
-  action: "SPAWN"
+  action: "KICK"
   lobby-server: "Lobby-1"
   leave-command: ""
 

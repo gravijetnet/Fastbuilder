@@ -123,6 +123,51 @@ public class YamlStorageProvider implements StorageProvider {
     }
 
     @Override
+    public synchronized java.util.List<java.util.Map.Entry<String, Long>> getTopPlayerTimesForMap(
+            String mapName, int limit) {
+
+        // (name → best time) — deduplicates if a player appears in both cache and on disk
+        java.util.Map<String, Long> best = new java.util.LinkedHashMap<>();
+
+        // Online players first (live cache is authoritative)
+        synchronized (liveCache) {
+            for (PlayerData pd : liveCache.values()) {
+                PlayerData.MapStats s = pd.getStats(mapName);
+                if (s != null && s.hasBestTime()) {
+                    best.merge(pd.getName(), s.bestTime, Math::min);
+                }
+            }
+        }
+
+        // Scan all on-disk files, skipping UUIDs already in the live cache
+        File[] files = dataDir.listFiles((dir, n) -> n.endsWith(".yml"));
+        if (files != null) {
+            for (File file : files) {
+                String fileName = file.getName().replace(".yml", "");
+                try {
+                    UUID uuid = UUID.fromString(fileName);
+                    synchronized (liveCache) {
+                        if (liveCache.containsKey(uuid)) continue;
+                    }
+                    YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+                    long t = cfg.getLong("stats." + mapName + ".best-time", -1);
+                    if (t > 0) {
+                        String playerName = cfg.getString("name", fileName);
+                        best.merge(playerName, t, Math::min);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[YAML] Could not read playerdata file: " + fileName);
+                }
+            }
+        }
+
+        List<java.util.Map.Entry<String, Long>> sorted = new ArrayList<>(best.entrySet());
+        sorted.sort(java.util.Comparator.comparingLong(java.util.Map.Entry::getValue));
+        return sorted.subList(0, Math.min(limit, sorted.size()));
+    }
+
+    @Override
     public void shutdown() {
         // No persistent connections to close
     }

@@ -51,11 +51,23 @@ public class PlayerData {
     // Tracks which rank names (per map) the player has already been notified about (one-time messages)
     private final Map<String, Set<String>> notifiedRanks = new HashMap<>();
 
-    // Per-map custom run length preference (blocks from spawn to finish)
+    // Per-map custom run length preference (session-only, NOT persisted to disk).
+    // Automatically resets to 0 (base distance) when the player logs out or changes maps.
     private final Map<String, Integer> customLengths = new HashMap<>();
 
-    // Per-map custom length toggle (true = player has enabled custom length on this map)
+    // Per-map custom length toggle (session-only, NOT persisted to disk).
     private final Map<String, Boolean> customLengthToggles = new HashMap<>();
+
+    // Globally purchased island design template keys (persisted).
+    // If a template key appears in multiple maps, buying it once grants access everywhere.
+    private final Set<String> purchasedDesigns = new HashSet<>();
+
+    // Coin booster (persisted so it survives restarts)
+    private long boosterExpiry = 0;       // epoch-ms when the temp booster expires
+    private double boosterMultiplier = 1.0; // the multiplier of the active temp booster
+
+    // Experience points (admin-grantable, separate from coins)
+    private int experience = 0;
 
     public PlayerData(UUID uuid, String name) {
         this.uuid = uuid;
@@ -97,12 +109,13 @@ public class PlayerData {
             config.set("notified-ranks." + e.getKey(),
                     new java.util.ArrayList<>(e.getValue()));
         }
-        for (Map.Entry<String, Integer> e : customLengths.entrySet()) {
-            config.set("custom-lengths." + e.getKey(), e.getValue());
-        }
-        for (Map.Entry<String, Boolean> e : customLengthToggles.entrySet()) {
-            config.set("custom-length-toggles." + e.getKey(), e.getValue());
-        }
+        // custom-lengths and custom-length-toggles are session-only — intentionally NOT saved.
+        config.set("purchased-designs",
+                purchasedDesigns.isEmpty() ? null : new java.util.ArrayList<>(purchasedDesigns));
+
+        config.set("booster-expiry", boosterExpiry);
+        config.set("booster-multiplier", boosterMultiplier);
+        config.set("experience", experience);
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -155,18 +168,18 @@ public class PlayerData {
                 notifiedRanks.put(mapKey, new HashSet<>(rankList));
             }
         }
+        // custom-lengths and custom-length-toggles are session-only — always start empty on load.
         customLengths.clear();
-        if (config.isConfigurationSection("custom-lengths")) {
-            for (String mapKey : config.getConfigurationSection("custom-lengths").getKeys(false)) {
-                customLengths.put(mapKey, config.getInt("custom-lengths." + mapKey));
-            }
-        }
         customLengthToggles.clear();
-        if (config.isConfigurationSection("custom-length-toggles")) {
-            for (String mapKey : config.getConfigurationSection("custom-length-toggles").getKeys(false)) {
-                customLengthToggles.put(mapKey, config.getBoolean("custom-length-toggles." + mapKey));
-            }
+
+        purchasedDesigns.clear();
+        if (config.isList("purchased-designs")) {
+            purchasedDesigns.addAll(config.getStringList("purchased-designs"));
         }
+
+        boosterExpiry     = config.getLong("booster-expiry", 0);
+        boosterMultiplier = config.getDouble("booster-multiplier", 1.0);
+        experience        = config.getInt("experience", 0);
     }
 
     // --- Stats helpers ---
@@ -283,6 +296,47 @@ public class PlayerData {
 
     public void markRankNotified(String mapName, String rankName) {
         notifiedRanks.computeIfAbsent(mapName.toLowerCase(), k -> new HashSet<>()).add(rankName);
+    }
+
+    // --- Purchased Designs ---
+
+    /**
+     * Returns true if the player has purchased/unlocked the given design template key.
+     * Because the set is global (not per-map), a design unlocked on any map grants access
+     * to all maps that share the same template key name.
+     */
+    public boolean hasPurchasedDesign(String templateKey) {
+        return purchasedDesigns.contains(templateKey);
+    }
+
+    public void purchaseDesign(String templateKey) {
+        purchasedDesigns.add(templateKey);
+    }
+
+    public Set<String> getPurchasedDesigns() { return purchasedDesigns; }
+
+    // --- Coin Booster ---
+
+    public long getBoosterExpiry() { return boosterExpiry; }
+    public void setBoosterExpiry(long expiry) { this.boosterExpiry = expiry; }
+
+    public double getBoosterMultiplier() { return boosterMultiplier; }
+    public void setBoosterMultiplier(double multiplier) { this.boosterMultiplier = multiplier; }
+
+    // --- Experience ---
+
+    public int getExperience() { return experience; }
+    public void addExperience(int amount) {
+        this.experience = (int) Math.min((long) this.experience + amount, Integer.MAX_VALUE);
+    }
+    public void setExperience(int amount) { this.experience = Math.max(0, amount); }
+
+    // --- Custom Length (session-only) ---
+
+    /** Clears all session custom-length data. Call on logout or map change. */
+    public void clearCustomLengths() {
+        customLengths.clear();
+        customLengthToggles.clear();
     }
 
     /**

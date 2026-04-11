@@ -305,11 +305,18 @@ public class ProtectionListener implements Listener {
         }
 
         if (outOfBounds || inVoid) {
-            long now = System.currentTimeMillis();
-            Long lastFall = fallCooldown.get(player.getUniqueId());
-            if (lastFall == null || now - lastFall > 2000) {
-                fallCooldown.put(player.getUniqueId(), now);
+            // When deathY is explicitly configured, bypass the 2 s cooldown so the player
+            // is reset the moment they cross the defined threshold — not several blocks later.
+            boolean skipCooldown = inVoid && mapForVoid != null && mapForVoid.hasDeathY();
+            if (skipCooldown) {
                 plugin.getGameplayManager().onFall(player);
+            } else {
+                long now = System.currentTimeMillis();
+                Long lastFall = fallCooldown.get(player.getUniqueId());
+                if (lastFall == null || now - lastFall > 2000) {
+                    fallCooldown.put(player.getUniqueId(), now);
+                    plugin.getGameplayManager().onFall(player);
+                }
             }
         }
     }

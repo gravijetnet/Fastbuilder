@@ -23,6 +23,15 @@ commands:
   build:
     description: Toggle creative build mode on your island
     usage: /<command>
+  adminexp:
+    description: Grant or set experience points for a player
+    usage: /<command> <add|set|get> <player> [amount]
+    permission: fastbuilder.admin.exp
+  leaderboard:
+    description: View the top players per map
+    usage: /<command> [map] [limit]
+    aliases: [lb]
+    permission: fastbuilder.command.leaderboard
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands and features
@@ -49,6 +58,7 @@ permissions:
       fastbuilder.command.fb.reload: true
       fastbuilder.command.fb.dump: true
       fastbuilder.coins.admin: true
+      fastbuilder.admin.exp: true
       fastbuilder.bypass.border: true
   fastbuilder.play:
     description: Permission to play FastBuilder
@@ -60,6 +70,7 @@ permissions:
       fastbuilder.command.fb.list: true
       fastbuilder.command.stats: true
       fastbuilder.command.build: true
+      fastbuilder.command.leaderboard: true
   fastbuilder.command.map:
     description: Access to /map command
     default: op
@@ -138,6 +149,9 @@ permissions:
   fastbuilder.command.build:
     description: Toggle build mode with /build
     default: true
+  fastbuilder.command.leaderboard:
+    description: View the leaderboard with /leaderboard or /lb
+    default: true
   fastbuilder.command.coins:
     description: View your coin balance with /coins
     default: true
@@ -180,3 +194,15 @@ permissions:
   fastbuilder.bypass.border:
     description: Bypass island border restrictions
     default: op
+  fastbuilder.admin.exp:
+    description: Grant or set experience points with /adminexp
+    default: op
+  fastbuilder.booster.1_5x:
+    description: Permanent 1.5x coin booster
+    default: false
+  fastbuilder.booster.2x:
+    description: Permanent 2x coin booster
+    default: false
+  fastbuilder.booster.3x:
+    description: Permanent 3x coin booster
+    default: false

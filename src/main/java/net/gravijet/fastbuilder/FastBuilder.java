@@ -1,9 +1,12 @@
 package net.gravijet.fastbuilder;
 
+import net.gravijet.fastbuilder.command.AdminExpCommand;
 import net.gravijet.fastbuilder.command.FastBuilderCommand;
+import net.gravijet.fastbuilder.command.LeaderboardCommand;
 import net.gravijet.fastbuilder.command.MapCommand;
 import net.gravijet.fastbuilder.command.StatsCommand;
 import net.gravijet.fastbuilder.config.ConfigManager;
+import net.gravijet.fastbuilder.economy.BoosterManager;
 import net.gravijet.fastbuilder.economy.CoinManager;
 import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gui.GuiManager;
@@ -32,6 +35,7 @@ public class FastBuilder extends JavaPlugin {
     private PlayerManager playerManager;
     private FawePaster fawePaster;
     private CoinManager coinManager;
+    private BoosterManager boosterManager;
     private GuiManager guiManager;
     private HologramManager hologramManager;
     private NpcManager npcManager;
@@ -62,6 +66,7 @@ public class FastBuilder extends JavaPlugin {
         // Initialize managers
         mapManager = new MapManager(this);
         playerManager = new PlayerManager(this);
+        boosterManager = new BoosterManager(this);
         coinManager = new CoinManager(this);
         guiManager = new GuiManager(this);
         scoreboardManager = new FastScoreboard(this);
@@ -100,6 +105,14 @@ public class FastBuilder extends JavaPlugin {
 
         net.gravijet.fastbuilder.command.BuildCommand buildCmd = new net.gravijet.fastbuilder.command.BuildCommand(this);
         getCommand("build").setExecutor(buildCmd);
+
+        AdminExpCommand adminExpCmd = new AdminExpCommand(this);
+        getCommand("adminexp").setExecutor(adminExpCmd);
+        getCommand("adminexp").setTabCompleter(adminExpCmd);
+
+        LeaderboardCommand lbCmd = new LeaderboardCommand(this);
+        getCommand("leaderboard").setExecutor(lbCmd);
+        getCommand("leaderboard").setTabCompleter(lbCmd);
 
         // Register listeners
         Bukkit.getPluginManager().registerEvents(new SetupListener(this), this);
@@ -156,6 +169,7 @@ public class FastBuilder extends JavaPlugin {
     public PlayerManager getPlayerManager() { return playerManager; }
     public FawePaster getFawePaster() { return fawePaster; }
     public CoinManager getCoinManager() { return coinManager; }
+    public BoosterManager getBoosterManager() { return boosterManager; }
     public GuiManager getGuiManager() { return guiManager; }
     public HologramManager getHologramManager() { return hologramManager; }
     public NpcManager getNpcManager() { return npcManager; }

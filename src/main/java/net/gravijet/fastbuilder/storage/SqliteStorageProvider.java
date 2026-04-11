@@ -264,4 +264,29 @@ public class SqliteStorageProvider implements StorageProvider {
     public synchronized void invalidateBestTimesCache(String mapName) {
         bestTimesCacheTime.remove(mapName);
     }
+
+    @Override
+    public synchronized java.util.List<java.util.Map.Entry<String, Long>> getTopPlayerTimesForMap(
+            String mapName, int limit) {
+
+        List<java.util.Map.Entry<String, Long>> results = new ArrayList<java.util.Map.Entry<String, Long>>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT pd.name, pms.best_time " +
+                "FROM player_map_stats pms " +
+                "JOIN player_data pd ON pms.uuid = pd.uuid " +
+                "WHERE pms.map_name = ? AND pms.best_time > 0 " +
+                "ORDER BY pms.best_time ASC LIMIT ?")) {
+            ps.setString(1, mapName);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new java.util.AbstractMap.SimpleEntry<>(
+                            rs.getString("name"), rs.getLong("best_time")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "[SQLite] Failed to query top players.", e);
+        }
+        return results;
+    }
 }

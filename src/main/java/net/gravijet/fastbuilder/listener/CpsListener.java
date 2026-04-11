@@ -28,7 +28,9 @@ public class CpsListener implements Listener {
     // Per-player: the location of the sapling they last clicked
     private final Map<UUID, Location> saplingLocation = new HashMap<>();
 
-    // Per-player: task ID of the scheduled hologram removal
+    // Per-player: task ID of the "show zero CPS" update (fires 1 s after last click)
+    private final Map<UUID, Integer> zeroTasks = new HashMap<>();
+    // Per-player: task ID of the hologram removal (fires 3 s after last click)
     private final Map<UUID, Integer> removalTasks = new HashMap<>();
 
     // Stores the actual Hologram object so we can update in-place without relying on DHAPI.getHologram()
@@ -98,11 +100,11 @@ public class CpsListener implements Listener {
         String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
         String text = net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f" + cps);
 
-        // Cancel any existing removal task first
+        // Cancel any existing zero/removal tasks first
+        Integer existingZero = zeroTasks.remove(uuid);
+        if (existingZero != null) plugin.getServer().getScheduler().cancelTask(existingZero);
         Integer existingTask = removalTasks.remove(uuid);
-        if (existingTask != null) {
-            plugin.getServer().getScheduler().cancelTask(existingTask);
-        }
+        if (existingTask != null) plugin.getServer().getScheduler().cancelTask(existingTask);
 
         boolean privateMode = "private".equalsIgnoreCase(
                 plugin.getConfigManager().getCpsHologramVisibility());
@@ -142,8 +144,24 @@ public class CpsListener implements Listener {
             return;
         }
 
-        // Schedule removal after 0.5 seconds (10 ticks) of no clicks — twice as fast as before
         final eu.decentsoftware.holograms.api.holograms.Hologram finalHologram = activeHolograms.get(uuid);
+
+        // At 20 ticks (1 s): the 1-second CPS window is now empty → show "0 CPS"
+        int zeroTaskId = new BukkitRunnable() {
+            @Override
+            public void run() {
+                eu.decentsoftware.holograms.api.holograms.Hologram h = activeHolograms.get(uuid);
+                if (h == null) return;
+                try {
+                    eu.decentsoftware.holograms.api.DHAPI.setHologramLine(h, 0,
+                            net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f0"));
+                } catch (Exception ignored) {}
+                zeroTasks.remove(uuid);
+            }
+        }.runTaskLater(plugin, 20L).getTaskId();
+        zeroTasks.put(uuid, zeroTaskId);
+
+        // At 60 ticks (3 s total = 1 s until CPS=0, then 2 s of showing 0 CPS): remove hologram
         int taskId = new BukkitRunnable() {
             @Override
             public void run() {
@@ -152,18 +170,21 @@ public class CpsListener implements Listener {
                 // Also remove by ID as a safety net for the DHAPI registry
                 try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
                 removalTasks.remove(uuid);
+                zeroTasks.remove(uuid);
                 activeHolograms.remove(uuid);
                 saplingLocation.remove(uuid);
                 Deque<Long> d = clickTimes.get(uuid);
                 if (d != null) d.clear();
             }
-        }.runTaskLater(plugin, 10L).getTaskId(); // 10 ticks = 0.5 seconds
+        }.runTaskLater(plugin, 60L).getTaskId(); // 60 ticks = 3 s after last click
 
         removalTasks.put(uuid, taskId);
     }
 
     /** Remove CPS hologram and state for a specific player (call on leave/island switch). */
     public void cleanupPlayer(UUID uuid) {
+        Integer zeroId = zeroTasks.remove(uuid);
+        if (zeroId != null) plugin.getServer().getScheduler().cancelTask(zeroId);
         Integer taskId = removalTasks.remove(uuid);
         if (taskId != null) {
             plugin.getServer().getScheduler().cancelTask(taskId);
@@ -177,6 +198,10 @@ public class CpsListener implements Listener {
     }
 
     public void cleanup() {
+        for (Map.Entry<UUID, Integer> entry : zeroTasks.entrySet()) {
+            plugin.getServer().getScheduler().cancelTask(entry.getValue());
+        }
+        zeroTasks.clear();
         for (Map.Entry<UUID, Integer> entry : removalTasks.entrySet()) {
             plugin.getServer().getScheduler().cancelTask(entry.getValue());
         }

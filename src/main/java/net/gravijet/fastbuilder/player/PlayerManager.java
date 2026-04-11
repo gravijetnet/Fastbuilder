@@ -158,6 +158,15 @@ public class PlayerManager {
         provider.invalidateBestTimesCache(mapName);
     }
 
+    /**
+     * Return the top {@code limit} players for {@code mapName} sorted by personal-best
+     * time ascending (fastest first).  Safe to call from an async thread.
+     */
+    public java.util.List<java.util.Map.Entry<String, Long>> getTopPlayerTimesForMap(
+            String mapName, int limit) {
+        return provider.getTopPlayerTimesForMap(mapName, limit);
+    }
+
     // -------------------------------------------------------------------------
     // Offline lookup (no cache)
     // -------------------------------------------------------------------------

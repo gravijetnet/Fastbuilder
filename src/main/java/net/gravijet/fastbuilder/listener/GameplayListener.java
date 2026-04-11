@@ -115,8 +115,8 @@ public class GameplayListener implements Listener {
         if (session.isResetting()) return;
         if (plugin.getMapManager().hasSetupSession(uuid)) return;
 
-        int dist = map.getDistance();
-        if (dist <= 0) return;
+        int step = map.getActualZStep();
+        if (step <= 0) return;
 
         // Player must be within the island's X range
         int bx = to.getBlockX();
@@ -126,12 +126,18 @@ public class GameplayListener implements Listener {
         int relZ = bz - map.getOriginZ();
         if (relZ < 0) return;
 
-        int candidateIndex = relZ / dist;
+        int candidateIndex = relZ / step;
         int currentIndex = session.getIslandIndex();
         if (candidateIndex == currentIndex) return;
 
+        // Only allow hopping to directly adjacent islands (diff of 1)
+        if (Math.abs(candidateIndex - currentIndex) > 1) {
+            teleportBack(player, map, currentIndex, uuid);
+            return;
+        }
+
         // Confirm player is within this island's Z extent (not in the gap between islands)
-        int islandStartZ = map.getOriginZ() + candidateIndex * dist;
+        int islandStartZ = map.getOriginZ() + candidateIndex * step;
         int islandEndZ = islandStartZ + map.getIslandLength() - 1;
         if (bz < islandStartZ || bz > islandEndZ) return;
 
@@ -189,8 +195,10 @@ public class GameplayListener implements Listener {
      *
      * <ul>
      *   <li>Returns false immediately for infinite-mode maps (no finish zone).</li>
-     *   <li>Applies the player's custom-length preference to shift the finish zone X
-     *       position when the map has custom length enabled.</li>
+     *   <li>For end-island maps: derives the zone from the placed end island's bounds
+     *       at the player's current custom length (defaults to base distance).</li>
+     *   <li>For legacy custom-length maps: shifts the static finish zone X by the
+     *       player's preference.</li>
      *   <li>Triggers if the player is within X/Z bounds and within Y range up to
      *       finishMaxY + configurable height tolerance.</li>
      * </ul>
@@ -199,8 +207,29 @@ public class GameplayListener implements Listener {
         // Infinite maps have no finish condition
         if (map.isInfinite()) return false;
 
-        int offsetZ = islandIndex * map.getDistance();
+        int bx = loc.getBlockX();
+        int by = loc.getBlockY();
+        int bz = loc.getBlockZ();
+        int heightTolerance = plugin.getConfigManager().getFinishHeightTolerance();
 
+        // New end-island mode: derive finish zone from the placed end island's bounds
+        if (map.hasEndIsland()) {
+            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
+            if (customLength <= 0) customLength = map.getBaseCustomLength();
+            customLength = Math.max(map.getEffectiveMinCustomLength(),
+                    Math.min(map.getEffectiveMaxCustomLength(), customLength));
+            // endX = east edge of start island + customLength (gap to west edge of end island)
+            int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
+            int endY = map.getOriginY() + map.getEndIslandYOffset();
+            int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+            return bx >= endX && bx < endX + map.getEndIslandWidth()
+                    && by >= endY && by <= endY + map.getEndIslandHeight() - 1 + heightTolerance
+                    && bz >= endZ && bz < endZ + map.getEndIslandLength();
+        }
+
+        // Legacy: static finish zone defined during setup
+        int offsetZ = islandIndex * map.getActualZStep();
         int fMinX = map.getOriginX() + map.getFinishMinX();
         int fMinY = map.getOriginY() + map.getFinishMinY();
         int fMinZ = map.getOriginZ() + offsetZ + map.getFinishMinZ();
@@ -208,26 +237,18 @@ public class GameplayListener implements Listener {
         int fMaxY = map.getOriginY() + map.getFinishMaxY();
         int fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
 
-        // Custom length: reposition finish zone X based on player preference
+        // Legacy custom-length: reposition finish zone X based on player preference
         if (map.hasCustomLength()) {
             PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
             if (customLength > 0) {
-                // Clamp to the admin-defined allowed range
                 customLength = Math.max(map.getMinCustomLength(),
                         Math.min(map.getMaxCustomLength(), customLength));
-                // Finish zone starts at spawnOffsetX + customLength from the island origin
                 int finishZoneWidth = fMaxX - fMinX;
                 fMinX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
                 fMaxX = fMinX + finishZoneWidth;
             }
         }
-
-        int heightTolerance = plugin.getConfigManager().getFinishHeightTolerance();
-
-        int bx = loc.getBlockX();
-        int by = loc.getBlockY();
-        int bz = loc.getBlockZ();
 
         return bx >= fMinX && bx <= fMaxX
                 && by >= fMinY && by <= fMaxY + heightTolerance

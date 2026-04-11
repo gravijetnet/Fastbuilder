@@ -212,12 +212,55 @@ public class HotbarManager implements Listener {
     }
 
     private void handleLeave(Player player) {
-        plugin.getMapManager().freeAllIslands(player.getUniqueId());
-        if (plugin.getGameplayManager() != null) {
-            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
-            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        // Stop active replay / recording first
+        if (plugin.getReplayManager() != null) {
+            if (plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+                plugin.getReplayManager().stopPlayback(player.getUniqueId());
+            }
+            plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
         }
 
+        // Full session cleanup: blocks, end platform, island design, session state
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            net.gravijet.fastbuilder.player.PlayerData leaveData =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (leaveData != null && leaveData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData leaveMap =
+                        plugin.getMapManager().getMap(leaveData.getLastMap());
+                if (leaveMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(leaveMap, leaveData.getLastIsland());
+                }
+                leaveData.clearCustomLengths();
+            }
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+        }
+
+        // Despawn NPC
+        if (plugin.getNpcManager() != null) {
+            plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        }
+
+        // Remove hologram
+        if (plugin.getHologramManager() != null) {
+            net.gravijet.fastbuilder.player.PlayerData d =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (d != null && d.getLastMap() != null) {
+                plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
+            }
+        }
+
+        // Clean up CPS hologram
+        if (plugin.getCpsListener() != null) {
+            plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        }
+
+        // Free all island slots
+        plugin.getMapManager().freeAllIslands(player.getUniqueId());
+
+        // Execute leave action
         String action = plugin.getConfigManager().getLeaveAction();
         switch (action) {
             case "BUNGEE": {
@@ -229,8 +272,13 @@ public class HotbarManager implements Listener {
                     out.writeUTF(lobbyServer);
                     player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
                 } catch (IOException e) {
-                    player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                    // BungeeCord failed — kick so the proxy can route to a fallback server
+                    player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
                 }
+                break;
+            }
+            case "KICK": {
+                player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
                 break;
             }
             case "COMMAND": {
@@ -283,9 +331,16 @@ public class HotbarManager implements Listener {
                 session.updateControlItems();
                 break;
             case ReplaySession.SLOT_SPEED:
-                // Left = slower, Right = faster
-                if (leftClick) session.setPlaybackSpeed(session.getPlaybackSpeed() - 0.25);
-                else           session.setPlaybackSpeed(session.getPlaybackSpeed() + 0.25);
+                // Finer steps at slow speeds so the viewer can reach 0.05× (1 fps)
+                // without large jumps near the bottom of the range.
+                double speed = session.getPlaybackSpeed();
+                if (leftClick) {
+                    double step = speed <= 0.25 ? 0.05 : (speed <= 1.0 ? 0.25 : 0.5);
+                    session.setPlaybackSpeed(speed - step);
+                } else {
+                    double step = speed < 0.25 ? 0.05 : (speed < 1.0 ? 0.25 : 0.5);
+                    session.setPlaybackSpeed(speed + step);
+                }
                 session.updateControlItems();
                 break;
             case ReplaySession.SLOT_REPLAY_AGAIN:

@@ -49,7 +49,7 @@ block-status:
 settings-gui-slots:
   10:
     name: "&bInfinite Blocks"
-    material: STAINED_GLASS_PANE:11
+    material: BEDROCK:0
     gui: "infinite_blocks"
     lore:
       - "&7Status: %infinite_blocks_status%"
@@ -1208,7 +1208,7 @@ death-sound-selector-slots:
       - "&ePrice: 500"
   9:
     name: "&6Piglin"
-    material: "PORK:0"
+    material: "GOLD_INGOT:0"
     sound: "Piglin"
     price: 500
     lore:
@@ -1224,7 +1224,7 @@ death-sound-selector-slots:
       - "&ePrice: 750"
   11:
     name: "&eWolf"
-    material: "BONE:0"
+    material: "STRING:0"
     sound: "Wolf"
     price: 500
     lore:
@@ -1238,6 +1238,14 @@ death-sound-selector-slots:
     lore:
       - "&7Firework blast"
       - "&ePrice: 300"
+  13:
+    name: "&dVillager"
+    material: "EMERALD:0"
+    sound: "Villager"
+    price: 300
+    lore:
+      - "&7Villager idle sound"
+      - "&ePrice: 300"
   14:
     name: "&eSplash"
     material: "WATER_BUCKET:0"
@@ -1246,6 +1254,14 @@ death-sound-selector-slots:
     lore:
       - "&7Splash sound"
       - "&ePrice: 200"
+  15:
+    name: "&bChicken"
+    material: "EGG:0"
+    sound: "Chicken"
+    price: 150
+    lore:
+      - "&7Chicken idle sound"
+      - "&ePrice: 150"
   16:
     name: "&cDragon"
     material: "DRAGON_EGG:0"
@@ -1350,3 +1366,12 @@ one-click-pick:
     - "&7Insta-breaks your placed blocks on left-click"
     - "&7Equip any tool — no dig time required"
     - "&ePrice: %price%"
+
+# Island Design selector settings
+island-designs:
+  # Coin cost to unlock each alternative (non-default) design. 0 = free for everyone.
+  default-price: 0
+  lore-selected: "&a&l» Currently selected"
+  lore-unlocked: "&eClick to select this design"
+  lore-locked: "&cLocked &8- &e%price% coins to unlock"
+  lore-cannot-afford: "&cNot enough coins &7(&f%coins% / %price%&7)"

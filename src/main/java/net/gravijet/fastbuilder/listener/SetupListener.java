@@ -57,6 +57,9 @@ public class SetupListener implements Listener {
             case SELECTING_FINISH:
                 handleFinishSelection(player, session, action, clicked);
                 break;
+            case SELECTING_END_ISLAND:
+                handleEndIslandSelection(player, session, action, clicked);
+                break;
             default:
                 break;
         }
@@ -160,6 +163,29 @@ public class SetupListener implements Listener {
                     .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(msg));
             sendClickableFinish(player);
+        }
+    }
+
+    private void handleEndIslandSelection(Player player, SetupSession session, Action action, Block clicked) {
+        if (clicked == null) return;
+        Location loc = clicked.getLocation();
+
+        String prefix = plugin.getConfigManager().getPrefix();
+        if (action == Action.LEFT_CLICK_BLOCK) {
+            session.setEndIslandPos1(loc);
+            player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island Pos 1 set at &c"
+                    + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&a."));
+        } else if (action == Action.RIGHT_CLICK_BLOCK) {
+            session.setEndIslandPos2(loc);
+            player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island Pos 2 set at &c"
+                    + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&a."));
+        }
+
+        if (session.getEndIslandPos1() != null && session.getEndIslandPos2() != null) {
+            int baseLen = session.getBaseCustomLength();
+            player.sendMessage(ColorUtil.translate(prefix + "&aBoth corners set! "
+                    + "&7Base distance: &f" + baseLen + " blocks."));
+            sendClickableContinue(player);
         }
     }
 

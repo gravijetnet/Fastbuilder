@@ -435,6 +435,32 @@ public class MySqlStorageProvider implements StorageProvider {
     }
 
     @Override
+    public java.util.List<java.util.Map.Entry<String, Long>> getTopPlayerTimesForMap(
+            String mapName, int limit) {
+
+        List<java.util.Map.Entry<String, Long>> results = new ArrayList<java.util.Map.Entry<String, Long>>();
+        try (Connection c = borrowConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT pd.name, pms.best_time " +
+                     "FROM player_map_stats pms " +
+                     "JOIN player_data pd ON pms.uuid = pd.uuid " +
+                     "WHERE pms.map_name = ? AND pms.best_time > 0 " +
+                     "ORDER BY pms.best_time ASC LIMIT ?")) {
+            ps.setString(1, mapName);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new java.util.AbstractMap.SimpleEntry<>(
+                            rs.getString("name"), rs.getLong("best_time")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "[MySQL] Failed to query top players for: " + mapName, e);
+        }
+        return results;
+    }
+
+    @Override
     public void shutdown() {
         synchronized (pool) {
             for (int i = 0; i < POOL_SIZE; i++) {

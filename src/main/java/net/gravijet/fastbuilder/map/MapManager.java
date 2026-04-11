@@ -214,8 +214,8 @@ public class MapManager {
         data.setFinishMaxY(session.getFinishMaxY());
         data.setFinishMaxZ(session.getFinishMaxZ());
 
-        // Default distance = islandLength + 3
-        data.setDistance(data.getIslandLength() + 1);
+        // Default gap = 3 blocks between south edge of one island and north edge of the next
+        data.setDistance(3);
         data.setScale(1);
         data.setEnabled(false);
         // Default deathY: 3 blocks below the map's grid origin Y
@@ -238,7 +238,7 @@ public class MapManager {
                 map.getWorld(),
                 map.getTemplateFile(),
                 map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                map.getDistance(),
+                map.getActualZStep(),
                 0, map.getScale(),
                 () -> plugin.getLogger().info("Pasted initial island(s) for map: " + map.getName())
         );
@@ -338,7 +338,7 @@ public class MapManager {
             plugin.getFawePaster().pasteIslands(
                     map.getWorld(), map.getTemplateFile(),
                     map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                    map.getDistance(), oldScale, newScale, null);
+                    map.getActualZStep(), oldScale, newScale, null);
 
             List<IslandInstance> list = islands.computeIfAbsent(mapKey, k -> new ArrayList<>());
             for (int i = oldScale; i < newScale; i++) list.add(new IslandInstance(i));
@@ -351,7 +351,17 @@ public class MapManager {
                     if (island.isOccupied()) {
                         org.bukkit.entity.Player p = Bukkit.getPlayer(island.getOccupantUuid());
                         if (p != null && p.isOnline()) {
-                            // Clean up NPC and hologram before relocation
+                            // Full cleanup before relocation
+                            if (plugin.getGameplayManager() != null) {
+                                plugin.getGameplayManager().clearAllPlacedBlocks(p.getUniqueId());
+                                plugin.getGameplayManager().clearEndPlatform(p.getUniqueId());
+                                plugin.getGameplayManager().revertIslandDesign(map, island.getIndex());
+                                plugin.getGameplayManager().removeSession(p.getUniqueId());
+                                plugin.getGameplayManager().removeGlobalSessionBest(p.getName());
+                            }
+                            net.gravijet.fastbuilder.player.PlayerData pData =
+                                    plugin.getPlayerManager().getCachedData(p.getUniqueId());
+                            if (pData != null) pData.clearCustomLengths();
                             if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(p.getUniqueId());
                             if (plugin.getHologramManager() != null)
                                 plugin.getHologramManager().removeHologram(map.getName(), island.getIndex());
@@ -367,7 +377,7 @@ public class MapManager {
                     map.getWorld(),
                     map.getOriginX(), map.getOriginY(), map.getOriginZ(),
                     map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
-                    map.getDistance(), newScale, oldScale, null);
+                    map.getActualZStep(), newScale, oldScale, null);
         }
 
         map.setScale(newScale);
@@ -378,12 +388,19 @@ public class MapManager {
      * Clear all islands at oldDistance and re-paste at the new distance stored in map.
      * Also teleports all players back to their new spawn positions.
      */
-    public void regenerateIslands(final MapData map, final int oldDistance) {
+    /**
+     * Re-paste all islands after a distance change.
+     * @param oldGap previous gap value (southernmost-to-northernmost, new semantics)
+     */
+    public void regenerateIslands(final MapData map, final int oldGap) {
         final int scale = map.getScale();
-        final int newDistance = map.getDistance();
+        final int newGap = map.getDistance();
+        // Compute actual Z steps (total separation including island length)
+        final int oldActualStep = map.getIslandLength() + oldGap;
+        final int newActualStep = map.getActualZStep();
 
         plugin.getLogger().info("Regenerating " + scale + " islands for map '" + map.getName()
-                + "' (old distance=" + oldDistance + ", new distance=" + newDistance + ")");
+                + "' (old gap=" + oldGap + ", new gap=" + newGap + ")");
 
         // Step 1: Evict all players from this map to world spawn temporarily
         List<IslandInstance> list = islands.get(map.getName().toLowerCase());
@@ -405,7 +422,7 @@ public class MapManager {
                 map.getWorld(),
                 map.getOriginX(), map.getOriginY(), map.getOriginZ(),
                 map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
-                oldDistance, 0, scale,
+                oldActualStep, 0, scale,
                 new Runnable() {
                     @Override
                     public void run() {
@@ -413,7 +430,7 @@ public class MapManager {
                         plugin.getFawePaster().pasteIslands(
                                 map.getWorld(), map.getTemplateFile(),
                                 map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                                newDistance, 0, scale,
+                                newActualStep, 0, scale,
                                 new Runnable() {
                                     @Override
                                     public void run() {

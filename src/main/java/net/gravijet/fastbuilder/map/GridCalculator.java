@@ -23,7 +23,7 @@ public final class GridCalculator {
         return new Location(map.getWorld(),
                 map.getOriginX(),
                 map.getOriginY(),
-                map.getOriginZ() + (long) index * map.getDistance());
+                map.getOriginZ() + (long) index * map.getActualZStep());
     }
 
     /**
@@ -55,14 +55,14 @@ public final class GridCalculator {
         // Check Z bounds and determine island index
         if (relZ < 0) return -1;
 
-        int distance = map.getDistance();
-        if (distance <= 0) return -1;
+        int step = map.getActualZStep();
+        if (step <= 0) return -1;
 
-        int index = (int) (relZ / distance);
+        int index = (int) (relZ / step);
         if (index >= map.getScale()) return -1;
 
         // Check if within the island area (not in the gap between islands)
-        double posInSlot = relZ - ((long) index * distance);
+        double posInSlot = relZ - ((long) index * step);
         if (posInSlot >= map.getIslandLength()) return -1;
 
         return index;
@@ -76,7 +76,7 @@ public final class GridCalculator {
 
         int islandMinX = map.getOriginX();
         int islandMinY = map.getOriginY();
-        long islandMinZ = map.getOriginZ() + (long) index * map.getDistance();
+        long islandMinZ = map.getOriginZ() + (long) index * map.getActualZStep();
 
         double x = loc.getX();
         double y = loc.getY();
@@ -95,7 +95,7 @@ public final class GridCalculator {
 
         int baseX = map.getOriginX();
         int baseY = map.getOriginY();
-        long baseZ = map.getOriginZ() + (long) index * map.getDistance();
+        long baseZ = map.getOriginZ() + (long) index * map.getActualZStep();
 
         int fMinX = baseX + map.getFinishMinX();
         int fMinY = baseY + map.getFinishMinY();
@@ -119,7 +119,7 @@ public final class GridCalculator {
     public static int[] getIslandBounds(MapData map, int index) {
         int minX = map.getOriginX();
         int minY = map.getOriginY();
-        int minZ = map.getOriginZ() + index * map.getDistance();
+        int minZ = map.getOriginZ() + index * map.getActualZStep();
         int maxX = minX + map.getIslandWidth() - 1;
         int maxY = minY + map.getIslandHeight() - 1;
         int maxZ = minZ + map.getIslandLength() - 1;
@@ -127,18 +127,20 @@ public final class GridCalculator {
     }
 
     /**
-     * Minimum distance required to prevent island overlap along the Z-axis.
-     * Based on island length (Z extent) + 1 block gap.
+     * Minimum gap between islands (southernmost to northernmost) to prevent overlap.
+     * A gap of 1 means islands are directly adjacent with no void blocks between them.
      */
     public static int getMinimumDistance(int islandLength) {
-        return islandLength + 1;
+        return 1;
     }
 
     /**
-     * Check if the given distance would cause overlapping islands.
+     * Check if the given gap value would cause overlapping islands.
+     * The gap is the number of blocks between the south edge of one island
+     * and the north edge of the next (must be >= 1).
      */
     public static boolean wouldOverlap(int distance, int islandLength) {
-        return distance < islandLength;
+        return distance < 1;
     }
 
     /**
