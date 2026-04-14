@@ -9,41 +9,53 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 
 /**
  * Economy system for coins.
  *
- * <p><b>Completion rewards</b> use exponential decay: the faster the run, the
- * more coins — up to a hard cap of 20 per run (before boosters).  A ±30 % jitter
- * makes two identical times feel different.</p>
+ * <h3>Completion rewards</h3>
+ * <p>Coin value is determined by how the player's run time compares to the
+ * server-wide average for that map.  No randomness — identical ratios always
+ * produce identical coins.  The five tiers are:</p>
+ * <ul>
+ *   <li>Elite (&lt; 70 % of average)  → <b>20 coins</b></li>
+ *   <li>Very fast (70–85 %)           → 17–19 coins</li>
+ *   <li>Normal (85–105 %)             → 10–16 coins</li>
+ *   <li>Slow (105–140 %)              → 5–9 coins</li>
+ *   <li>Very slow (&gt; 140 %)        → 1–4 coins</li>
+ * </ul>
+ * <p>The server-wide average is tracked in memory.  Until enough samples have
+ * been collected ({@code coins-average-min-samples} in config), a configurable
+ * fallback average is used so new servers start with sensible payouts.</p>
  *
- * <p><b>Playtime rewards</b> fire on a configurable interval (default 900 s /
- * 15 minutes).  Amount is proportional to the actual elapsed interval so the
- * long-run hourly average stays constant regardless of window size.</p>
+ * <h3>Playtime rewards</h3>
+ * <p>Fires on a configurable interval (default 900 s / 15 minutes).  Amount is
+ * proportional to the actual elapsed interval so the long-run hourly average
+ * stays constant regardless of window size.</p>
  *
- * <p>All coin awards pass through {@link BoosterManager} so permanent and
- * temporary boosters are always applied consistently.</p>
+ * <h3>Hourly XP award</h3>
+ * <p>Once per hour of active play, dispatches
+ * {@code /adminexp give <player> 10 Fastbuilder} via console so the external
+ * rank/XP plugin handles the grant.  The AdminExp command is intentionally
+ * absent from this plugin.</p>
  */
 public class CoinManager {
 
     private final FastBuilder plugin;
-    private static final Random RANDOM = new Random();
-
-    /** Hard ceiling on base completion coins before the booster is applied. */
-    private static final int COMPLETION_BASE_CAP = 20;
-
-    /** Half-life (seconds) for the completion-reward decay curve. */
-    private static final double DECAY_HALF_LIFE = 20.0;
-
-    /** Jitter fraction applied to every coin award (±30 %). */
-    private static final double JITTER = 0.30;
 
     private int playtimeTaskId = -1;
 
-    private final Map<UUID, Integer> elapsedSeconds   = new HashMap<>();
-    private final Map<UUID, Integer> targetIntervals  = new HashMap<>();
+    // Playtime coin-drop tracking (per player)
+    private final Map<UUID, Integer> elapsedSeconds  = new HashMap<>();
+    private final Map<UUID, Integer> targetIntervals = new HashMap<>();
+
+    // Hourly XP tracking — seconds of active play since last adminexp dispatch
+    private final Map<UUID, Integer> expElapsedSeconds = new HashMap<>();
+
+    // Server-wide average completion time per map (accumulated in memory).
+    // long[0] = total milliseconds, long[1] = sample count.
+    private final Map<String, long[]> mapAverageData = new HashMap<>();
 
     public CoinManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -74,42 +86,51 @@ public class CoinManager {
     }
 
     /**
-     * Award coins for finishing a run.
+     * Award coins for a successfully finished run.
      *
-     * <p>Base coins use an exponential decay over run time with a ±30 % jitter,
-     * capped at {@value #COMPLETION_BASE_CAP} before the booster multiplier.
-     * The booster can push the final amount beyond the cap — that's intentional.</p>
+     * <p>The coin amount is determined by comparing the player's time against the
+     * server-wide average for the map — no randomness.  The booster multiplier is
+     * applied on top of the tier result.</p>
      *
      * @param player     the player who finished
-     * @param timeMillis run time in milliseconds
-     * @return the actual coins awarded (after booster)
+     * @param timeMillis run duration in milliseconds
+     * @param mapName    name of the map (used for average tracking)
+     * @return the final coins awarded (after booster)
      */
-    public int awardCompletionCoins(Player player, long timeMillis) {
-        double timeSeconds = timeMillis / 1000.0;
+    public int awardCompletionCoins(Player player, long timeMillis, String mapName) {
+        // Update the server-wide rolling average for this map
+        long[] stats = mapAverageData.computeIfAbsent(mapName, k -> new long[]{0L, 0L});
+        stats[0] += timeMillis;
+        stats[1]++;
 
-        // Exponential decay: at t=0 → baseMax coins; halves every DECAY_HALF_LIFE seconds.
-        double baseMax = plugin.getConfigManager().getCoinsPerCompletion() * 2.0;
-        double decayFactor = Math.exp(-timeSeconds * Math.log(2.0) / DECAY_HALF_LIFE);
-        double mean = Math.max(1.0, baseMax * decayFactor);
+        double averageMs = resolveAverage(mapName);
+        int base = computeTierCoins(timeMillis, averageMs);
 
-        // ±JITTER variance so repeated runs don't always give the same number
-        double lo = mean * (1.0 - JITTER);
-        double hi = mean * (1.0 + JITTER);
-        int base = (int) Math.round(lo + RANDOM.nextDouble() * (hi - lo));
-        int capped = Math.max(1, Math.min(COMPLETION_BASE_CAP, base));
-
-        // Apply booster multiplier (can exceed the cap — that's the point of boosters)
         double boost = plugin.getBoosterManager().getMultiplier(player);
-        int coins = (int) Math.round(capped * boost);
+        int coins = (int) Math.round(base * boost);
 
         addCoins(player.getUniqueId(), coins);
         return coins;
     }
 
-    /** Reset playtime counters on disconnect so expired sessions don't carry over. */
+    /**
+     * Award a small consolation amount for a failed run (fall/out-of-bounds reset).
+     * Only called when {@code coins-on-failed} is true in config.
+     *
+     * @return the coins awarded, or 0 if not configured
+     */
+    public int awardFailedRunCoins(Player player) {
+        int amount = plugin.getConfigManager().getCoinsOnFailedAmount();
+        if (amount <= 0) return 0;
+        addCoins(player.getUniqueId(), amount);
+        return amount;
+    }
+
+    /** Reset playtime and EXP counters on disconnect. */
     public void resetPlaytime(UUID uuid) {
         elapsedSeconds.remove(uuid);
         targetIntervals.remove(uuid);
+        expElapsedSeconds.remove(uuid);
     }
 
     public void shutdown() {
@@ -118,42 +139,82 @@ public class CoinManager {
         }
         elapsedSeconds.clear();
         targetIntervals.clear();
+        expElapsedSeconds.clear();
     }
 
     // -------------------------------------------------------------------------
-    // Internal helpers
+    // Coin tier logic
     // -------------------------------------------------------------------------
 
     /**
-     * Pick the next drop interval for a player using the configured min/max range.
-     * When min == max the drop is perfectly predictable; a spread adds surprise.
+     * Resolve the server-wide average for a map.
+     * Falls back to the configured default until enough samples accumulate.
      */
+    private double resolveAverage(String mapName) {
+        long[] stats = mapAverageData.get(mapName);
+        int minSamples = plugin.getConfigManager().getCoinsAverageMinSamples();
+        if (stats == null || stats[1] < minSamples) {
+            return plugin.getConfigManager().getCoinsFallbackAverageSeconds() * 1000.0;
+        }
+        return (double) stats[0] / stats[1];
+    }
+
+    /**
+     * Map a performance ratio (player time / server average) onto a coin reward.
+     *
+     * <pre>
+     * ratio &lt; 0.70  → 20 (elite)
+     * 0.70–0.85     → 17–19 (very fast, linear interpolation)
+     * 0.85–1.05     → 10–16 (normal, linear interpolation)
+     * 1.05–1.40     → 5–9  (slow, linear interpolation)
+     * &gt; 1.40       → 1–4  (very slow, linear interpolation, floor at 1)
+     * </pre>
+     */
+    private int computeTierCoins(long timeMs, double averageMs) {
+        double ratio = timeMs / averageMs;
+
+        if (ratio < 0.70) {
+            return 20;
+        } else if (ratio < 0.85) {
+            double t = (ratio - 0.70) / (0.85 - 0.70); // 0→1 across this band
+            return (int) Math.round(19 - t * 2);         // 19 → 17
+        } else if (ratio < 1.05) {
+            double t = (ratio - 0.85) / (1.05 - 0.85);
+            return (int) Math.round(16 - t * 6);          // 16 → 10
+        } else if (ratio < 1.40) {
+            double t = (ratio - 1.05) / (1.40 - 1.05);
+            return (int) Math.round(9 - t * 4);           // 9 → 5
+        } else {
+            double t = Math.min(1.0, (ratio - 1.40) / (1.80 - 1.40));
+            return Math.max(1, (int) Math.round(4 - t * 3)); // 4 → 1
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Playtime task
+    // -------------------------------------------------------------------------
+
     private int pickRandomInterval() {
         int min = plugin.getConfigManager().getCoinsDropIntervalMin();
         int max = plugin.getConfigManager().getCoinsDropIntervalMax();
         if (min >= max) return Math.max(1, min);
-        return min + RANDOM.nextInt(max - min + 1);
+        // Simple deterministic spread — no randomness needed here since the
+        // interval is internal and doesn't affect balance meaningfully
+        return min + (int) ((System.currentTimeMillis() % (max - min + 1)));
     }
 
-    /**
-     * Coins for a playtime drop that fired after {@code intervalSeconds}.
-     *
-     * <p>Scaled proportionally to the actual interval so the long-run hourly
-     * average converges to {@code coins-per-hour} regardless of window size.
-     * A ±{@value #JITTER} jitter is applied on top.</p>
-     */
     private int computeDropAmount(int intervalSeconds) {
         double coinsPerHour = plugin.getConfigManager().getCoinsPerHour();
         if (coinsPerHour <= 0) return 0;
-        double base   = coinsPerHour * intervalSeconds / 3600.0;
-        double jitter = 1.0 - JITTER + RANDOM.nextDouble() * JITTER * 2.0;
-        return Math.max(1, (int) Math.round(base * jitter));
+        return Math.max(1, (int) Math.round(coinsPerHour * intervalSeconds / 3600.0));
     }
 
     /**
-     * Per-second ticker that accumulates playtime and fires a coin drop once the
-     * player's random target interval elapses.  Only ticks players who have an
-     * active gameplay session.
+     * Per-second ticker.  Handles both the playtime coin drop and the hourly
+     * XP dispatch (via console {@code /adminexp give}).
+     *
+     * <p>Only ticks players who have an active gameplay session so AFK players
+     * parked in the lobby do not accumulate rewards.</p>
      */
     private void startPlaytimeTask() {
         if (plugin.getConfigManager().getCoinsPerHour() <= 0) return;
@@ -165,14 +226,16 @@ public class CoinManager {
                     if (plugin.getGameplayManager() == null) continue;
                     if (plugin.getGameplayManager().getSession(player.getUniqueId()) == null) continue;
 
-                    UUID uuid    = player.getUniqueId();
-                    int elapsed  = elapsedSeconds.getOrDefault(uuid, 0) + 1;
-                    int target   = targetIntervals.computeIfAbsent(uuid, k -> pickRandomInterval());
+                    UUID uuid = player.getUniqueId();
+
+                    // --- Coin drop ---
+                    int elapsed = elapsedSeconds.getOrDefault(uuid, 0) + 1;
+                    int target  = targetIntervals.computeIfAbsent(uuid, k -> pickRandomInterval());
 
                     if (elapsed >= target) {
-                        int base   = computeDropAmount(target);
+                        int base  = computeDropAmount(target);
                         double mult = plugin.getBoosterManager().getMultiplier(player);
-                        int coins  = (int) Math.round(base * mult);
+                        int coins = (int) Math.round(base * mult);
 
                         addCoins(uuid, coins);
                         elapsedSeconds.put(uuid, 0);
@@ -183,8 +246,7 @@ public class CoinManager {
                             msg = "%prefix%&a+%coins% coins &7(playtime reward).";
                         }
                         if (mult > 1.0) {
-                            // Show the multiplier to reinforce that the booster is working
-                            msg = msg + " &6[" + formatMultiplier(mult) + " booster]";
+                            msg = msg + " &6[" + formatMult(mult) + " booster]";
                         }
                         msg = msg.replace("%coins%", String.valueOf(coins))
                                  .replace("%prefix%", plugin.getConfigManager().getPrefix());
@@ -192,13 +254,28 @@ public class CoinManager {
                     } else {
                         elapsedSeconds.put(uuid, elapsed);
                     }
+
+                    // --- Hourly XP dispatch (delegates to external /adminexp plugin) ---
+                    int expElapsed = expElapsedSeconds.getOrDefault(uuid, 0) + 1;
+                    if (expElapsed >= 3600) {
+                        expElapsedSeconds.put(uuid, 0);
+                        final String name = player.getName();
+                        // Run on next tick so we're not blocking the scheduler body
+                        Bukkit.getScheduler().runTask(plugin, () ->
+                            Bukkit.dispatchCommand(
+                                Bukkit.getConsoleSender(),
+                                "adminexp give " + name + " 10 Fastbuilder"
+                            )
+                        );
+                    } else {
+                        expElapsedSeconds.put(uuid, expElapsed);
+                    }
                 }
             }
         }.runTaskTimer(plugin, 20L, 20L).getTaskId();
     }
 
-    /** Format a multiplier like 1.5 → "1.5x", 2.0 → "2x". */
-    private static String formatMultiplier(double mult) {
+    private static String formatMult(double mult) {
         if (mult == Math.floor(mult)) return (int) mult + "x";
         return String.format("%.1fx", mult);
     }

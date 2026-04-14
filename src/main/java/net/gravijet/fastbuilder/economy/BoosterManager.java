@@ -7,13 +7,14 @@ import org.bukkit.entity.Player;
 import java.util.UUID;
 
 /**
- * Tracks coin boosters — permanent (permission-based) and
- * temporary (purchased in the shop or granted via command).
+ * Manages coin boosters — permanent (permission-based) and temporary (purchased/granted).
  *
- * Temporary boosters are stored in PlayerData so they survive restarts.
- * Permanent boosters are read live from the player's permission set.
+ * <p><b>Active booster rule:</b> a player may only have one active temporary booster at a
+ * time.  Activating another while one is running is blocked; the player must wait for the
+ * current booster to expire before activating a new one.</p>
  *
- * Multiplier resolution: the highest active value wins.
+ * <p><b>Multiplier resolution:</b> at award time the higher of the permanent permission
+ * multiplier and the active temporary multiplier is used.</p>
  */
 public class BoosterManager {
 
@@ -27,9 +28,14 @@ public class BoosterManager {
         this.plugin = plugin;
     }
 
+    // -------------------------------------------------------------------------
+    // Multiplier resolution
+    // -------------------------------------------------------------------------
+
     /**
-     * Returns the active coin multiplier for a player.
-     * Takes the maximum of their permanent (permission) and temporary (timed) booster.
+     * Returns the effective coin multiplier for a player.
+     * Takes the higher of their permanent (permission) and temporary (timed) booster.
+     * Always at least 1.0.
      */
     public double getMultiplier(Player player) {
         double perm = getPermanentMultiplier(player);
@@ -37,49 +43,105 @@ public class BoosterManager {
         return Math.max(1.0, Math.max(perm, temp));
     }
 
+    // -------------------------------------------------------------------------
+    // Temporary booster activation
+    // -------------------------------------------------------------------------
+
     /**
-     * Activate a temporary booster for a player.
-     * If the player already has an active booster of the same tier, the new
-     * duration stacks on top.  A stronger booster always replaces a weaker one.
+     * Attempt to activate a booster from the player's inventory.
+     * Fails silently if the player already has an active booster — callers should
+     * check {@link #canActivate(UUID)} first and show the appropriate message.
      *
-     * @param uuid       target player UUID
-     * @param multiplier coin multiplier (e.g. 1.5, 2.0, 3.0)
-     * @param durationMs duration in milliseconds
+     * @return true if the booster was successfully activated
      */
-    public void activateBooster(UUID uuid, double multiplier, long durationMs) {
+    public boolean activateBooster(Player player, String typeId) {
+        UUID uuid = player.getUniqueId();
+
+        if (hasActiveTemporaryBooster(uuid)) return false;
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data == null) return false;
+
+        BoosterType type = plugin.getConfigManager().getBoosterType(typeId);
+        if (type == null) return false;
+
+        if (!data.consumeBooster(typeId)) return false;
+
+        long durationMs = (long) type.durationMinutes * 60_000L;
+        data.setBoosterExpiry(System.currentTimeMillis() + durationMs);
+        data.setBoosterMultiplier(type.multiplier);
+
+        plugin.getPlayerManager().savePlayerData(uuid);
+        return true;
+    }
+
+    /**
+     * Whether the player currently has no active temporary booster and may activate one.
+     */
+    public boolean canActivate(UUID uuid) {
+        return !hasActiveTemporaryBooster(uuid);
+    }
+
+    /** True if the player has a temporary booster that has not yet expired. */
+    public boolean hasActiveTemporaryBooster(UUID uuid) {
+        PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data == null) return false;
+        return data.getBoosterExpiry() > System.currentTimeMillis();
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin inventory management
+    // -------------------------------------------------------------------------
+
+    /**
+     * Add boosters directly to a player's inventory without charging coins.
+     * Safe to call even when the player has an active booster (the new items just sit in inventory).
+     */
+    public void giveBooster(UUID uuid, String typeId, int amount) {
         PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
         if (data == null) return;
-
-        long now           = System.currentTimeMillis();
-        long currentExpiry = data.getBoosterExpiry();
-        double currentMult = data.getBoosterMultiplier();
-        boolean hasActive  = currentExpiry > now;
-
-        if (hasActive && Math.abs(currentMult - multiplier) < 0.01) {
-            // Same tier — stack the duration
-            data.setBoosterExpiry(currentExpiry + durationMs);
-        } else if (hasActive && currentMult > multiplier) {
-            // Existing booster is stronger — only extend it slightly as a courtesy
-            data.setBoosterExpiry(currentExpiry + durationMs);
-        } else {
-            // New booster is stronger, or nothing active
-            data.setBoosterExpiry(now + durationMs);
-            data.setBoosterMultiplier(multiplier);
-        }
-
+        data.addBooster(typeId, amount);
         plugin.getPlayerManager().savePlayerData(uuid);
     }
 
-    /** Remaining milliseconds on the player's temporary booster, or 0 if none. */
+    /**
+     * Remove boosters from the player's inventory (admin correction).
+     *
+     * @return how many were actually removed (may be less than {@code amount} if not enough owned)
+     */
+    public int takeBooster(UUID uuid, String typeId, int amount) {
+        PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data == null) return 0;
+        int owned = data.getBoosterCount(typeId);
+        int removing = Math.min(owned, amount);
+        for (int i = 0; i < removing; i++) data.consumeBooster(typeId);
+        if (removing > 0) plugin.getPlayerManager().savePlayerData(uuid);
+        return removing;
+    }
+
+    /**
+     * Forcibly clear the player's active temporary booster immediately.
+     */
+    public void clearActiveBooster(UUID uuid) {
+        PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data == null) return;
+        data.setBoosterExpiry(0);
+        data.setBoosterMultiplier(1.0);
+        plugin.getPlayerManager().savePlayerData(uuid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Remaining time helpers
+    // -------------------------------------------------------------------------
+
+    /** Remaining milliseconds on the active temporary booster, or 0 if none. */
     public long getRemainingMs(UUID uuid) {
         PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
         if (data == null) return 0;
         return Math.max(0, data.getBoosterExpiry() - System.currentTimeMillis());
     }
 
-    /**
-     * Human-readable remaining time string, e.g. "4m 32s" or "Inactive".
-     */
+    /** Human-readable remaining time, e.g. "4m 32s" or "Inactive". */
     public String formatRemaining(UUID uuid) {
         long ms = getRemainingMs(uuid);
         if (ms <= 0) return "Inactive";
@@ -92,11 +154,13 @@ public class BoosterManager {
         return secs + "s";
     }
 
-    /** Whether the player currently has any active booster (perm or temp). */
+    /** Whether the player currently has any multiplier active (perm or temp). */
     public boolean hasActiveBooster(Player player) {
         return getMultiplier(player) > 1.0;
     }
 
+    // -------------------------------------------------------------------------
+    // Internal helpers
     // -------------------------------------------------------------------------
 
     private double getPermanentMultiplier(Player player) {

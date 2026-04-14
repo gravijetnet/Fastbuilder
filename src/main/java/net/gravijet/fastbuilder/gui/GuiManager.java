@@ -1,6 +1,7 @@
 package net.gravijet.fastbuilder.gui;
 
 import net.gravijet.fastbuilder.FastBuilder;
+import net.gravijet.fastbuilder.economy.BoosterType;
 import net.gravijet.fastbuilder.map.IslandInstance;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.player.PlayerData;
@@ -49,11 +50,14 @@ public class GuiManager implements Listener {
     private static final String REPLAYS_PREFIX = "Replays";
     private static final String SHOP_PREFIX = "Shop";
     private static final String BOOSTER_SHOP_PREFIX = "Booster Shop";
+    private static final String BOOSTER_INVENTORY_PREFIX = "Booster Inventory";
     private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Shop";
     private static final String ANIMATION_SELECTOR_PREFIX = "Reset Animations";
     private static final String DEATH_SOUND_SELECTOR_PREFIX = "Death Sounds";
     private static final String STATS_PREFIX = "Stats";
     private static final String DESIGN_SELECTOR_PREFIX = "Island Designs";
+    private static final String LEADERBOARD_PREFIX = "Leaderboard";
+    private static final String CUSTOM_LENGTH_MENU_PREFIX = "Custom Length";
 
     // Track which block selector page a player is on
     private final Map<UUID, Integer> blockSelectorPages = new HashMap<>();
@@ -61,6 +65,9 @@ public class GuiManager implements Listener {
     // Track pickaxe/animation selector pages
     private final Map<UUID, Integer> pickaxePages = new HashMap<>();
     private final Map<UUID, Integer> animationPages = new HashMap<>();
+
+    // Track island selector pages
+    private final Map<UUID, Integer> islandPages = new HashMap<>();
 
     // Track which replay page a player is on
     private final Map<UUID, Integer> replayPages = new HashMap<>();
@@ -82,39 +89,103 @@ public class GuiManager implements Listener {
     // ===== Island Selector =====
 
     public void openIslandSelector(Player player, MapData map) {
+        openIslandSelectorPage(player, map, 1);
+    }
+
+    public void openIslandSelectorPage(Player player, MapData map, int page) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
-        String title = ColorUtil.translate(guis.getString("island-selector", "Island Selector"));
-        int size = Math.min(54, ((map.getScale() / 9) + 1) * 9);
-        if (size < 9) size = 9;
+        FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
+
+        String titleTemplate = ColorUtil.translate(guis.getString("island-selector", "Island Selector"));
+        List<IslandInstance> islands = plugin.getMapManager().getIslands(map.getName());
+        int pageSize = guis.getInt("island-selector-gui.page-size", 45);
+        // Ensure pageSize is valid (multiple of 9, 9–45)
+        pageSize = Math.max(9, Math.min(45, (pageSize / 9) * 9));
+        int totalPages = islands.isEmpty() ? 1 : (int) Math.ceil(islands.size() / (double) pageSize);
+        page = Math.max(1, Math.min(page, totalPages));
+
+        // Auto-size: if single page, fit exactly to island count + 1 nav row; multi-page = 54
+        int contentOnPage = Math.min(pageSize, Math.max(0, islands.size() - (page - 1) * pageSize));
+        int size;
+        if (totalPages > 1) {
+            size = 54;
+        } else {
+            // Round up to the next multiple of 9, then add 1 nav row
+            int contentRows = (int) Math.ceil(Math.max(1, contentOnPage) / 9.0);
+            size = (contentRows + 1) * 9;
+            if (size > 54) size = 54;
+            if (size < 18) size = 18;
+        }
+
+        String title = titleTemplate;
+        if (totalPages > 1) {
+            title = ColorUtil.translate(guis.getString("island-selector", "Island Selector")
+                    + " &8- &7" + page + "/" + totalPages);
+        }
 
         Inventory inv = Bukkit.createInventory(null, size, title);
 
-        List<IslandInstance> islands = plugin.getMapManager().getIslands(map.getName());
-        for (int i = 0; i < islands.size() && i < size; i++) {
+        // Filler for nav row
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = size - 9; i < size; i++) inv.setItem(i, filler);
+
+        // Island items
+        int startIndex = (page - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, islands.size());
+        for (int i = startIndex; i < endIndex; i++) {
+            int slot = i - startIndex;
+            if (slot >= size - 9) break; // do not bleed into nav row
             IslandInstance island = islands.get(i);
             ItemStack item;
+            int displayNumber = i + 1;
 
             if (island.isOccupied()) {
-                // Player skull with actual skin texture
                 item = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                 SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
                 skullMeta.setOwner(island.getOccupantName());
-                skullMeta.setDisplayName(ColorUtil.translate("&c#" + (i + 1) + " &7- &f" + island.getOccupantName()));
+                skullMeta.setDisplayName(ColorUtil.translate("&c#" + displayNumber + " &7- &f" + island.getOccupantName()));
                 java.util.List<String> lore = new java.util.ArrayList<>();
                 lore.add(ColorUtil.translate("&cOccupied"));
                 skullMeta.setLore(lore);
                 item.setItemMeta(skullMeta);
             } else {
-                // Numbered head for empty island
                 item = new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
-                        .name("&a#" + (i + 1))
+                        .name("&a#" + displayNumber)
                         .lore("&aClick to join")
                         .build();
             }
-
-            inv.setItem(i, item);
+            inv.setItem(slot, item);
         }
 
+        // Back button — center of nav row
+        String backMat  = itemsConfig.getString("island-selector.back-button.material", "BARRIER:0");
+        String backName = itemsConfig.getString("island-selector.back-button.name", "&cClose");
+        inv.setItem(size - 5, ItemBuilder.fromString(backMat).name(backName).build());
+
+        // Pagination arrows — only rendered when more than one page
+        if (totalPages > 1) {
+            String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
+            String prevName = itemsConfig.getString("change-page.previous-page.name", "&c« Previous Page");
+            String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
+            String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page »");
+            String disPrevMat  = itemsConfig.getString("change-page.no-previous-page.material", "ARROW:0");
+            String disPrevName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+            String disNextMat  = itemsConfig.getString("change-page.no-next-page.material", "ARROW:0");
+            String disNextName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+
+            if (page > 1) {
+                inv.setItem(size - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
+            } else {
+                inv.setItem(size - 9, ItemBuilder.fromString(disPrevMat).name(disPrevName).build());
+            }
+            if (page < totalPages) {
+                inv.setItem(size - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
+            } else {
+                inv.setItem(size - 1, ItemBuilder.fromString(disNextMat).name(disNextName).build());
+            }
+        }
+
+        islandPages.put(player.getUniqueId(), page);
         player.openInventory(inv);
     }
 
@@ -218,7 +289,9 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        String title = ColorUtil.translate(titleTemplate.replace("%page%", String.valueOf(page)));
+        String title = ColorUtil.translate(titleTemplate
+                .replace("%page%", String.valueOf(page))
+                .replace("%max_page%", String.valueOf(maxPage)));
         Inventory inv = Bukkit.createInventory(null, maxSlots, title);
 
         // Fill ALL slots with a gray filler first (no empty gaps)
@@ -255,34 +328,34 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Navigation — bottom row (all three buttons are always rendered)
+        // Navigation — bottom row
         FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
 
-        // Back to Shop — center of bottom row
-        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        // Back to Shop — center of bottom row (always rendered)
+        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
         String backName = itemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
         inv.setItem(maxSlots - 5, ItemBuilder.fromString(backMat).name(backName).build());
 
-        // Previous page — left corner; shows a disabled pane on page 1
-        if (page > 1) {
-            String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
-            String prevName = itemsConfig.getString("change-page.previous-page.name", "&c« Previous Page");
-            inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
-        } else {
-            String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
-            String disName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
-            inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
-        }
-
-        // Next page — right corner; shows a disabled pane on the last page
-        if (page < maxPage) {
-            String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
-            String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page »");
-            inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
-        } else {
-            String disMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
-            String disName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
-            inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
+        // Prev / Next arrows — only rendered when there are multiple pages
+        if (maxPage > 1) {
+            if (page > 1) {
+                String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
+                String prevName = itemsConfig.getString("change-page.previous-page.name", "&c« Previous Page");
+                inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
+            } else {
+                String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "ARROW:0");
+                String disName = itemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
+                inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
+            }
+            if (page < maxPage) {
+                String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
+                String nextName = itemsConfig.getString("change-page.next-page.name", "&aNext Page »");
+                inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
+            } else {
+                String disMat  = itemsConfig.getString("change-page.no-next-page.material", "ARROW:0");
+                String disName = itemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
+                inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
+            }
         }
 
         blockSelectorPages.put(player.getUniqueId(), page);
@@ -351,6 +424,82 @@ public class GuiManager implements Listener {
                 } catch (NumberFormatException ignored) {}
             }
         }
+
+        player.openInventory(inv);
+    }
+
+    // ===== Custom Length Sub-Menu =====
+
+    /**
+     * Opens the dedicated Custom Length menu for the player.
+     * Slot 11 = X control (distance), slot 13 = Y control (height),
+     * slot 15 = reset, slot 22 = back.
+     */
+    public void openCustomLengthMenu(Player player) {
+        net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        if (run == null) return;
+
+        net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(run.getMapName());
+        if (map == null || !map.hasCustomLength()) return;
+
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+
+        // Resolve current X (distance)
+        int currentX = pData != null ? pData.getCustomLength(run.getMapName()) : 0;
+        if (currentX <= 0) currentX = map.getBaseCustomLength() > 0
+                ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+        int minX = map.getEffectiveMinCustomLength();
+        int maxX = map.getEffectiveMaxCustomLength();
+
+        // Resolve current Y (height offset)
+        int currentY = pData != null ? pData.getCustomLengthY(run.getMapName()) : 0;
+        int minY = plugin.getConfigManager().getCustomLengthMinY();
+        int maxY = plugin.getConfigManager().getCustomLengthMaxY();
+
+        String title = ColorUtil.translate("&cCustom Length &7- &f" + map.getName());
+        Inventory inv = Bukkit.createInventory(null, 27, title);
+
+        // Fill all slots with gray glass pane
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < 27; i++) inv.setItem(i, filler);
+
+        // Slot 11 — X-axis (distance) control
+        inv.setItem(11, new ItemBuilder(Material.COMPASS)
+                .name("&eX-Axis &7(Distance)")
+                .lore("&7Current: &f" + currentX + " &7blocks",
+                        "&7Range: &f" + minX + " &7— &f" + maxX,
+                        "",
+                        "&eLeft-click &7» &f-1",
+                        "&eShift-Left &7» &f-10",
+                        "&eRight-click &7» &f+1",
+                        "&eShift-Right &7» &f+10")
+                .build());
+
+        // Slot 13 — Y-axis (height) control
+        inv.setItem(13, new ItemBuilder(Material.FEATHER)
+                .name("&eY-Axis &7(Height)")
+                .lore("&7Current offset: &f" + (currentY >= 0 ? "+" : "") + currentY,
+                        "&7Range: &f" + minY + " &7— &f" + maxY,
+                        "",
+                        "&eLeft-click &7» &f-1",
+                        "&eShift-Left &7» &f-10",
+                        "&eRight-click &7» &f+1",
+                        "&eShift-Right &7» &f+10")
+                .build());
+
+        // Slot 15 — Reset both axes to defaults
+        inv.setItem(15, new ItemBuilder(Material.BARRIER)
+                .name("&cReset to Default")
+                .lore("&7Resets distance and height",
+                        "&7back to the map defaults.")
+                .build());
+
+        // Slot 22 — Back to Settings
+        inv.setItem(22, new ItemBuilder(Material.BARRIER)
+                .name("&cBack")
+                .lore("&7Return to Settings")
+                .build());
 
         player.openInventory(inv);
     }
@@ -536,18 +685,18 @@ public class GuiManager implements Listener {
 
     // ===== Booster Shop =====
 
+    /**
+     * Opens the Booster Shop — displays all available booster types as coloured potion
+     * items.  Clicking a booster purchases one and places it in the player's Booster
+     * Inventory; it is NOT auto-activated.
+     */
     public void openBoosterShop(Player player) {
-        List<Map<String, Object>> entries =
-                plugin.getConfigManager().getBoosterShopEntries();
+        List<BoosterType> types = plugin.getConfigManager().getBoosterTypes();
 
-        // Rows: header row + content rows.  Always at least 27 slots.
-        int rows = Math.max(3, (int) Math.ceil((entries.size() + 9) / 9.0) + 1);
-        rows = Math.min(rows, 6);
-        int size = rows * 9;
-
+        // Always use a 54-slot (6-row) GUI so there's room for many types.
+        int size = 54;
         Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_SHOP_PREFIX));
 
-        // Filler
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
         for (int i = 0; i < size; i++) inv.setItem(i, filler);
 
@@ -555,48 +704,60 @@ public class GuiManager implements Listener {
         long now = System.currentTimeMillis();
         boolean hasActive = data != null && data.getBoosterExpiry() > now;
         double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
-        String remaining  = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
 
-        // Active booster status in slot 4 (top-center)
+        // Slot 4 — active booster status
         if (hasActive) {
-            inv.setItem(4, new ItemBuilder(Material.BLAZE_POWDER)
-                    .name("&6Active Booster: &a" + formatMult(activeMult))
-                    .lore("&7Remaining: &e" + remaining, "", "&7All coin rewards are multiplied.")
+            String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
+            inv.setItem(4, new ItemBuilder(Material.POTION, (byte) 0)
+                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
+                    .lore("&7Remaining: &e" + remaining,
+                          "",
+                          "&7All coin rewards are multiplied.",
+                          "&8Go to your &7Booster Inventory &8to activate more.")
                     .build());
         } else {
             inv.setItem(4, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
                     .name("&cNo active booster")
-                    .lore("&7Buy one below to start earning more coins!")
+                    .lore("&7Purchase a booster below, then activate it",
+                          "&7from your &fBooster Inventory&7.")
                     .build());
         }
 
-        // Booster items — start from slot 9 (second row)
+        // Booster type items — rows 2–5 (slots 9–44, up to 36 types)
         int coins = data != null ? data.getCoins() : 0;
-        for (int i = 0; i < entries.size() && i < size - 18; i++) {
-            Map<String, Object> entry = entries.get(i);
-            double mult     = toDouble(entry.get("multiplier"), 1.5);
-            int    durMins  = toInt(entry.get("duration-minutes"), 30);
-            int    price    = toInt(entry.get("price"), 200);
+        for (int i = 0; i < types.size() && i < 36; i++) {
+            BoosterType type = types.get(i);
+            boolean canAfford = coins >= type.price;
+            int owned = data != null ? data.getBoosterCount(type.id) : 0;
 
-            boolean canAfford = coins >= price;
-            String status = canAfford ? "&aClick to buy" : "&cNot enough coins &7(&f" + price + " needed&7)";
+            String affordLine = canAfford
+                    ? "&aClick to purchase &7(&e" + type.price + " coins&7)"
+                    : "&cNeed &f" + type.price + " coins &c(have &f" + coins + "&c)";
+            String ownedLine = owned > 0 ? "&7Owned: &f" + owned : "&7You own none";
 
-            ItemStack item = new ItemBuilder(Material.BLAZE_POWDER)
-                    .name("&6" + formatMult(mult) + " Booster &7(" + durMins + " min)")
-                    .lore(
-                            "&7Multiplies all coin rewards by &6" + formatMult(mult) + "&7.",
-                            "&7Duration: &e" + durMins + " minutes",
-                            "&7Cost: &c" + price + " coins",
-                            "",
-                            status
-                    )
-                    .build();
-
-            inv.setItem(9 + i, item);
+            inv.setItem(9 + i, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data(type.potionData)
+                    .name(type.displayName)
+                    .lore("&7" + type.description,
+                          "",
+                          "&7Multiplier: &6" + type.formatMultiplier(),
+                          "&7Duration:   &e" + type.durationMinutes + " minutes",
+                          "&7Price:      &c" + type.price + " coins",
+                          ownedLine,
+                          "",
+                          affordLine)
+                    .build());
         }
 
-        // Back button in bottom-center
-        inv.setItem(size - 5, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // Bottom row navigation
+        inv.setItem(45, new ItemBuilder(Material.CHEST)
+                .name("&6My Booster Inventory")
+                .lore("&7View and activate boosters you own.")
+                .build());
+        FileConfiguration boosterShopItemsConfig = plugin.getConfigManager().getItemsConfig();
+        String bsBackMat  = boosterShopItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
+        String bsBackName = boosterShopItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(49, ItemBuilder.fromString(bsBackMat).name(bsBackName).build());
 
         player.openInventory(inv);
     }
@@ -606,51 +767,192 @@ public class GuiManager implements Listener {
         int slot = event.getSlot();
         Inventory inv = event.getInventory();
         int size = inv.getSize();
+        String prefix = plugin.getConfigManager().getPrefix();
+
+        // My Inventory button
+        if (slot == 45) {
+            player.closeInventory();
+            openBoosterInventory(player);
+            return;
+        }
 
         // Back button
-        if (slot == size - 5) {
+        if (slot == 49) {
             player.closeInventory();
             openShop(player);
             return;
         }
 
-        // Content starts at slot 9; slot 4 is status — ignore
-        if (slot < 9 || slot >= size - 9) return;
+        // Content rows: slots 9-44
+        if (slot < 9 || slot > 44) return;
 
-        int entryIndex = slot - 9;
-        List<Map<String, Object>> entries =
-                plugin.getConfigManager().getBoosterShopEntries();
+        int typeIndex = slot - 9;
+        List<BoosterType> types = plugin.getConfigManager().getBoosterTypes();
+        if (typeIndex < 0 || typeIndex >= types.size()) return;
 
-        if (entryIndex < 0 || entryIndex >= entries.size()) return;
-
-        Map<String, Object> entry = entries.get(entryIndex);
-        double mult    = toDouble(entry.get("multiplier"), 1.5);
-        int durMins    = toInt(entry.get("duration-minutes"), 30);
-        int price      = toInt(entry.get("price"), 200);
-
-        String prefix  = plugin.getConfigManager().getPrefix();
+        BoosterType type = types.get(typeIndex);
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        if (data.getCoins() < price) {
+        if (data.getCoins() < type.price) {
             player.sendMessage(ColorUtil.translate(prefix
-                    + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                    + "&cNot enough coins! You need &f" + type.price + " &ccoins."));
             return;
         }
 
-        data.removeCoins(price);
-        long durationMs = (long) durMins * 60 * 1000;
-        plugin.getBoosterManager().activateBooster(player.getUniqueId(), mult, durationMs);
+        data.removeCoins(type.price);
+        data.addBooster(type.id, 1);
+        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
 
         player.sendMessage(ColorUtil.translate(prefix
-                + "&6" + formatMult(mult) + " Coin Booster &factivated for &e" + durMins + " minutes&f!"));
+                + "&aPurchased &f1x " + type.displayName
+                + " &a— activate it from your &fBooster Inventory&a!"));
         player.closeInventory();
         openBoosterShop(player);
+    }
+
+    // ===== Booster Inventory =====
+
+    /**
+     * Opens the Booster Inventory — shows all boosters the player owns and lets them
+     * activate one.  Activating while a booster is already running is blocked here.
+     */
+    public void openBoosterInventory(Player player) {
+        int size = 54;
+        Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_INVENTORY_PREFIX));
+
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < size; i++) inv.setItem(i, filler);
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        long now = System.currentTimeMillis();
+        boolean hasActive = data != null && data.getBoosterExpiry() > now;
+        double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
+
+        // Slot 4 — active booster status
+        if (hasActive) {
+            String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
+            inv.setItem(4, new ItemBuilder(Material.POTION, (byte) 0)
+                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
+                    .lore("&7Remaining: &e" + remaining,
+                          "",
+                          "&cYou must wait for this booster to expire",
+                          "&cbefore activating another.")
+                    .build());
+        } else {
+            inv.setItem(4, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 10)
+                    .name("&aNo active booster")
+                    .lore("&7Click a booster below to activate it.")
+                    .build());
+        }
+
+        // Slots 9-44: one slot per booster type that the player owns at least one of
+        List<BoosterType> allTypes = plugin.getConfigManager().getBoosterTypes();
+        int slot = 9;
+        for (BoosterType type : allTypes) {
+            if (slot > 44) break;
+            int owned = data != null ? data.getBoosterCount(type.id) : 0;
+            if (owned <= 0) continue;
+
+            String actionLine = hasActive
+                    ? "&cA booster is already active — wait for it to expire."
+                    : "&aClick to activate";
+
+            inv.setItem(slot, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data(type.potionData)
+                    .name(type.displayName + " &8x" + owned)
+                    .lore("&7" + type.description,
+                          "",
+                          "&7Multiplier: &6" + type.formatMultiplier(),
+                          "&7Duration:   &e" + type.durationMinutes + " minutes",
+                          "&7Owned:      &f" + owned,
+                          "",
+                          actionLine)
+                    .build());
+            slot++;
+        }
+
+        // Bottom navigation
+        inv.setItem(45, new ItemBuilder(Material.NETHER_STAR)
+                .name("&6Booster Shop")
+                .lore("&7Buy more boosters.")
+                .build());
+        FileConfiguration boosterInvItemsConfig = plugin.getConfigManager().getItemsConfig();
+        String biBackMat  = boosterInvItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
+        String biBackName = boosterInvItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(49, ItemBuilder.fromString(biBackMat).name(biBackName).build());
+
+        player.openInventory(inv);
+    }
+
+    private void handleBoosterInventoryClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        int slot = event.getSlot();
+        String prefix = plugin.getConfigManager().getPrefix();
+
+        // Booster Shop button
+        if (slot == 45) {
+            player.closeInventory();
+            openBoosterShop(player);
+            return;
+        }
+
+        // Back button
+        if (slot == 49) {
+            player.closeInventory();
+            openShop(player);
+            return;
+        }
+
+        // Content rows: slots 9-44
+        if (slot < 9 || slot > 44) return;
+
+        // Rebuild the same ordered list so click index maps to the same type as render
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        List<BoosterType> allTypes = plugin.getConfigManager().getBoosterTypes();
+        List<BoosterType> ownedTypes = new ArrayList<>();
+        for (BoosterType type : allTypes) {
+            if (data.getBoosterCount(type.id) > 0) ownedTypes.add(type);
+        }
+
+        int index = slot - 9;
+        if (index < 0 || index >= ownedTypes.size()) return;
+
+        BoosterType type = ownedTypes.get(index);
+
+        // Block stacking: can't activate while one is already running
+        if (plugin.getBoosterManager().hasActiveTemporaryBooster(player.getUniqueId())) {
+            String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
+            player.sendMessage(ColorUtil.translate(prefix
+                    + "&cYou already have an active booster! Wait &e" + remaining + " &cfor it to expire."));
+            return;
+        }
+
+        boolean activated = plugin.getBoosterManager().activateBooster(player, type.id);
+        if (!activated) {
+            player.sendMessage(ColorUtil.translate(prefix + "&cFailed to activate booster."));
+            return;
+        }
+
+        player.sendMessage(ColorUtil.translate(prefix
+                + "&6" + type.formatMultiplier() + " Coin Booster &factivated for &e"
+                + type.durationMinutes + " minutes&f!"));
+        player.closeInventory();
+        openBoosterInventory(player);
     }
 
     private static String formatMult(double mult) {
         if (mult == Math.floor(mult)) return (int) mult + "x";
         return String.format("%.1fx", mult);
+    }
+
+    /** Total number of booster items the player owns across all types. */
+    private static int countOwnedBoosters(PlayerData data) {
+        int total = 0;
+        for (int qty : data.getBoosterInventory().values()) total += qty;
+        return total;
     }
 
     private static double toDouble(Object val, double def) {
@@ -668,9 +970,9 @@ public class GuiManager implements Listener {
     public void openShop(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         String title = ColorUtil.translate(guis.getString("shop.name", "Shop"));
-        int size = guis.getInt("shop.max-slots", 27);
-        if (size < 27) size = 27;
-        if (size > 27) size = 27; // enforce 3×9
+        int rawSize = guis.getInt("shop.max-slots", 45);
+        // Snap to valid inventory size (9, 18, 27, 36, 45, 54)
+        int size = Math.max(9, Math.min(54, ((rawSize + 8) / 9) * 9));
         Inventory inv = Bukkit.createInventory(null, size, title);
 
         if (plugin.getConfigManager().isShopCategoryVisible(player, "blocks")) {
@@ -681,14 +983,19 @@ public class GuiManager implements Listener {
         if (plugin.getConfigManager().isShopCategoryVisible(player, "boosters")) {
             PlayerData bData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             boolean hasBooster = bData != null && bData.getBoosterExpiry() > System.currentTimeMillis();
+            boolean hasOwned   = bData != null && bData.hasAnyBoosters();
             String boosterName = hasBooster ? "&6Boosters &a(Active)" : "&6Boosters";
             String[] boosterLore = hasBooster
                     ? new String[]{"&7Multiplies all coin rewards",
                                    "&7Active: &a" + plugin.getBoosterManager().formatRemaining(player.getUniqueId()),
-                                   "", "&aClick to browse"}
-                    : new String[]{"&7Multiplies all coin rewards", "&7No active booster", "", "&aClick to browse"};
+                                   hasOwned ? "&7Owned: &f" + countOwnedBoosters(bData) + " booster(s)" : "",
+                                   "", "&aClick to open Booster Shop"}
+                    : new String[]{"&7Multiplies all coin rewards",
+                                   "&7No active booster",
+                                   hasOwned ? "&7Owned: &f" + countOwnedBoosters(bData) + " booster(s)" : "",
+                                   "", "&aClick to open Booster Shop"};
             inv.setItem(guis.getInt("shop.boosters-slot", 10),
-                    buildShopCategoryItem(guis, "shop.items.boosters", "BLAZE_POWDER:0",
+                    buildShopCategoryItem(guis, "shop.items.boosters", "POTION:0",
                             boosterName, boosterLore));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "pickaxes")) {
@@ -803,8 +1110,11 @@ public class GuiManager implements Listener {
             inv.setItem(i, item);
         }
 
-        // Spec: "Back to Shop" button in the bottom center slot (slot 22 = center of row 3 in 27-slot)
-        inv.setItem(22, new ItemBuilder(Material.ARROW).name("&cBack to Shop").build());
+        // "Back to Shop" button in the bottom center slot (slot 22 = center of row 3 in 27-slot)
+        FileConfiguration designItemsConfig = plugin.getConfigManager().getItemsConfig();
+        String designBackMat  = designItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
+        String designBackName = designItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(22, ItemBuilder.fromString(designBackMat).name(designBackName).build());
         player.openInventory(inv);
     }
 
@@ -901,28 +1211,30 @@ public class GuiManager implements Listener {
         // Navigation — bottom row (same structure as block selector)
         FileConfiguration itemsConfig = plugin.getConfigManager().getItemsConfig();
 
-        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String backMat  = itemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
         String backName = itemsConfig.getString("change-page.back-to-shop.name",     "&cBack to Shop");
         inv.setItem(maxSlots - 5, ItemBuilder.fromString(backMat).name(backName).build());
 
-        if (page > 1) {
-            String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
-            String prevName = itemsConfig.getString("change-page.previous-page.name",     "&c« Previous Page");
-            inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
-        } else {
-            String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
-            String disName = itemsConfig.getString("change-page.no-previous-page.name",     "&8« No Previous Page");
-            inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
-        }
-
-        if (page < maxPage) {
-            String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
-            String nextName = itemsConfig.getString("change-page.next-page.name",     "&aNext Page »");
-            inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
-        } else {
-            String disMat  = itemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
-            String disName = itemsConfig.getString("change-page.no-next-page.name",     "&8No Next Page »");
-            inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
+        // Prev / Next arrows — only shown when there are multiple pages
+        if (maxPage > 1) {
+            if (page > 1) {
+                String prevMat  = itemsConfig.getString("change-page.previous-page.material", "ARROW:0");
+                String prevName = itemsConfig.getString("change-page.previous-page.name",     "&c« Previous Page");
+                inv.setItem(maxSlots - 9, ItemBuilder.fromString(prevMat).name(prevName).build());
+            } else {
+                String disMat  = itemsConfig.getString("change-page.no-previous-page.material", "ARROW:0");
+                String disName = itemsConfig.getString("change-page.no-previous-page.name",     "&8« No Previous Page");
+                inv.setItem(maxSlots - 9, ItemBuilder.fromString(disMat).name(disName).build());
+            }
+            if (page < maxPage) {
+                String nextMat  = itemsConfig.getString("change-page.next-page.material", "ARROW:0");
+                String nextName = itemsConfig.getString("change-page.next-page.name",     "&aNext Page »");
+                inv.setItem(maxSlots - 1, ItemBuilder.fromString(nextMat).name(nextName).build());
+            } else {
+                String disMat  = itemsConfig.getString("change-page.no-next-page.material", "ARROW:0");
+                String disName = itemsConfig.getString("change-page.no-next-page.name",     "&8No Next Page »");
+                inv.setItem(maxSlots - 1, ItemBuilder.fromString(disMat).name(disName).build());
+            }
         }
 
         pickaxePages.put(player.getUniqueId(), page);
@@ -974,19 +1286,11 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Navigation — standardized bottom row (always visible, single-page menu)
+        // Navigation — bottom row: Back to Shop only (single-page, no pagination arrows)
         FileConfiguration animItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String animBackMat  = animItemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String animBackMat  = animItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
         String animBackName = animItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
         inv.setItem(maxSlots - 5, ItemBuilder.fromString(animBackMat).name(animBackName).build());
-
-        String animDisPrevMat  = animItemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
-        String animDisPrevName = animItemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
-        inv.setItem(maxSlots - 9, ItemBuilder.fromString(animDisPrevMat).name(animDisPrevName).build());
-
-        String animDisNextMat  = animItemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
-        String animDisNextName = animItemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
-        inv.setItem(maxSlots - 1, ItemBuilder.fromString(animDisNextMat).name(animDisNextName).build());
 
         player.openInventory(inv);
     }
@@ -1039,19 +1343,11 @@ public class GuiManager implements Listener {
             } catch (NumberFormatException ignored) {}
         }
 
-        // Navigation — standardized bottom row (always visible, single-page menu)
+        // Navigation — bottom row: Back to Shop only (single-page, no pagination arrows)
         FileConfiguration soundItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String soundBackMat  = soundItemsConfig.getString("change-page.back-to-shop.material", "ARROW:0");
+        String soundBackMat  = soundItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
         String soundBackName = soundItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
         inv.setItem(maxSlots - 5, ItemBuilder.fromString(soundBackMat).name(soundBackName).build());
-
-        String soundDisPrevMat  = soundItemsConfig.getString("change-page.no-previous-page.material", "STAINED_GLASS_PANE:8");
-        String soundDisPrevName = soundItemsConfig.getString("change-page.no-previous-page.name", "&8« No Previous Page");
-        inv.setItem(maxSlots - 9, ItemBuilder.fromString(soundDisPrevMat).name(soundDisPrevName).build());
-
-        String soundDisNextMat  = soundItemsConfig.getString("change-page.no-next-page.material", "STAINED_GLASS_PANE:8");
-        String soundDisNextName = soundItemsConfig.getString("change-page.no-next-page.name", "&8No Next Page »");
-        inv.setItem(maxSlots - 1, ItemBuilder.fromString(soundDisNextMat).name(soundDisNextName).build());
 
         player.openInventory(inv);
     }
@@ -1150,6 +1446,125 @@ public class GuiManager implements Listener {
         viewer.openInventory(inv);
     }
 
+    // ===== Leaderboard GUI =====
+
+    /** Opens a map-picker GUI so the player can choose which map's leaderboard to view. */
+    public void openLeaderboardMapPicker(Player player) {
+        List<MapData> maps = new ArrayList<>();
+        for (MapData m : plugin.getMapManager().getAllMaps()) {
+            if (m.isEnabled()) maps.add(m);
+        }
+
+        int itemCount = maps.size();
+        int rawSize = itemCount + 9; // items + bottom row
+        int size = Math.max(9, Math.min(54, ((rawSize + 8) / 9) * 9));
+
+        String title = ColorUtil.translate("&c&lLeaderboard");
+        Inventory inv = Bukkit.createInventory(null, size, title);
+
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < size; i++) inv.setItem(i, filler);
+
+        int slot = 0;
+        for (MapData map : maps) {
+            if (slot >= size - 9) break;
+            String iconStr = map.getIcon();
+            ItemBuilder builder = (iconStr != null && !iconStr.isEmpty())
+                    ? ItemBuilder.fromString(iconStr)
+                    : new ItemBuilder(Material.GRASS);
+            ItemStack item = builder
+                    .name("&c" + map.getName())
+                    .lore("&7Click to view leaderboard")
+                    .build();
+            inv.setItem(slot, item);
+            slot++;
+        }
+
+        // Close button — center of bottom row
+        FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+        String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
+        String closeName = itemsCfg.getString("island-selector.back-button.name", "&cClose");
+        ItemStack closeBtn = ItemBuilder.fromString(closeMat).name(closeName).build();
+        inv.setItem(size - 5, closeBtn);
+
+        player.openInventory(inv);
+    }
+
+    /** Fetches the top 10 for {@code mapName} asynchronously, then opens the leaderboard GUI. */
+    public void openLeaderboardGui(Player player, String mapName) {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            List<Map.Entry<String, Long>> top =
+                    plugin.getPlayerManager().getTopPlayerTimesForMap(mapName, 10);
+
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline()) return;
+
+                String title = ColorUtil.translate("&c&lLeaderboard &7- &f" + mapName);
+                Inventory inv = Bukkit.createInventory(null, 54, title);
+
+                ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+                for (int i = 0; i < 54; i++) inv.setItem(i, filler);
+
+                // Slots: row 2 (10-16 = 7), row 3 (19-21 = 3) → 10 total
+                int[] entrySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
+
+                for (int i = 0; i < Math.min(top.size(), entrySlots.length); i++) {
+                    Map.Entry<String, Long> entry = top.get(i);
+                    int pos = i + 1;
+                    String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
+
+                    ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+                    SkullMeta meta = (SkullMeta) skull.getItemMeta();
+                    meta.setOwner(entry.getKey());
+                    meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
+                    List<String> lore = new ArrayList<>();
+                    lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));
+                    meta.setLore(lore);
+                    skull.setItemMeta(meta);
+                    inv.setItem(entrySlots[i], skull);
+                }
+
+                if (top.isEmpty()) {
+                    ItemStack none = new ItemBuilder(Material.BARRIER).name("&7No times recorded yet.").build();
+                    inv.setItem(22, none);
+                }
+
+                // Close button — center of bottom row (slot 49)
+                FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+                String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
+                String closeName = itemsCfg.getString("island-selector.back-button.name", "&cClose");
+                ItemStack closeBtn = ItemBuilder.fromString(closeMat).name(closeName).build();
+                inv.setItem(49, closeBtn);
+
+                player.openInventory(inv);
+            });
+        });
+    }
+
+    private void handleLeaderboardClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        int slot = event.getSlot();
+        int invSize = event.getInventory().getSize();
+        String stripped = ColorUtil.strip(event.getView().getTitle());
+
+        // Close / back button — center of bottom row
+        if (slot == invSize - 5) {
+            player.closeInventory();
+            return;
+        }
+
+        // Map picker: clicking a map icon opens that map's leaderboard
+        if (stripped.equals("Leaderboard")) {
+            ItemStack item = event.getCurrentItem();
+            if (item == null || item.getType() == Material.STAINED_GLASS_PANE
+                    || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+            String mapName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+            if (plugin.getMapManager().getMap(mapName) == null) return;
+            openLeaderboardGui(player, mapName);
+        }
+        // Single-map leaderboard entries are read-only — no action needed
+    }
+
     // =========================================================================
     // Strict inventory lock — prevents ALL unauthorised item movement
     // =========================================================================
@@ -1167,11 +1582,14 @@ public class GuiManager implements Listener {
                 || stripped.startsWith(REPLAYS_PREFIX)
                 || stripped.startsWith(SHOP_PREFIX)
                 || stripped.startsWith(BOOSTER_SHOP_PREFIX)
+                || stripped.startsWith(BOOSTER_INVENTORY_PREFIX)
                 || stripped.startsWith(PICKAXE_SELECTOR_PREFIX)
                 || stripped.startsWith(ANIMATION_SELECTOR_PREFIX)
                 || stripped.startsWith(DEATH_SOUND_SELECTOR_PREFIX)
                 || stripped.startsWith(STATS_PREFIX)
-                || stripped.startsWith(DESIGN_SELECTOR_PREFIX);
+                || stripped.startsWith(DESIGN_SELECTOR_PREFIX)
+                || stripped.startsWith(LEADERBOARD_PREFIX)
+                || stripped.startsWith(CUSTOM_LENGTH_MENU_PREFIX);
     }
 
     /**
@@ -1238,6 +1656,8 @@ public class GuiManager implements Listener {
             handleMapSelectorClick(event);
         } else if (stripped.startsWith(REPLAYS_PREFIX)) {
             handleReplayClick(event);
+        } else if (stripped.startsWith(BOOSTER_INVENTORY_PREFIX)) {
+            handleBoosterInventoryClick(event);
         } else if (stripped.startsWith(BOOSTER_SHOP_PREFIX)) {
             handleBoosterShopClick(event);
         } else if (stripped.startsWith(SHOP_PREFIX)) {
@@ -1250,6 +1670,10 @@ public class GuiManager implements Listener {
             handleDeathSoundSelectorClick(event);
         } else if (stripped.startsWith(DESIGN_SELECTOR_PREFIX)) {
             handleDesignSelectorClick(event);
+        } else if (stripped.startsWith(LEADERBOARD_PREFIX)) {
+            handleLeaderboardClick(event);
+        } else if (stripped.startsWith(CUSTOM_LENGTH_MENU_PREFIX)) {
+            handleCustomLengthMenuClick(event);
         }
         // STATS_PREFIX: read-only — no handler needed
     }
@@ -1257,6 +1681,7 @@ public class GuiManager implements Listener {
     private void handleIslandSelectorClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
+        int invSize = event.getInventory().getSize();
 
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null || data.getLastMap() == null) return;
@@ -1264,10 +1689,36 @@ public class GuiManager implements Listener {
         MapData map = plugin.getMapManager().getMap(data.getLastMap());
         if (map == null) return;
 
-        List<IslandInstance> islands = plugin.getMapManager().getIslands(map.getName());
-        if (slot < 0 || slot >= islands.size()) return;
+        // Back button — close the menu
+        if (slot == invSize - 5) {
+            player.closeInventory();
+            return;
+        }
 
-        IslandInstance island = islands.get(slot);
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        List<IslandInstance> islands = plugin.getMapManager().getIslands(map.getName());
+        int pageSize = guis.getInt("island-selector-gui.page-size", 45);
+        pageSize = Math.max(9, Math.min(45, (pageSize / 9) * 9));
+        int totalPages = islands.isEmpty() ? 1 : (int) Math.ceil(islands.size() / (double) pageSize);
+        int currentPage = islandPages.getOrDefault(player.getUniqueId(), 1);
+
+        // Pagination arrows (only in 54-slot multi-page GUI)
+        if (invSize == 54 && totalPages > 1) {
+            if (slot == invSize - 9 && currentPage > 1) {
+                openIslandSelectorPage(player, map, currentPage - 1);
+                return;
+            }
+            if (slot == invSize - 1 && currentPage < totalPages) {
+                openIslandSelectorPage(player, map, currentPage + 1);
+                return;
+            }
+        }
+
+        // Determine island index from slot + page
+        int islandIndex = (currentPage - 1) * pageSize + slot;
+        if (slot < 0 || slot >= invSize - 9 || islandIndex < 0 || islandIndex >= islands.size()) return;
+
+        IslandInstance island = islands.get(islandIndex);
         if (island.isOccupied()) {
             String raw = plugin.getConfigManager().getMessage("island-already-occupied");
             raw = raw.replace("%island_player%", island.getOccupantName());
@@ -1303,19 +1754,19 @@ public class GuiManager implements Listener {
         plugin.getMapManager().freeIsland(map.getName(), player.getUniqueId());
         if (plugin.getGameplayManager() != null) plugin.getGameplayManager().removeSession(player.getUniqueId());
 
-        plugin.getMapManager().assignIsland(map.getName(), slot, player.getUniqueId(), player.getName());
-        data.setLastIsland(slot);
-        player.teleport(map.getIslandSpawn(slot));
+        plugin.getMapManager().assignIsland(map.getName(), islandIndex, player.getUniqueId(), player.getName());
+        data.setLastIsland(islandIndex);
+        player.teleport(map.getIslandSpawn(islandIndex));
         player.closeInventory();
 
         // Create new gameplay session and set up end island / design
         if (plugin.getGameplayManager() != null) {
             net.gravijet.fastbuilder.gameplay.RunSession newSess =
-                    plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), slot);
+                    plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), islandIndex);
             if (map.hasEndIsland()) {
                 plugin.getGameplayManager().placeEndPlatform(player, map, newSess, map.getBaseCustomLength());
             }
-            plugin.getGameplayManager().applyPlayerDesign(player, map, slot);
+            plugin.getGameplayManager().applyPlayerDesign(player, map, islandIndex);
         }
 
         // Give hotbar items
@@ -1325,14 +1776,14 @@ public class GuiManager implements Listener {
 
         // Spawn new NPC and hologram at the new island
         if (plugin.getNpcManager() != null) {
-            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(slot));
+            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(islandIndex));
         }
         if (plugin.getHologramManager() != null) {
-            plugin.getHologramManager().updateHologram(map.getName(), slot, player);
+            plugin.getHologramManager().updateHologram(map.getName(), islandIndex, player);
         }
 
         String raw = plugin.getConfigManager().getMessage("island-joined");
-        raw = raw.replace("%island_number%", String.valueOf(slot + 1));
+        raw = raw.replace("%island_number%", String.valueOf(islandIndex + 1));
         raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
     }
@@ -1522,45 +1973,7 @@ public class GuiManager implements Listener {
                             + "&cCustom length is not available on your current map."));
                     break;
                 }
-                PlayerData clData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-                if (clData == null) break;
-
-                int clCurrent = clData.getCustomLength(clRun.getMapName());
-                if (clCurrent <= 0) clCurrent = clMap.getBaseCustomLength() > 0
-                        ? clMap.getBaseCustomLength() : clMap.getEffectiveMinCustomLength();
-
-                // Determine delta from click type
-                // Left-click: -1 (shorter), Right-click: +1 (longer)
-                // Shift-Left: -10, Shift-Right: +10
-                int clDelta;
-                org.bukkit.event.inventory.ClickType clClick = event.getClick();
-                if (clClick == org.bukkit.event.inventory.ClickType.LEFT) clDelta = -1;
-                else if (clClick == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) clDelta = -10;
-                else if (clClick == org.bukkit.event.inventory.ClickType.RIGHT) clDelta = 1;
-                else if (clClick == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) clDelta = 10;
-                else break; // middle-click etc — ignore
-
-                int clNew = Math.max(clMap.getEffectiveMinCustomLength(),
-                        Math.min(clMap.getEffectiveMaxCustomLength(), clCurrent + clDelta));
-
-                if (clNew == clCurrent) {
-                    String limitMsg = (clDelta < 0)
-                            ? "&cAlready at minimum (" + clMap.getEffectiveMinCustomLength() + " blocks)."
-                            : "&cAlready at maximum (" + clMap.getEffectiveMaxCustomLength() + " blocks).";
-                    player.sendMessage(ColorUtil.translate(prefix + limitMsg));
-                    break;
-                }
-
-                clData.setCustomLength(clRun.getMapName(), clNew);
-
-                // Move the end-island platform physically
-                if (plugin.getGameplayManager() != null) {
-                    plugin.getGameplayManager().placeEndPlatform(player, clMap, clRun, clNew);
-                }
-
-                player.sendMessage(ColorUtil.translate(prefix
-                        + "&fCustom length set to &e" + clNew + " &fblocks."));
-                openSettings(player);
+                openCustomLengthMenu(player);
                 break;
             }
             case "practice_mode":
@@ -1600,6 +2013,106 @@ public class GuiManager implements Listener {
                 break;
             default:
                 break;
+        }
+    }
+
+    private void handleCustomLengthMenuClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        int slot = event.getSlot();
+
+        String prefix = plugin.getConfigManager().getPrefix();
+
+        if (!player.hasPermission("fastbuilder.feature.custom_length")) {
+            player.sendMessage(ColorUtil.translate(prefix + "&cYou don't have permission to use custom length."));
+            player.closeInventory();
+            return;
+        }
+
+        net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        if (run == null) { player.closeInventory(); return; }
+
+        net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(run.getMapName());
+        if (map == null || !map.hasCustomLength()) { player.closeInventory(); return; }
+
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null) { player.closeInventory(); return; }
+
+        org.bukkit.event.inventory.ClickType click = event.getClick();
+
+        if (slot == 22) {
+            // Back to Settings
+            openSettings(player);
+            return;
+        }
+
+        if (slot == 15) {
+            // Reset both axes to defaults
+            int defaultX = map.getBaseCustomLength() > 0 ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+            pData.setCustomLength(run.getMapName(), defaultX);
+            pData.setCustomLengthY(run.getMapName(), 0);
+            if (plugin.getGameplayManager() != null) {
+                plugin.getGameplayManager().placeEndPlatform(player, map, run, defaultX);
+            }
+            player.sendMessage(ColorUtil.translate(prefix + "&fCustom length reset to default."));
+            openCustomLengthMenu(player);
+            return;
+        }
+
+        // Determine delta from click type (same for both axes)
+        int delta;
+        if (click == org.bukkit.event.inventory.ClickType.LEFT) delta = -1;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) delta = -10;
+        else if (click == org.bukkit.event.inventory.ClickType.RIGHT) delta = 1;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) delta = 10;
+        else return; // middle-click, etc. — ignore
+
+        if (slot == 11) {
+            // X-axis (distance) control
+            int current = pData.getCustomLength(run.getMapName());
+            if (current <= 0) current = map.getBaseCustomLength() > 0
+                    ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+
+            int newVal = Math.max(map.getEffectiveMinCustomLength(),
+                    Math.min(map.getEffectiveMaxCustomLength(), current + delta));
+
+            if (newVal == current) {
+                String limitMsg = delta < 0
+                        ? "&cAlready at minimum (" + map.getEffectiveMinCustomLength() + " blocks)."
+                        : "&cAlready at maximum (" + map.getEffectiveMaxCustomLength() + " blocks).";
+                player.sendMessage(ColorUtil.translate(prefix + limitMsg));
+            } else {
+                pData.setCustomLength(run.getMapName(), newVal);
+                if (plugin.getGameplayManager() != null) {
+                    plugin.getGameplayManager().placeEndPlatform(player, map, run, newVal);
+                }
+            }
+            openCustomLengthMenu(player);
+
+        } else if (slot == 13) {
+            // Y-axis (height) control
+            int minY = plugin.getConfigManager().getCustomLengthMinY();
+            int maxY = plugin.getConfigManager().getCustomLengthMaxY();
+            int current = pData.getCustomLengthY(run.getMapName());
+
+            int newVal = Math.max(minY, Math.min(maxY, current + delta));
+
+            if (newVal == current) {
+                String limitMsg = delta < 0
+                        ? "&cAlready at minimum offset (" + minY + ")."
+                        : "&cAlready at maximum offset (" + maxY + ").";
+                player.sendMessage(ColorUtil.translate(prefix + limitMsg));
+            } else {
+                pData.setCustomLengthY(run.getMapName(), newVal);
+                // Re-place end island at current X distance (placeEndIslandTemplate reads Y from pData)
+                int currentX = pData.getCustomLength(run.getMapName());
+                if (currentX <= 0) currentX = map.getBaseCustomLength() > 0
+                        ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+                if (plugin.getGameplayManager() != null) {
+                    plugin.getGameplayManager().placeEndPlatform(player, map, run, currentX);
+                }
+            }
+            openCustomLengthMenu(player);
         }
     }
 
@@ -1832,17 +2345,17 @@ public class GuiManager implements Listener {
 
         player.closeInventory();
 
-        if (slot == guis.getInt("shop.blocks-slot", 9)) {
+        if (slot == guis.getInt("shop.blocks-slot", 10)) {
             openBlockSelector(player, 1);
-        } else if (slot == guis.getInt("shop.boosters-slot", 10)) {
+        } else if (slot == guis.getInt("shop.boosters-slot", 28)) {
             openBoosterShop(player);
-        } else if (slot == guis.getInt("shop.pickaxes-slot", 11)) {
+        } else if (slot == guis.getInt("shop.pickaxes-slot", 13)) {
             openPickaxeSelector(player, 1);
-        } else if (slot == guis.getInt("shop.designs-slot", 13)) {
+        } else if (slot == guis.getInt("shop.designs-slot", 16)) {
             openDesignSelector(player);
-        } else if (slot == guis.getInt("shop.animations-slot", 15)) {
+        } else if (slot == guis.getInt("shop.animations-slot", 31)) {
             openAnimationSelector(player);
-        } else if (slot == guis.getInt("shop.death-sounds-slot", 17)) {
+        } else if (slot == guis.getInt("shop.death-sounds-slot", 34)) {
             openDeathSoundSelector(player);
         }
     }
@@ -1858,11 +2371,6 @@ public class GuiManager implements Listener {
         boolean purchased = data.hasPurchasedBlock("cosmetic:one_click_pick")
                 || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
         if (!purchased) {
-            // Permission grants free access — no coin purchase needed
-            if (player.hasPermission("fastbuilder.cosmetic.oneclickpick")) {
-                player.sendMessage(ColorUtil.translate(prefix + "&cYou already have One-Click Pick via permission."));
-                return;
-            }
             if (data.getCoins() >= price) {
                 data.removeCoins(price);
                 data.purchaseBlock("cosmetic:one_click_pick");
@@ -1975,24 +2483,26 @@ public class GuiManager implements Listener {
 
     private void handleAnimationSelectorClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
-        ItemStack item = event.getCurrentItem();
-        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
-        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
-        if (displayName.equals("Back to Shop")) {
+        int slot = event.getSlot();
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int maxSlots = event.getInventory().getSize();
+
+        // Back to Shop — center of bottom row
+        if (slot == maxSlots - 5) {
             player.closeInventory();
             openShop(player);
             return;
         }
 
-        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("animation-selector-slots");
         if (slotsSection == null) return;
 
-        int slot = event.getSlot() + 1;
-        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+        int configKey = slot + 1; // 0-based slot → 1-based config key
+        if (!slotsSection.isConfigurationSection(String.valueOf(configKey))) return;
 
-        String animId = slotsSection.getString(slot + ".animation", "NONE");
-        int price = slotsSection.getInt(slot + ".price", 0);
+        String animId = slotsSection.getString(configKey + ".animation", "NONE");
+        int price = slotsSection.getInt(configKey + ".price", 0);
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
@@ -2006,7 +2516,7 @@ public class GuiManager implements Listener {
                 // Auto-equip on purchase
                 data.setSelectedAnimation(animId);
                 player.closeInventory();
-                String aName = slotsSection.getString(slot + ".name", "Animation");
+                String aName = slotsSection.getString(configKey + ".name", "Animation");
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased and selected: &c" + aName + " &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
@@ -2016,30 +2526,32 @@ public class GuiManager implements Listener {
 
         data.setSelectedAnimation(animId);
         player.closeInventory();
-        String aName = slotsSection.getString(slot + ".name", "Animation");
+        String aName = slotsSection.getString(configKey + ".name", "Animation");
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected animation: &c" + aName));
     }
 
     private void handleDeathSoundSelectorClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
-        ItemStack item = event.getCurrentItem();
-        if (item == null || !item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
-        String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
-        if (displayName.equals("Back to Shop")) {
+        int slot = event.getSlot();
+
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int maxSlots = event.getInventory().getSize();
+
+        // Back to Shop — center of bottom row
+        if (slot == maxSlots - 5) {
             player.closeInventory();
             openShop(player);
             return;
         }
 
-        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         org.bukkit.configuration.ConfigurationSection slotsSection = guis.getConfigurationSection("death-sound-selector-slots");
         if (slotsSection == null) return;
 
-        int slot = event.getSlot() + 1;
-        if (!slotsSection.isConfigurationSection(String.valueOf(slot))) return;
+        int configKey = slot + 1; // 0-based slot → 1-based config key
+        if (!slotsSection.isConfigurationSection(String.valueOf(configKey))) return;
 
-        String soundId = slotsSection.getString(slot + ".sound", "NONE");
-        int price = slotsSection.getInt(slot + ".price", 0);
+        String soundId = slotsSection.getString(configKey + ".sound", "NONE");
+        int price = slotsSection.getInt(configKey + ".price", 0);
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
@@ -2053,7 +2565,7 @@ public class GuiManager implements Listener {
                 data.purchaseBlock("sound:" + soundId);
                 data.setSelectedDeathSound(soundId);
                 player.closeInventory();
-                String sName = slotsSection.getString(slot + ".name", "Sound");
+                String sName = slotsSection.getString(configKey + ".name", "Sound");
                 player.sendMessage(ColorUtil.translate(prefix + "&fDeath sound purchased and selected: &c" + sName + " &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
@@ -2063,7 +2575,7 @@ public class GuiManager implements Listener {
 
         data.setSelectedDeathSound(soundId);
         player.closeInventory();
-        String sName = slotsSection.getString(slot + ".name", "Sound");
+        String sName = slotsSection.getString(configKey + ".name", "Sound");
         player.sendMessage(ColorUtil.translate(prefix + "&fSelected death sound: &c" + sName));
     }
 

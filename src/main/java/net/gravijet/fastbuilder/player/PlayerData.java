@@ -2,6 +2,7 @@ package net.gravijet.fastbuilder.player;
 
 import org.bukkit.configuration.file.FileConfiguration;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -55,18 +56,30 @@ public class PlayerData {
     // Automatically resets to 0 (base distance) when the player logs out or changes maps.
     private final Map<String, Integer> customLengths = new HashMap<>();
 
+    // Per-map custom Y offset for end island (session-only, NOT persisted to disk).
+    // Adjusts the end island vertically via the Custom Length sub-menu.
+    private final Map<String, Integer> customLengthYOffsets = new HashMap<>();
+
     // Per-map custom length toggle (session-only, NOT persisted to disk).
     private final Map<String, Boolean> customLengthToggles = new HashMap<>();
+
+    // Per-map active finish zone override derived from the selected island design profile.
+    // Array: {finishMinX, finishMinY, finishMinZ, finishMaxX, finishMaxY, finishMaxZ}
+    // Session-only — cleared when the player leaves or resets their design to default.
+    private final Map<String, int[]> activeFinishZoneOverrides = new HashMap<>();
 
     // Globally purchased island design template keys (persisted).
     // If a template key appears in multiple maps, buying it once grants access everywhere.
     private final Set<String> purchasedDesigns = new HashSet<>();
 
     // Coin booster (persisted so it survives restarts)
-    private long boosterExpiry = 0;       // epoch-ms when the temp booster expires
-    private double boosterMultiplier = 1.0; // the multiplier of the active temp booster
+    private long boosterExpiry = 0;         // epoch-ms when the active booster expires
+    private double boosterMultiplier = 1.0; // multiplier of the currently active booster
 
-    // Experience points (admin-grantable, separate from coins)
+    // Owned booster items (purchased from shop, not yet activated)
+    private final Map<String, Integer> boosterInventory = new HashMap<>();
+
+    // Experience points (kept for storage compatibility; XP grants now go via external plugin)
     private int experience = 0;
 
     public PlayerData(UUID uuid, String name) {
@@ -115,6 +128,15 @@ public class PlayerData {
 
         config.set("booster-expiry", boosterExpiry);
         config.set("booster-multiplier", boosterMultiplier);
+
+        // Booster inventory: clear old keys first, then write non-zero quantities
+        config.set("booster-inventory", null);
+        for (Map.Entry<String, Integer> e : boosterInventory.entrySet()) {
+            if (e.getValue() > 0) {
+                config.set("booster-inventory." + e.getKey(), e.getValue());
+            }
+        }
+
         config.set("experience", experience);
     }
 
@@ -179,7 +201,16 @@ public class PlayerData {
 
         boosterExpiry     = config.getLong("booster-expiry", 0);
         boosterMultiplier = config.getDouble("booster-multiplier", 1.0);
-        experience        = config.getInt("experience", 0);
+
+        boosterInventory.clear();
+        if (config.isConfigurationSection("booster-inventory")) {
+            for (String key : config.getConfigurationSection("booster-inventory").getKeys(false)) {
+                int qty = config.getInt("booster-inventory." + key, 0);
+                if (qty > 0) boosterInventory.put(key, qty);
+            }
+        }
+
+        experience = config.getInt("experience", 0);
     }
 
     // --- Stats helpers ---
@@ -315,13 +346,46 @@ public class PlayerData {
 
     public Set<String> getPurchasedDesigns() { return purchasedDesigns; }
 
-    // --- Coin Booster ---
+    // --- Coin Booster (active) ---
 
     public long getBoosterExpiry() { return boosterExpiry; }
     public void setBoosterExpiry(long expiry) { this.boosterExpiry = expiry; }
 
     public double getBoosterMultiplier() { return boosterMultiplier; }
     public void setBoosterMultiplier(double multiplier) { this.boosterMultiplier = multiplier; }
+
+    // --- Booster Inventory (owned, not yet activated) ---
+
+    /** How many of a specific booster type the player owns. */
+    public int getBoosterCount(String typeId) {
+        return boosterInventory.getOrDefault(typeId, 0);
+    }
+
+    /** Add boosters of a type to this player's inventory. */
+    public void addBooster(String typeId, int amount) {
+        boosterInventory.merge(typeId, amount, Integer::sum);
+    }
+
+    /**
+     * Consume one booster of the given type from inventory.
+     * Returns false if the player has none.
+     */
+    public boolean consumeBooster(String typeId) {
+        int count = boosterInventory.getOrDefault(typeId, 0);
+        if (count <= 0) return false;
+        if (count == 1) boosterInventory.remove(typeId);
+        else boosterInventory.put(typeId, count - 1);
+        return true;
+    }
+
+    /** Read-only view of all owned boosters (type id → quantity). */
+    public Map<String, Integer> getBoosterInventory() {
+        return Collections.unmodifiableMap(boosterInventory);
+    }
+
+    public boolean hasAnyBoosters() {
+        return !boosterInventory.isEmpty();
+    }
 
     // --- Experience ---
 
@@ -337,6 +401,8 @@ public class PlayerData {
     public void clearCustomLengths() {
         customLengths.clear();
         customLengthToggles.clear();
+        customLengthYOffsets.clear();
+        activeFinishZoneOverrides.clear();
     }
 
     /**
@@ -383,6 +449,54 @@ public class PlayerData {
             customLengthToggles.remove(key); // false is default, don't store it
         }
         return newValue;
+    }
+
+    // -------------------------------------------------------------------------
+    // Per-player end-island Y offset (custom length height adjustment)
+    // -------------------------------------------------------------------------
+
+    /** Returns the vertical offset applied to the end island for the given map, or 0 if none. */
+    public int getCustomLengthY(String mapName) {
+        Integer val = customLengthYOffsets.get(mapName.toLowerCase());
+        return val != null ? val : 0;
+    }
+
+    /** Sets the per-player end-island Y offset for the given map. Pass 0 to reset. */
+    public void setCustomLengthY(String mapName, int offset) {
+        if (offset == 0) {
+            customLengthYOffsets.remove(mapName.toLowerCase());
+        } else {
+            customLengthYOffsets.put(mapName.toLowerCase(), offset);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Active finish-zone override (set when a design profile defines a custom finish zone)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the active finish zone override for this map, or null if none is set.
+     * Array layout: {finishMinX, finishMinY, finishMinZ, finishMaxX, finishMaxY, finishMaxZ}
+     * All values are offsets relative to the island's min corner.
+     */
+    public int[] getActiveFinishZone(String mapName) {
+        return activeFinishZoneOverrides.get(mapName.toLowerCase());
+    }
+
+    /**
+     * Stores a finish zone override for this map derived from a design profile.
+     * All values must be offsets relative to the island's min corner.
+     */
+    public void setActiveFinishZone(String mapName,
+                                    int minX, int minY, int minZ,
+                                    int maxX, int maxY, int maxZ) {
+        activeFinishZoneOverrides.put(mapName.toLowerCase(),
+                new int[]{minX, minY, minZ, maxX, maxY, maxZ});
+    }
+
+    /** Clears the active finish zone override for this map (reverts to map defaults). */
+    public void clearActiveFinishZone(String mapName) {
+        activeFinishZoneOverrides.remove(mapName.toLowerCase());
     }
 
     public static class MapStats {

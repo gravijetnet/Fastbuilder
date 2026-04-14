@@ -39,7 +39,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "setup", "rename", "regen", "seticon", "enable", "disable", "delete", "scale", "distance",
             "autoscale", "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign",
-            "removedesign", "customlength", "info", "help"
+            "removedesign", "setdesignmeta", "info", "help"
     );
     private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "cancel");
@@ -129,8 +129,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             case "removedesign":
                 handleRemoveDesign(player, args, mm);
                 break;
-            case "customlength":
-                handleCustomLength(player, args, mm);
+            case "setdesignmeta":
+                handleSetDesignMeta(player, args, mm);
                 break;
             case "info":
                 handleInfo(player, args, mm);
@@ -1058,7 +1058,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private void handleAddDesign(Player player, String[] args, MapManager mm) {
         if (args.length < 2) {
             msg(player, plugin.getConfigManager().getPrefix()
-                    + "&cUsage: &f/map adddesign <map> &7- Saves the current setup template as a new design.");
+                    + "&cUsage: &f/map adddesign <map> [<templateKey>]");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -1122,58 +1122,106 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    // --- /map setinfinite <map> <true|false> ---
+    // --- /map setdesignmeta <map> <template> ---
 
-    // --- /map customlength <map> <true/false> [minblocks] ---
-
-    private void handleCustomLength(Player player, String[] args, MapManager mm) {
-        if (!player.hasPermission("fastbuilder.command.map.setcustomlength")) {
+    /**
+     * Saves the spawn/finish/dimension profile for an alternative island design.
+     *
+     * If the admin has an active setup session (started via /map setup) with a spawn
+     * and finish zone already recorded, those values are used directly.
+     *
+     * Otherwise the command falls back to the player's current stand position as
+     * the design's spawn point (no finish zone override — map defaults apply).
+     */
+    private void handleSetDesignMeta(Player player, String[] args, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.admin")) {
             msg(player, plugin.getConfigManager().getMessage("no-permission"));
             return;
         }
         if (args.length < 3) {
             msg(player, plugin.getConfigManager().getPrefix()
-                    + "&cUsage: &f/map customlength <map> <true|false> [minBlocksFromSpawnToPressurePlates]");
+                    + "&cUsage: &f/map setdesignmeta <map> <template>");
             return;
         }
+
         MapData map = mm.getMap(args[1]);
         if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
 
-        boolean enabled = Boolean.parseBoolean(args[2]);
-        String prefix = plugin.getConfigManager().getPrefix();
-
-        if (!enabled) {
-            // Disable: reset both bounds to 0 so hasCustomLength() returns false
-            map.setMinCustomLength(0);
-            map.setMaxCustomLength(0);
-            mm.saveMap(map);
-            msg(player, prefix + "&fCustom length &cdisabled &ffor &c" + map.getName() + "&f.");
+        String templateKey = args[2];
+        if (!map.getAllTemplates().contains(templateKey)) {
+            msg(player, plugin.getConfigManager().getPrefix()
+                    + "&cTemplate &f" + templateKey + " &cnot found for map &f" + map.getName()
+                    + "&c.  Available: &f" + map.getAllTemplates());
             return;
         }
 
-        // Enable: require at least a min-blocks value
-        int minBlocks = args.length >= 4 ? 0 : map.getMinCustomLength();
-        if (args.length >= 4) {
-            try {
-                minBlocks = Integer.parseInt(args[3]);
-            } catch (NumberFormatException e) {
-                msg(player, "&cInvalid number: &f" + args[3]);
+        String prefix = plugin.getConfigManager().getPrefix();
+        net.gravijet.fastbuilder.map.SetupSession session = mm.getSetupSession(player.getUniqueId());
+
+        MapData.DesignProfile profile = new MapData.DesignProfile();
+
+        if (session != null
+                && session.getIslandMin() != null
+                && session.getSpawnPoint() != null) {
+            // Use the full data captured during the setup wizard
+            profile.spawnOffsetX = session.getSpawnOffsetX();
+            profile.spawnOffsetY = session.getSpawnOffsetY();
+            profile.spawnOffsetZ = session.getSpawnOffsetZ();
+            profile.spawnYaw     = session.getSpawnPoint().getYaw();
+            profile.spawnPitch   = session.getSpawnPoint().getPitch();
+            profile.finishMinX   = session.getFinishMinX();
+            profile.finishMinY   = session.getFinishMinY();
+            profile.finishMinZ   = session.getFinishMinZ();
+            profile.finishMaxX   = session.getFinishMaxX();
+            profile.finishMaxY   = session.getFinishMaxY();
+            profile.finishMaxZ   = session.getFinishMaxZ();
+            profile.islandWidth  = session.getIslandWidth();
+            profile.islandHeight = session.getIslandHeight();
+            profile.islandLength = session.getIslandLength();
+
+            map.setDesignProfile(templateKey, profile);
+            mm.saveMap(map);
+
+            msg(player, prefix + "&fDesign profile saved for &c" + templateKey
+                    + " &fon &c" + map.getName() + "&f (from active setup session).");
+            msg(player, "&7Spawn offset: +" + String.format("%.1f", profile.spawnOffsetX)
+                    + "x, +" + String.format("%.1f", profile.spawnOffsetY)
+                    + "y, +" + String.format("%.1f", profile.spawnOffsetZ) + "z");
+            if (profile.hasFinishZone()) {
+                msg(player, "&7Finish zone X: " + profile.finishMinX + " → " + profile.finishMaxX
+                        + ", Y: " + profile.finishMinY + " → " + profile.finishMaxY);
+            }
+            msg(player, "&7Island: " + profile.islandWidth + "w × " + profile.islandLength + "l");
+        } else {
+            // Fallback: use player's current position as spawn, map defaults for finish
+            int playerIsland = mm.getPlayerIsland(map.getName(), player.getUniqueId());
+            if (playerIsland < 0) {
+                msg(player, prefix + "&cYou must be on an island of this map, "
+                        + "or have an active setup session with spawn set.  "
+                        + "Run &f/map setup &cand complete through Step 2 (spawn) first.");
                 return;
             }
-        }
-        if (minBlocks <= 0) {
-            msg(player, prefix + "&cUsage: &f/map customlength <map> true <minBlocksFromSpawnToPressurePlates>");
-            return;
-        }
 
-        // maxCustomLength defaults to min×2 if not previously set
-        int maxBlocks = map.getMaxCustomLength() > 0 ? map.getMaxCustomLength() : minBlocks * 2;
-        map.setMinCustomLength(minBlocks);
-        map.setMaxCustomLength(maxBlocks);
-        mm.saveMap(map);
+            Location islandMin   = map.getIslandMin(playerIsland);
+            Location playerLoc   = player.getLocation();
 
-        msg(player, prefix + "&fCustom length &aenabled &ffor &c" + map.getName()
-                + " &f(min: &c" + minBlocks + " &fblocks, max: &c" + maxBlocks + " &fblocks).");
+            profile.spawnOffsetX = playerLoc.getX() - islandMin.getBlockX();
+            profile.spawnOffsetY = playerLoc.getY() - islandMin.getBlockY();
+            profile.spawnOffsetZ = playerLoc.getZ() - islandMin.getBlockZ();
+            profile.spawnYaw     = playerLoc.getYaw();
+            profile.spawnPitch   = playerLoc.getPitch();
+            // Finish zone left at 0 → hasFinishZone() returns false → map defaults apply
+            profile.islandWidth  = map.getIslandWidth();
+            profile.islandHeight = map.getIslandHeight();
+            profile.islandLength = map.getIslandLength();
+
+            map.setDesignProfile(templateKey, profile);
+            mm.saveMap(map);
+
+            msg(player, prefix + "&fDesign spawn saved for &c" + templateKey
+                    + " &fon &c" + map.getName()
+                    + " &7(finish zone uses map defaults — run from inside a setup wizard to also save a custom finish zone).");
+        }
     }
 
     private String capitalize(String s) {
@@ -1434,6 +1482,11 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "removedesign": {
                     MapData rmap = mm.getMap(args[1]);
                     if (rmap != null) return filter(rmap.getAlternativeTemplates(), args[2]);
+                    return Collections.emptyList();
+                }
+                case "adddesign": {
+                    MapData amap = mm.getMap(args[1]);
+                    if (amap != null) return filter(amap.getAllTemplates(), args[2]);
                     return Collections.emptyList();
                 }
                 default:

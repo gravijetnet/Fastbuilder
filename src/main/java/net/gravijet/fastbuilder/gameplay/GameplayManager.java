@@ -115,8 +115,9 @@ public class GameplayManager {
 
     public void removeSession(UUID uuid) {
         activeSessions.remove(uuid);
-        lastFinishTimes.remove(uuid);
-        lastFinishBlocks.remove(uuid);
+        // lastFinishTimes and lastFinishBlocks are intentionally NOT cleared here.
+        // They persist on the scoreboard/actionbar until the player physically starts a new run.
+        // They are cleared in onBlockPlace() when the timer starts.
     }
 
     /** Time (ms) from the player's most recent completed run, or -1 if none this session. */
@@ -270,7 +271,7 @@ public class GameplayManager {
             if (isNewPB) stats.bestTime = time;
             stats.totalSuccessTime += time;
 
-            int coins = plugin.getCoinManager().awardCompletionCoins(player, time);
+            int coins = plugin.getCoinManager().awardCompletionCoins(player, time, session.getMapName());
 
             String prefix = plugin.getConfigManager().getPrefix();
             if (isNewPB) {
@@ -471,6 +472,15 @@ public class GameplayManager {
                     }
                 }
             }
+
+            // Award consolation coins on failed runs if configured
+            if (plugin.getConfigManager().isCoinsOnFailed()) {
+                int failCoins = plugin.getCoinManager().awardFailedRunCoins(player);
+                if (failCoins > 0) {
+                    String prefix = plugin.getConfigManager().getPrefix();
+                    player.sendMessage(ColorUtil.translate(prefix + "&7+" + failCoins + " coins &8(failed run)"));
+                }
+            }
         }
 
         playDeathSound(player);
@@ -508,6 +518,7 @@ public class GameplayManager {
     /**
      * Finalize the run reset: reset session state, teleport to spawn, give hotbar items.
      * Call this after the animation delay (typically 2 seconds after finish/death).
+     * Uses the design profile spawn override when one is active.
      */
     public void finalizeReset(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
@@ -524,7 +535,7 @@ public class GameplayManager {
         for (Long best : bests) session.addSessionBest(best);
         session.setPracticeMode(practice);
 
-        player.teleport(map.getIslandSpawn(session.getIslandIndex()));
+        player.teleport(getEffectiveSpawn(player.getUniqueId(), map, session.getIslandIndex()));
 
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
@@ -535,6 +546,7 @@ public class GameplayManager {
 
     /**
      * Full reset in one shot (used by GUI/command resets that don't need animation/delay split).
+     * Uses the design profile spawn override when one is active.
      */
     public void resetRun(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
@@ -556,7 +568,7 @@ public class GameplayManager {
         for (Long best : bests) session.addSessionBest(best);
         session.setPracticeMode(practice);
 
-        player.teleport(map.getIslandSpawn(session.getIslandIndex()));
+        player.teleport(getEffectiveSpawn(player.getUniqueId(), map, session.getIslandIndex()));
 
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
@@ -587,8 +599,12 @@ public class GameplayManager {
         clearAllPlacedBlocks(uuid);
         clearEndPlatform(uuid);
 
-        // Reset session custom-length so the new island starts at base distance
-        if (data != null) data.setCustomLength(map.getName(), 0);
+        // Reset session custom-length (X and Y) so the new island starts at default
+        if (data != null) {
+            data.setCustomLength(map.getName(), 0);
+            data.setCustomLengthY(map.getName(), 0);
+            data.clearActiveFinishZone(map.getName());
+        }
 
         // Cleanup old island integrations
         if (plugin.getCpsListener() != null) plugin.getCpsListener().cleanupPlayer(uuid);
@@ -603,8 +619,8 @@ public class GameplayManager {
         plugin.getMapManager().assignIsland(map.getName(), targetIsland, uuid, player.getName());
         if (data != null) data.setLastIsland(targetIsland);
 
-        // Teleport to new island spawn and ensure the player is in Survival
-        player.teleport(map.getIslandSpawn(targetIsland));
+        // Teleport to new island spawn (design profile override if active) and ensure Survival
+        player.teleport(getEffectiveSpawn(uuid, map, targetIsland));
         player.setGameMode(org.bukkit.GameMode.SURVIVAL);
 
         // Create new session and carry over session bests + practice mode
@@ -658,7 +674,16 @@ public class GameplayManager {
 
     /**
      * Apply the player's selected island design to the given island slot.
-     * Does nothing if the player has the default design selected (or no selection).
+     *
+     * <ul>
+     *   <li>Pastes the chosen schematic over the island area.</li>
+     *   <li>If the design has a {@link net.gravijet.fastbuilder.map.MapData.DesignProfile},
+     *       teleports the player to the design's spawn point and stores the finish-zone
+     *       override so finish detection uses the correct coordinates.</li>
+     *   <li>For custom-length maps with a different island width, shifts the end-island
+     *       to maintain the same visual gap.</li>
+     *   <li>Does nothing if the player has the default design (or no selection).</li>
+     * </ul>
      */
     public void applyPlayerDesign(Player player, net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
         net.gravijet.fastbuilder.player.PlayerData pData =
@@ -666,7 +691,12 @@ public class GameplayManager {
         if (pData == null) return;
 
         String selectedDesign = pData.getSelectedDesign(map.getName());
-        if (selectedDesign == null || selectedDesign.equals(map.getTemplateFile())) return;
+
+        // Default design: clear any stale per-player overrides and do nothing else
+        if (selectedDesign == null || selectedDesign.equals(map.getTemplateFile())) {
+            pData.clearActiveFinishZone(map.getName());
+            return;
+        }
         if (!map.getAllTemplates().contains(selectedDesign)) return;
 
         org.bukkit.Location min = map.getIslandMin(islandIndex);
@@ -681,6 +711,77 @@ public class GameplayManager {
                         map.getWorld(), selectedDesign,
                         min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
         );
+
+        // Apply design profile if one has been recorded for this template
+        net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
+                map.getDesignProfile(selectedDesign);
+        if (profile != null) {
+            // Teleport player to the design-specific spawn position
+            org.bukkit.Location profileSpawn = new org.bukkit.Location(
+                    map.getWorld(),
+                    map.getOriginX() + profile.spawnOffsetX,
+                    map.getOriginY() + profile.spawnOffsetY,
+                    map.getOriginZ() + (long) islandIndex * map.getActualZStep() + profile.spawnOffsetZ,
+                    profile.spawnYaw, profile.spawnPitch
+            );
+            player.teleport(profileSpawn);
+
+            // Store finish-zone override so GameplayListener uses the correct bounds
+            if (profile.hasFinishZone()) {
+                pData.setActiveFinishZone(map.getName(),
+                        profile.finishMinX, profile.finishMinY, profile.finishMinZ,
+                        profile.finishMaxX, profile.finishMaxY, profile.finishMaxZ);
+            } else {
+                pData.clearActiveFinishZone(map.getName());
+            }
+
+            // For custom-length maps: if this design has a different island width,
+            // shift the end-island so the physical gap stays the same.
+            if (map.hasEndIsland() && profile.islandWidth > 0
+                    && profile.islandWidth != map.getIslandWidth()) {
+                RunSession session = activeSessions.get(player.getUniqueId());
+                if (session != null) {
+                    int widthDiff = profile.islandWidth - map.getIslandWidth();
+                    int curLen = pData.getCustomLength(map.getName());
+                    if (curLen <= 0) curLen = map.getBaseCustomLength();
+                    int adjusted = Math.max(map.getEffectiveMinCustomLength(),
+                            Math.min(map.getEffectiveMaxCustomLength(), curLen + widthDiff));
+                    pData.setCustomLength(map.getName(), adjusted);
+                    placeEndPlatform(player, map, session, adjusted);
+                }
+            }
+        } else {
+            pData.clearActiveFinishZone(map.getName());
+        }
+    }
+
+    /**
+     * Returns the effective spawn location for the given player on the given island,
+     * accounting for any active design profile spawn override.
+     */
+    public org.bukkit.Location getEffectiveSpawn(UUID uuid,
+                                                   net.gravijet.fastbuilder.map.MapData map,
+                                                   int islandIndex) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        if (pData != null) {
+            String design = pData.getSelectedDesign(map.getName());
+            if (design != null && !design.equals(map.getTemplateFile())) {
+                net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
+                        map.getDesignProfile(design);
+                if (profile != null) {
+                    return new org.bukkit.Location(
+                            map.getWorld(),
+                            map.getOriginX() + profile.spawnOffsetX,
+                            map.getOriginY() + profile.spawnOffsetY,
+                            map.getOriginZ() + (long) islandIndex * map.getActualZStep()
+                                    + profile.spawnOffsetZ,
+                            profile.spawnYaw, profile.spawnPitch
+                    );
+                }
+            }
+        }
+        return map.getIslandSpawn(islandIndex);
     }
 
     // =========================================================================
@@ -718,9 +819,14 @@ public class GameplayManager {
         org.bukkit.World world = map.getWorld();
         if (world == null) return;
 
+        // Apply per-player Y offset (set via the Custom Length sub-menu)
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
+
         // endX = east edge of start island + gap to west edge of end island
         int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
-        int endY = map.getOriginY() + map.getEndIslandYOffset();
+        int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
         // Record the region so we can clear it later
@@ -1363,7 +1469,9 @@ public class GameplayManager {
 
                     String timer;
                     if (session.isRunning()) {
-                        timer = TimeUtil.formatTime(session.getElapsed());
+                        // Snap displayed time to nearest 50 ms — keeps actionbar in sync with recorded finish times
+                        long snappedElapsed = Math.round(session.getElapsed() / 50.0) * 50;
+                        timer = TimeUtil.formatTime(snappedElapsed);
                     } else {
                         long lastTime = lastFinishTimes.containsKey(entry.getKey())
                                 ? lastFinishTimes.get(entry.getKey()) : -1L;

@@ -1,6 +1,8 @@
 package net.gravijet.fastbuilder.config;
 
 import net.gravijet.fastbuilder.FastBuilder;
+import net.gravijet.fastbuilder.economy.BoosterType;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -9,6 +11,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -44,6 +47,8 @@ public class ConfigManager {
     }
 
     public void reload() {
+        boosterTypeCache = null;
+        boosterTypeMapCache = null;
         loadAll();
     }
 
@@ -281,27 +286,82 @@ public class ConfigManager {
     }
 
     // -------------------------------------------------------------------------
-    // Booster Shop
+    // Booster Types
     // -------------------------------------------------------------------------
 
+    /** Cache so we don't re-parse YAML on every GUI open. Cleared on reload. */
+    private List<BoosterType> boosterTypeCache = null;
+    private Map<String, BoosterType> boosterTypeMapCache = null;
+
     /**
-     * Returns the list of booster definitions from config.
-     * Each entry has: multiplier (double), duration-minutes (int), price (int).
+     * Returns all configured booster types in config order.
+     * Parsed once and cached until the next {@link #reload()}.
      */
-    public List<Map<String, Object>> getBoosterShopEntries() {
-        List<?> raw = mainConfig.getList("booster-shop", Collections.emptyList());
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Object obj : raw) {
-            if (!(obj instanceof Map)) continue;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> entry = (Map<String, Object>) obj;
-            Map<String, Object> safe = new HashMap<>();
-            safe.put("multiplier",        entry.getOrDefault("multiplier", 1.5));
-            safe.put("duration-minutes",  entry.getOrDefault("duration-minutes", 30));
-            safe.put("price",             entry.getOrDefault("price", 200));
-            result.add(safe);
+    public List<BoosterType> getBoosterTypes() {
+        if (boosterTypeCache != null) return boosterTypeCache;
+
+        List<BoosterType> list = new ArrayList<>();
+        ConfigurationSection sec = mainConfig.getConfigurationSection("booster-types");
+        if (sec == null) {
+            boosterTypeCache = list;
+            return list;
         }
-        return result;
+        for (String id : sec.getKeys(false)) {
+            ConfigurationSection entry = sec.getConfigurationSection(id);
+            if (entry == null) continue;
+            String name       = entry.getString("name", "&7" + id);
+            String desc       = entry.getString("description", "");
+            double mult       = entry.getDouble("multiplier", 1.5);
+            int    dur        = entry.getInt("duration-minutes", 30);
+            int    price      = entry.getInt("price", 200);
+            short  potionData = (short) entry.getInt("potion-data", 0);
+            list.add(new BoosterType(id, name, desc, mult, dur, price, potionData));
+        }
+        boosterTypeCache = list;
+        return list;
+    }
+
+    /**
+     * Look up a single booster type by its ID key (e.g. "SMALL").
+     * Returns null if not found.
+     */
+    public BoosterType getBoosterType(String id) {
+        if (boosterTypeMapCache == null) {
+            Map<String, BoosterType> map = new LinkedHashMap<>();
+            for (BoosterType t : getBoosterTypes()) map.put(t.id, t);
+            boosterTypeMapCache = map;
+        }
+        return boosterTypeMapCache.get(id);
+    }
+
+    // -------------------------------------------------------------------------
+    // Coin reward settings
+    // -------------------------------------------------------------------------
+
+    /** Whether to award coins for failed runs (falls/resets). */
+    public boolean isCoinsOnFailed() {
+        return mainConfig.getBoolean("coins-on-failed", false);
+    }
+
+    /** Flat coin amount to award on a failed run (only used when coins-on-failed is true). */
+    public int getCoinsOnFailedAmount() {
+        return mainConfig.getInt("coins-on-failed-amount", 2);
+    }
+
+    /**
+     * Fallback average completion time in seconds used for coin calculations until
+     * enough real samples have been gathered from this server's players.
+     */
+    public double getCoinsFallbackAverageSeconds() {
+        return mainConfig.getDouble("coins-average-fallback-seconds", 30.0);
+    }
+
+    /**
+     * Minimum number of completion samples required before the server-wide average
+     * replaces the fallback value in coin calculations.
+     */
+    public int getCoinsAverageMinSamples() {
+        return mainConfig.getInt("coins-average-min-samples", 10);
     }
 
     // -------------------------------------------------------------------------
@@ -365,6 +425,16 @@ public class ConfigManager {
      */
     public int getEndPlatformDepth() {
         return mainConfig.getInt("custom-length.end-platform.depth", 3);
+    }
+
+    /** Minimum Y offset allowed in the Custom Length sub-menu (default -50). */
+    public int getCustomLengthMinY() {
+        return mainConfig.getInt("custom-length.y-min", -50);
+    }
+
+    /** Maximum Y offset allowed in the Custom Length sub-menu (default +50). */
+    public int getCustomLengthMaxY() {
+        return mainConfig.getInt("custom-length.y-max", 50);
     }
 
     // -------------------------------------------------------------------------

@@ -299,7 +299,15 @@ public class ProtectionListener implements Listener {
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
             int absoluteDeathY = mapForVoid.getDeathY();
-            inVoid = to.getBlockY() < absoluteDeathY;
+            // Ping-aware Y prediction: project the player's position half a round-trip
+            // ahead so high-latency players are reset at the correct plane, not several
+            // blocks below it (where the server first sees them cross the threshold).
+            // lagTicks = half-RTT in ticks (50 ms/tick), capped at 10 (= 500 ms).
+            int ping = player.spigot().getPing();
+            int lagTicks = Math.min(10, Math.max(0, (ping / 2) / 50));
+            double vy = player.getVelocity().getY(); // blocks/tick; negative when falling
+            double predictedY = to.getY() + vy * lagTicks;
+            inVoid = predictedY < absoluteDeathY;
         } else {
             inVoid = to.getBlockY() < bounds[1] - maxDist;
         }

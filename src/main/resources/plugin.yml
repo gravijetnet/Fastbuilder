@@ -23,10 +23,10 @@ commands:
   build:
     description: Toggle creative build mode on your island
     usage: /<command>
-  adminexp:
-    description: Grant or set experience points for a player
-    usage: /<command> <add|set|get> <player> [amount]
-    permission: fastbuilder.admin.exp
+  booster:
+    description: Admin commands for managing player booster inventories
+    usage: /<command> <give|take|clear|info|list> [player] [type] [amount]
+    permission: fastbuilder.booster.admin
   leaderboard:
     description: View the top players per map
     usage: /<command> [map] [limit]
@@ -58,7 +58,7 @@ permissions:
       fastbuilder.command.fb.reload: true
       fastbuilder.command.fb.dump: true
       fastbuilder.coins.admin: true
-      fastbuilder.admin.exp: true
+      fastbuilder.booster.admin: true
       fastbuilder.bypass.border: true
   fastbuilder.play:
     description: Permission to play FastBuilder
@@ -194,8 +194,8 @@ permissions:
   fastbuilder.bypass.border:
     description: Bypass island border restrictions
     default: op
-  fastbuilder.admin.exp:
-    description: Grant or set experience points with /adminexp
+  fastbuilder.booster.admin:
+    description: Manage player booster inventories with /booster
     default: op
   fastbuilder.booster.1_5x:
     description: Permanent 1.5x coin booster

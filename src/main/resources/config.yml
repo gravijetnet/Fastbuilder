@@ -25,40 +25,114 @@ default-map: "SuperShort"
 
 # Economy
 reset-stats-cost: 2000
-# Playtime reward: coins awarded per hour of active playtime (long-run average)
+
+# ── Playtime rewards ──────────────────────────────────────────────────────────
+# Coins awarded per hour of active playtime (long-run average).
 coins-per-hour: 150
 # Drop interval (seconds). Set both to the same value for a fixed timer.
-# Default: 900 (15 minutes). Coins per drop scale with the interval so the
-# hourly average stays constant regardless of the window chosen.
+# Coins per drop scale with the chosen interval so the hourly average stays constant.
 coins-drop-interval-min: 900
 coins-drop-interval-max: 900
-# Base coins awarded per completion (the formula uses this × 2 as the maximum
-# payout for a near-instant run; the hard cap is always 20 before boosters).
-coins-per-completion: 10
+
+# ── Completion coin tiers ─────────────────────────────────────────────────────
+# Coins are awarded based on how a player's time compares to the server-wide
+# average for that map (no randomness).  Five tiers:
+#   Elite   (< 70 % of avg)  → 20 coins
+#   Fast    (70–85 %)         → 17–19 coins
+#   Normal  (85–105 %)        → 10–16 coins
+#   Slow    (105–140 %)       → 5–9 coins
+#   Lagging (> 140 %)         → 1–4 coins
+#
+# coins-average-fallback-seconds: used until enough samples are collected.
+# coins-average-min-samples: how many real completions before fallback is replaced.
+coins-average-fallback-seconds: 30
+coins-average-min-samples: 10
+
+# Award coins even for failed runs (falling off the island).
+# Set to true to enable; the flat amount is controlled by coins-on-failed-amount.
+coins-on-failed: false
+coins-on-failed-amount: 2
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Booster Shop
+# Booster Types
 # Each entry defines a purchasable temporary coin booster.
-# multiplier: coin multiplier applied to all rewards (e.g. 1.5 = 50 % more coins)
-# duration-minutes: how long the booster lasts
-# price: cost in coins
+#
+# id            – internal key used in commands (/booster give <player> <id>)
+# name          – display name shown in GUIs (supports colour codes)
+# description   – one-line lore description
+# multiplier    – coin multiplier applied to all rewards (1.5 = 50 % more)
+# duration-minutes – how long the booster lasts after activation
+# price         – cost in coins to purchase one from the Booster Shop
+# potion-data   – 1.8.8 POTION durability value (controls rendered colour)
+#   Notable values: 8193=Regen(pink) 8194=Speed(blue) 8195=FireRes(orange)
+#                   8196=Poison(green) 8197=Healing(red) 8198=NightVision(navy)
+#                   8200=Weakness(grey) 8201=Strength(dark red) 8204=Harming(blood)
+#                   8206=Invisibility(grey-clear)
 # ──────────────────────────────────────────────────────────────────────────────
-booster-shop:
-  - multiplier: 1.5
+booster-types:
+  STARTER:
+    name: "&aStarter Boost"
+    description: "A small nudge to get you going."
+    multiplier: 1.25
+    duration-minutes: 20
+    price: 100
+    potion-data: 8194
+  SMALL:
+    name: "&bSwift Boost"
+    description: "A modest 1.5x boost for everyday grinding."
+    multiplier: 1.5
     duration-minutes: 30
     price: 200
-  - multiplier: 2.0
+    potion-data: 8193
+  NORMAL:
+    name: "&eDouble Boost"
+    description: "Double all coin rewards for 30 minutes."
+    multiplier: 2.0
     duration-minutes: 30
     price: 400
-  - multiplier: 3.0
-    duration-minutes: 30
-    price: 750
-  - multiplier: 1.5
+    potion-data: 8201
+  EXTENDED:
+    name: "&6Extended Boost"
+    description: "Steady 1.5x income for a full hour."
+    multiplier: 1.5
     duration-minutes: 60
     price: 350
-  - multiplier: 2.0
+    potion-data: 8195
+  EXTENDED_PLUS:
+    name: "&2Long Double"
+    description: "Double coins for a full hour of play."
+    multiplier: 2.0
     duration-minutes: 60
     price: 700
+    potion-data: 8196
+  MEGA:
+    name: "&dMega Boost"
+    description: "2.5x income for serious farming sessions."
+    multiplier: 2.5
+    duration-minutes: 45
+    price: 600
+    potion-data: 8197
+  LARGE:
+    name: "&cTriple Boost"
+    description: "Triple all coin rewards for 30 minutes."
+    multiplier: 3.0
+    duration-minutes: 30
+    price: 750
+    potion-data: 8200
+  ULTRA:
+    name: "&4Ultra Boost"
+    description: "4x coins — an intense short-term spike."
+    multiplier: 4.0
+    duration-minutes: 20
+    price: 900
+    potion-data: 8204
+  SUPREME:
+    name: "&5Supreme Boost"
+    description: "Maximum power. 5x coins for 15 minutes."
+    multiplier: 5.0
+    duration-minutes: 15
+    price: 1500
+    potion-data: 8206
 
 # Maximum distance from island edge before teleport to spawn (blocks)
 max-distance: 4
@@ -98,9 +172,9 @@ scoreboard:
     - "&8» &f%pb%"
     - ""
     - "&cSession-Top:"
-    - "%phoenix_player_rank_color%%top_name_1%&7: &f%top_time_1%"
-    - "%phoenix_player_rank_color%%top_name_2%&7: &f%top_time_2%"
-    - "%phoenix_player_rank_color%%top_name_3%&7: &f%top_time_3%"
+    - "&8» %phoenix_player_rank_color%%top_name_1%&7: &f%top_time_1%"
+    - "&8» %phoenix_player_rank_color%%top_name_2%&7: &f%top_time_2%"
+    - "&8» %phoenix_player_rank_color%%top_name_3%&7: &f%top_time_3%"
     - ""
     - "&cBlocks:"
     - "&8» &f%blocks%"
@@ -203,6 +277,10 @@ custom-length:
     # How many blocks deep (Z-axis) the platform extends.
     # 0 = span the full finish-zone Z range; positive = use this fixed depth.
     depth: 3
+  # Allowed vertical range for end-island height adjustment (Y-axis) in the Custom Length menu.
+  # Adjust to fit your map's build area.
+  y-min: -50
+  y-max: 50
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CPS hologram visibility

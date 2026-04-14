@@ -9,6 +9,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,8 +62,24 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
         }
         limit = Math.max(1, Math.min(limit, 50));
 
+        // Players get a GUI; console/command-blocks get the chat output
+        if (sender instanceof Player) {
+            Player player = (Player) sender;
+            if (targetMap != null) {
+                MapData map = plugin.getMapManager().getMap(targetMap);
+                if (map == null) {
+                    player.sendMessage(ColorUtil.translate(prefix + "&cMap '&f" + targetMap + "&c' not found."));
+                    return true;
+                }
+                plugin.getGuiManager().openLeaderboardGui(player, map.getName());
+            } else {
+                plugin.getGuiManager().openLeaderboardMapPicker(player);
+            }
+            return true;
+        }
+
+        // Console / command-block: chat output
         if (targetMap != null) {
-            // Validate map
             final String mapName = targetMap;
             MapData map = plugin.getMapManager().getMap(mapName);
             if (map == null) {

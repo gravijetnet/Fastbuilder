@@ -3,7 +3,7 @@
 # Block Selector GUI
 # Placeholder: %page% - Current page number
 block-selector:
-  name: "Block Selector - %page%/3"
+  name: "Block Selector - %page%/%max_page%"
   max-slots: 45
 
 # Mode Changer GUI
@@ -856,17 +856,278 @@ block-selector-slots:
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
+  4:
+    1:
+      name: "Sand"
+      material: SAND:0
+      price: 50
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    2:
+      name: "Red Sand"
+      material: SAND:1
+      price: 50
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    3:
+      name: "Gravel"
+      material: GRAVEL:0
+      price: 50
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    4:
+      name: "Dirt"
+      material: DIRT:0
+      price: 50
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    5:
+      name: "Coarse Dirt"
+      material: DIRT:1
+      price: 50
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    6:
+      name: "Podzol"
+      material: DIRT:2
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    7:
+      name: "Grass Block"
+      material: GRASS:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    8:
+      name: "Mycelium"
+      material: MYCEL:0
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    9:
+      name: "Soul Sand"
+      material: SOUL_SAND:0
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    10:
+      name: "Netherrack"
+      material: NETHERRACK:0
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    11:
+      name: "Sponge"
+      material: SPONGE:0
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    12:
+      name: "Wet Sponge"
+      material: SPONGE:1
+      price: 500
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    13:
+      name: "Bookshelf"
+      material: BOOKSHELF:0
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    14:
+      name: "Hardened Clay"
+      material: HARDENED_CLAY:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    15:
+      name: "Pumpkin"
+      material: PUMPKIN:0
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    16:
+      name: "Jack o'Lantern"
+      material: JACK_O_LANTERN:0
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    17:
+      name: "Ice"
+      material: ICE:0
+      price: 300
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    18:
+      name: "Lapis Block"
+      material: LAPIS_BLOCK:0
+      price: 800
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    19:
+      name: "Brown Mushroom Block"
+      material: HUGE_MUSHROOM_1:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    20:
+      name: "Red Mushroom Block"
+      material: HUGE_MUSHROOM_2:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    21:
+      name: "Cobblestone Wall"
+      material: COBBLE_WALL:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    22:
+      name: "Mossy Cobblestone Wall"
+      material: COBBLE_WALL:1
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    23:
+      name: "Oak Fence"
+      material: FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    24:
+      name: "Nether Brick Fence"
+      material: NETHER_FENCE:0
+      price: 400
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    25:
+      name: "Spruce Fence"
+      material: SPRUCE_FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    26:
+      name: "Birch Fence"
+      material: BIRCH_FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    27:
+      name: "Jungle Fence"
+      material: JUNGLE_FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    28:
+      name: "Acacia Fence"
+      material: ACACIA_FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    29:
+      name: "Dark Oak Fence"
+      material: DARK_OAK_FENCE:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    30:
+      name: "Chiseled Sandstone"
+      material: SANDSTONE:1
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    31:
+      name: "Smooth Sandstone"
+      material: SANDSTONE:2
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    32:
+      name: "Chiseled Red Sandstone"
+      material: RED_SANDSTONE:1
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    33:
+      name: "Smooth Red Sandstone"
+      material: RED_SANDSTONE:2
+      price: 200
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    34:
+      name: "Stone Slab"
+      material: STEP:0
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    35:
+      name: "Sandstone Slab"
+      material: STEP:1
+      price: 100
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+    36:
+      name: "TNT"
+      material: TNT:0
+      price: 2000
+      lore:
+        - "&ePrice: %price%"
+        - "%block_status%"
+
+# Island Selector GUI (dynamic auto-sizing)
+island-selector-gui:
+  # Max islands per page before pagination activates (must be a multiple of 9, ≤ 45)
+  page-size: 45
 
 # Shop GUI
 shop:
   name: "Shop"
-  # Strictly 3×9 (27 slots) as per spec
-  max-slots: 27
-  blocks-slot: 9
-  pickaxes-slot: 11
-  designs-slot: 13
-  animations-slot: 15
-  death-sounds-slot: 17
+  # GUI size — any valid inventory size (9/18/27/36/45/54). Auto-scales; remove the old 27 cap.
+  max-slots: 45
+  # Row 2 (slots 9–17): three category buttons centered with spacing
+  blocks-slot: 10
+  pickaxes-slot: 13
+  designs-slot: 16
+  # Row 4 (slots 27–35): three more category buttons
+  boosters-slot: 28
+  animations-slot: 31
+  death-sounds-slot: 34
   # Fully configurable shop category buttons.
   # material: ItemBuilder string (e.g. "EMERALD_BLOCK:0"), name: color-coded display name,
   # lore: list of lore lines (empty list uses the built-in default).
@@ -1092,7 +1353,7 @@ animation-selector:
 animation-selector-slots:
   1:
     name: "&fNone"
-    material: "STAINED_GLASS_PANE:0"
+    material: "BARRIER:0"
     animation: "NONE"
     price: 0
     lore:
@@ -1144,7 +1405,7 @@ animation-selector-slots:
 death-sound-selector-slots:
   1:
     name: "&fNone"
-    material: "STAINED_GLASS_PANE:0"
+    material: "BARRIER:0"
     sound: "NONE"
     price: 0
     lore:
