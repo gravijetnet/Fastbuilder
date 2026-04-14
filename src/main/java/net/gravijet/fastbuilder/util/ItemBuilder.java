@@ -11,7 +11,12 @@ import java.util.List;
 public class ItemBuilder {
 
     private Material material;
-    private byte data;
+    /**
+     * Stored as {@code short} to accommodate POTION durability values (e.g. 8194 for Speed)
+     * which exceed the byte range.  For normal block/item data values the lower 8 bits are
+     * sufficient and the cast in the constructor is lossless.
+     */
+    private short data;
     private int amount = 1;
     private String name;
     private List<String> lore;
@@ -21,7 +26,14 @@ public class ItemBuilder {
         this.data = 0;
     }
 
+    /** Constructs with a standard block-data byte (values 0–15). */
     public ItemBuilder(Material material, byte data) {
+        this.material = material;
+        this.data = data;
+    }
+
+    /** Constructs with a full short durability/data value (for potions, etc.). */
+    public ItemBuilder(Material material, short data) {
         this.material = material;
         this.data = data;
     }
@@ -47,7 +59,14 @@ public class ItemBuilder {
         return this;
     }
 
+    /** Set block-data byte (values 0–15, e.g. wool colour, stained clay). */
     public ItemBuilder data(byte data) {
+        this.data = data;
+        return this;
+    }
+
+    /** Set full durability value as short (use for potions: 8193–8206 range). */
+    public ItemBuilder data(short data) {
         this.data = data;
         return this;
     }

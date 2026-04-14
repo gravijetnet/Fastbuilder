@@ -161,7 +161,7 @@ public class CpsListener implements Listener {
         }.runTaskLater(plugin, 20L).getTaskId();
         zeroTasks.put(uuid, zeroTaskId);
 
-        // At 60 ticks (3 s total = 1 s until CPS=0, then 2 s of showing 0 CPS): remove hologram
+        // At 50 ticks (2.5 s total = 1 s until CPS=0, then 1.5 s of showing 0 CPS): remove hologram
         int taskId = new BukkitRunnable() {
             @Override
             public void run() {
@@ -176,7 +176,7 @@ public class CpsListener implements Listener {
                 Deque<Long> d = clickTimes.get(uuid);
                 if (d != null) d.clear();
             }
-        }.runTaskLater(plugin, 60L).getTaskId(); // 60 ticks = 3 s after last click
+        }.runTaskLater(plugin, 50L).getTaskId(); // 50 ticks = 2.5 s after last click (1 s + 1.5 s of 0 CPS)
 
         removalTasks.put(uuid, taskId);
     }

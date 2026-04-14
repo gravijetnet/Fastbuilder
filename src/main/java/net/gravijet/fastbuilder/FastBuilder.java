@@ -1,6 +1,6 @@
 package net.gravijet.fastbuilder;
 
-import net.gravijet.fastbuilder.command.AdminExpCommand;
+import net.gravijet.fastbuilder.command.BoosterCommand;
 import net.gravijet.fastbuilder.command.FastBuilderCommand;
 import net.gravijet.fastbuilder.command.LeaderboardCommand;
 import net.gravijet.fastbuilder.command.MapCommand;
@@ -106,9 +106,9 @@ public class FastBuilder extends JavaPlugin {
         net.gravijet.fastbuilder.command.BuildCommand buildCmd = new net.gravijet.fastbuilder.command.BuildCommand(this);
         getCommand("build").setExecutor(buildCmd);
 
-        AdminExpCommand adminExpCmd = new AdminExpCommand(this);
-        getCommand("adminexp").setExecutor(adminExpCmd);
-        getCommand("adminexp").setTabCompleter(adminExpCmd);
+        BoosterCommand boosterCmd = new BoosterCommand(this);
+        getCommand("booster").setExecutor(boosterCmd);
+        getCommand("booster").setTabCompleter(boosterCmd);
 
         LeaderboardCommand lbCmd = new LeaderboardCommand(this);
         getCommand("leaderboard").setExecutor(lbCmd);

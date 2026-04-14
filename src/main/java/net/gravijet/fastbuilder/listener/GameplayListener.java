@@ -196,9 +196,9 @@ public class GameplayListener implements Listener {
      * <ul>
      *   <li>Returns false immediately for infinite-mode maps (no finish zone).</li>
      *   <li>For end-island maps: derives the zone from the placed end island's bounds
-     *       at the player's current custom length (defaults to base distance).</li>
-     *   <li>For legacy custom-length maps: shifts the static finish zone X by the
-     *       player's preference.</li>
+     *       at the player's current custom length (X) and height offset (Y).</li>
+     *   <li>For legacy/standard maps: checks the static finish zone, applying any
+     *       active design-profile finish-zone override first.</li>
      *   <li>Triggers if the player is within X/Z bounds and within Y range up to
      *       finishMaxY + configurable height tolerance.</li>
      * </ul>
@@ -212,34 +212,51 @@ public class GameplayListener implements Listener {
         int bz = loc.getBlockZ();
         int heightTolerance = plugin.getConfigManager().getFinishHeightTolerance();
 
-        // New end-island mode: derive finish zone from the placed end island's bounds
+        PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+
+        // End-island mode: derive finish zone from the live end-island position
         if (map.hasEndIsland()) {
-            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
             if (customLength <= 0) customLength = map.getBaseCustomLength();
             customLength = Math.max(map.getEffectiveMinCustomLength(),
                     Math.min(map.getEffectiveMaxCustomLength(), customLength));
-            // endX = east edge of start island + customLength (gap to west edge of end island)
+
+            // Y adjustment from the Custom Length sub-menu
+            int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
+
             int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
-            int endY = map.getOriginY() + map.getEndIslandYOffset();
-            int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+            int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
+            int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
+                    + map.getEndIslandZOffset();
+
             return bx >= endX && bx < endX + map.getEndIslandWidth()
                     && by >= endY && by <= endY + map.getEndIslandHeight() - 1 + heightTolerance
                     && bz >= endZ && bz < endZ + map.getEndIslandLength();
         }
 
-        // Legacy: static finish zone defined during setup
+        // Standard / legacy maps — check for active design-profile finish-zone override
         int offsetZ = islandIndex * map.getActualZStep();
-        int fMinX = map.getOriginX() + map.getFinishMinX();
-        int fMinY = map.getOriginY() + map.getFinishMinY();
-        int fMinZ = map.getOriginZ() + offsetZ + map.getFinishMinZ();
-        int fMaxX = map.getOriginX() + map.getFinishMaxX();
-        int fMaxY = map.getOriginY() + map.getFinishMaxY();
-        int fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
+        int fMinX, fMinY, fMinZ, fMaxX, fMaxY, fMaxZ;
+
+        int[] finishOverride = pData != null ? pData.getActiveFinishZone(map.getName()) : null;
+        if (finishOverride != null) {
+            fMinX = map.getOriginX() + finishOverride[0];
+            fMinY = map.getOriginY() + finishOverride[1];
+            fMinZ = map.getOriginZ() + offsetZ + finishOverride[2];
+            fMaxX = map.getOriginX() + finishOverride[3];
+            fMaxY = map.getOriginY() + finishOverride[4];
+            fMaxZ = map.getOriginZ() + offsetZ + finishOverride[5];
+        } else {
+            fMinX = map.getOriginX() + map.getFinishMinX();
+            fMinY = map.getOriginY() + map.getFinishMinY();
+            fMinZ = map.getOriginZ() + offsetZ + map.getFinishMinZ();
+            fMaxX = map.getOriginX() + map.getFinishMaxX();
+            fMaxY = map.getOriginY() + map.getFinishMaxY();
+            fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
+        }
 
         // Legacy custom-length: reposition finish zone X based on player preference
         if (map.hasCustomLength()) {
-            PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
             if (customLength > 0) {
                 customLength = Math.max(map.getMinCustomLength(),

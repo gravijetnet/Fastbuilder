@@ -3,10 +3,13 @@ package net.gravijet.fastbuilder.map;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Holds all persistent data for a single map type.
@@ -88,6 +91,34 @@ public class MapData {
     private long silverTime = -1;
     private long bronzeTime = -1;
 
+    // Per-design spawn/finish/dimension profiles for alternative island templates.
+    // Keyed by template file name (lower-case). Saved in the map YAML file.
+    private final Map<String, DesignProfile> designProfiles = new HashMap<>();
+
+    /**
+     * Metadata for an alternative island design template: spawn location offset,
+     * finish zone bounds, and island dimensions — all relative to the island's
+     * min corner. Stored per template key so the plugin can apply the correct
+     * spawn point and finish detection when a player picks a non-default design.
+     */
+    public static class DesignProfile {
+        /** Spawn position offsets (in blocks) relative to island min corner. */
+        public double spawnOffsetX, spawnOffsetY, spawnOffsetZ;
+        public float  spawnYaw, spawnPitch;
+        /** Finish zone bounds, relative to island min corner. */
+        public int finishMinX, finishMinY, finishMinZ;
+        public int finishMaxX, finishMaxY, finishMaxZ;
+        /** Island dimensions for this design (used to adjust end-island gaps). */
+        public int islandWidth, islandHeight, islandLength;
+
+        public DesignProfile() {}
+
+        /** Returns true when a custom finish zone is configured for this profile. */
+        public boolean hasFinishZone() {
+            return finishMaxX > finishMinX || finishMaxZ > finishMinZ;
+        }
+    }
+
     public MapData(String name) {
         this.name = name;
         this.enabled = false;
@@ -152,6 +183,27 @@ public class MapData {
         config.set("rank.gold", goldTime > 0 ? goldTime : null);
         config.set("rank.silver", silverTime > 0 ? silverTime : null);
         config.set("rank.bronze", bronzeTime > 0 ? bronzeTime : null);
+
+        // Design profiles
+        config.set("design-profiles", null); // clear stale entries
+        for (Map.Entry<String, DesignProfile> e : designProfiles.entrySet()) {
+            String b = "design-profiles." + e.getKey() + ".";
+            DesignProfile p = e.getValue();
+            config.set(b + "spawn.x",        p.spawnOffsetX);
+            config.set(b + "spawn.y",        p.spawnOffsetY);
+            config.set(b + "spawn.z",        p.spawnOffsetZ);
+            config.set(b + "spawn.yaw",      (double) p.spawnYaw);
+            config.set(b + "spawn.pitch",    (double) p.spawnPitch);
+            config.set(b + "finish.min.x",   p.finishMinX);
+            config.set(b + "finish.min.y",   p.finishMinY);
+            config.set(b + "finish.min.z",   p.finishMinZ);
+            config.set(b + "finish.max.x",   p.finishMaxX);
+            config.set(b + "finish.max.y",   p.finishMaxY);
+            config.set(b + "finish.max.z",   p.finishMaxZ);
+            config.set(b + "island.width",   p.islandWidth);
+            config.set(b + "island.height",  p.islandHeight);
+            config.set(b + "island.length",  p.islandLength);
+        }
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -216,6 +268,31 @@ public class MapData {
         goldTime = config.getLong("rank.gold", -1);
         silverTime = config.getLong("rank.silver", -1);
         bronzeTime = config.getLong("rank.bronze", -1);
+
+        // Design profiles
+        designProfiles.clear();
+        ConfigurationSection profilesSec = config.getConfigurationSection("design-profiles");
+        if (profilesSec != null) {
+            for (String key : profilesSec.getKeys(false)) {
+                String b = "design-profiles." + key + ".";
+                DesignProfile p = new DesignProfile();
+                p.spawnOffsetX  = config.getDouble(b + "spawn.x");
+                p.spawnOffsetY  = config.getDouble(b + "spawn.y");
+                p.spawnOffsetZ  = config.getDouble(b + "spawn.z");
+                p.spawnYaw      = (float) config.getDouble(b + "spawn.yaw");
+                p.spawnPitch    = (float) config.getDouble(b + "spawn.pitch");
+                p.finishMinX    = config.getInt(b + "finish.min.x");
+                p.finishMinY    = config.getInt(b + "finish.min.y");
+                p.finishMinZ    = config.getInt(b + "finish.min.z");
+                p.finishMaxX    = config.getInt(b + "finish.max.x");
+                p.finishMaxY    = config.getInt(b + "finish.max.y");
+                p.finishMaxZ    = config.getInt(b + "finish.max.z");
+                p.islandWidth   = config.getInt(b + "island.width");
+                p.islandHeight  = config.getInt(b + "island.height");
+                p.islandLength  = config.getInt(b + "island.length");
+                designProfiles.put(key.toLowerCase(), p);
+            }
+        }
     }
 
     // --- Computed ---
@@ -477,6 +554,30 @@ public class MapData {
 
     public int getEndIslandZOffset() { return endIslandZOffset; }
     public void setEndIslandZOffset(int z) { this.endIslandZOffset = z; }
+
+    // -------------------------------------------------------------------------
+    // Design-profile accessors
+    // -------------------------------------------------------------------------
+
+    /** Returns the profile for the given template key, or null if none has been set. */
+    public DesignProfile getDesignProfile(String templateKey) {
+        if (templateKey == null) return null;
+        return designProfiles.get(templateKey.toLowerCase());
+    }
+
+    /** Stores (or replaces) the design profile for the given template key. */
+    public void setDesignProfile(String templateKey, DesignProfile profile) {
+        if (profile == null) {
+            designProfiles.remove(templateKey.toLowerCase());
+        } else {
+            designProfiles.put(templateKey.toLowerCase(), profile);
+        }
+    }
+
+    /** Returns true if a design profile has been recorded for the given template key. */
+    public boolean hasDesignProfile(String templateKey) {
+        return templateKey != null && designProfiles.containsKey(templateKey.toLowerCase());
+    }
 
     /**
      * Returns the highest rank the player achieves with the given best time.
