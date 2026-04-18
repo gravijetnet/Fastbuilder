@@ -88,9 +88,22 @@ public class CoinManager {
     /**
      * Award coins for a successfully finished run.
      *
-     * <p>The coin amount is determined by comparing the player's time against the
-     * server-wide average for the map — no randomness.  The booster multiplier is
-     * applied on top of the tier result.</p>
+     * <p>The tier is determined by comparing the player's time against a blended
+     * average: 65% personal average (when enough data exists) + 35% server-wide
+     * average. This rewards players relative to their own skill level while still
+     * anchoring to the server norm.</p>
+     *
+     * <p>Coin tiers (based on ratio = playerTime / blendedAverage):</p>
+     * <ul>
+     *   <li>ratio &lt; 0.70 → 20 (elite)</li>
+     *   <li>0.70–0.85       → 17–19 (very fast)</li>
+     *   <li>0.85–1.05       → 10–16 (normal)</li>
+     *   <li>1.05–1.40       → 5–9   (slow)</li>
+     *   <li>&gt; 1.40       → 1–4   (very slow)</li>
+     * </ul>
+     *
+     * <p>The booster multiplier is applied after the tier is computed.
+     * Base coins are capped at 20; boosters can push the total above that cap.</p>
      *
      * @param player     the player who finished
      * @param timeMillis run duration in milliseconds
@@ -99,18 +112,39 @@ public class CoinManager {
      */
     public int awardCompletionCoins(Player player, long timeMillis, String mapName) {
         // Update the server-wide rolling average for this map
-        long[] stats = mapAverageData.computeIfAbsent(mapName, k -> new long[]{0L, 0L});
-        stats[0] += timeMillis;
-        stats[1]++;
+        long[] mapStats = mapAverageData.computeIfAbsent(mapName, k -> new long[]{0L, 0L});
+        mapStats[0] += timeMillis;
+        mapStats[1]++;
 
-        double averageMs = resolveAverage(mapName);
-        int base = computeTierCoins(timeMillis, averageMs);
+        // Blend server-wide and personal averages so coin rewards are relative to the
+        // player's own performance history. Personal average is weighted more heavily
+        // when enough samples exist (threshold: coins-average-min-samples in config).
+        double serverMs   = resolveServerAverage(mapName);
+        double personalMs = resolvePersonalAverage(player.getUniqueId(), mapName);
+        double averageMs  = personalMs > 0
+                ? personalMs * 0.65 + serverMs * 0.35
+                : serverMs;
+
+        int base = computeTierCoins(timeMillis, averageMs); // base is at most 20
 
         double boost = plugin.getBoosterManager().getMultiplier(player);
         int coins = (int) Math.round(base * boost);
 
         addCoins(player.getUniqueId(), coins);
         return coins;
+    }
+
+    /**
+     * Returns the base (pre-booster) coin amount for the given run time against the
+     * blended average.  Used by callers that need to display the breakdown.
+     */
+    public int computeBaseCoins(java.util.UUID uuid, long timeMillis, String mapName) {
+        double serverMs   = resolveServerAverage(mapName);
+        double personalMs = resolvePersonalAverage(uuid, mapName);
+        double averageMs  = personalMs > 0
+                ? personalMs * 0.65 + serverMs * 0.35
+                : serverMs;
+        return computeTierCoins(timeMillis, averageMs);
     }
 
     /**
@@ -150,13 +184,26 @@ public class CoinManager {
      * Resolve the server-wide average for a map.
      * Falls back to the configured default until enough samples accumulate.
      */
-    private double resolveAverage(String mapName) {
+    private double resolveServerAverage(String mapName) {
         long[] stats = mapAverageData.get(mapName);
         int minSamples = plugin.getConfigManager().getCoinsAverageMinSamples();
         if (stats == null || stats[1] < minSamples) {
             return plugin.getConfigManager().getCoinsFallbackAverageSeconds() * 1000.0;
         }
         return (double) stats[0] / stats[1];
+    }
+
+    /**
+     * Resolve the player's personal average for a map.
+     * Returns 0 if fewer than {@code coins-average-min-samples} successful runs exist.
+     */
+    private double resolvePersonalAverage(java.util.UUID uuid, String mapName) {
+        PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
+        if (data == null) return 0;
+        PlayerData.MapStats pStats = data.getAllStats().get(mapName);
+        int minSamples = plugin.getConfigManager().getCoinsAverageMinSamples();
+        if (pStats == null || pStats.successfulAttempts < minSamples) return 0;
+        return (double) pStats.totalSuccessTime / pStats.successfulAttempts;
     }
 
     /**

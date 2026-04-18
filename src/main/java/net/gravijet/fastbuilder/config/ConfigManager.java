@@ -157,6 +157,18 @@ public class ConfigManager {
         return mainConfig.getBoolean("island-hopping.enabled", true);
     }
 
+    public boolean isIslandJumpSwitchEnabled() {
+        return mainConfig.getBoolean("island-jump-switch.enabled", true);
+    }
+
+    public boolean isResetLockEnabled() {
+        return mainConfig.getBoolean("reset-lock", true);
+    }
+
+    public int getMaxConcurrentGenerations() {
+        return mainConfig.getInt("scale-generation.max-concurrent", 4);
+    }
+
     public int getAutoscaleMinIslands() {
         return mainConfig.getInt("autoscale.min-islands", 15);
     }

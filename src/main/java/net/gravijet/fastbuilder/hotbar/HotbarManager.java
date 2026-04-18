@@ -30,10 +30,9 @@ public class HotbarManager implements Listener {
     private static final int SLOT_BLOCK_2 = 1;
     private static final int SLOT_PICKAXE = 2;
     private static final int SLOT_PRACTICE_BLOCKS = 3;
-    private static final int SLOT_SHOP = 4;
-
-    private static final int SLOT_REPLAY = 5;
-    private static final int SLOT_ISLAND_SELECTOR = 6;
+    private static final int SLOT_ISLAND_SELECTOR = 4;
+    private static final int SLOT_SHOP = 5;
+    private static final int SLOT_REPLAY = 6;
     private static final int SLOT_SETTINGS = 7;
     private static final int SLOT_LEAVE = 8;
 
@@ -93,20 +92,20 @@ public class HotbarManager implements Listener {
             player.getInventory().setItem(SLOT_PRACTICE_BLOCKS, practiceStack);
         }
 
-        // Slot 4: Shop item
+        // Slot 4: Island selector
+        String islandName = items.getString("islandselector-item", "&6Island Selector &7(Right-Click to use)");
+        String islandMat = items.getString("islandselector-item-material", "NETHER_STAR:0");
+        player.getInventory().setItem(SLOT_ISLAND_SELECTOR, ItemBuilder.fromString(islandMat).name(islandName).build());
+
+        // Slot 5: Shop item
         String shopName = items.getString("shop-item", "&6Shop &7(Right-Click to use)");
         String shopMat = items.getString("shop-item-material", "GOLD_NUGGET:0");
         player.getInventory().setItem(SLOT_SHOP, ItemBuilder.fromString(shopMat).name(shopName).build());
 
-        // Slot 5: Replay item
+        // Slot 6: Replay item
         String replayName = items.getString("replay-item", "&5Replay View &7(Right-Click to use)");
         String replayMat = items.getString("replay-item-material", "BOOK:0");
         player.getInventory().setItem(SLOT_REPLAY, ItemBuilder.fromString(replayMat).name(replayName).build());
-
-        // Slot 6: Island selector
-        String islandName = items.getString("islandselector-item", "&6Island Selector &7(Right-Click to use)");
-        String islandMat = items.getString("islandselector-item-material", "NETHER_STAR:0");
-        player.getInventory().setItem(SLOT_ISLAND_SELECTOR, ItemBuilder.fromString(islandMat).name(islandName).build());
 
         // Slot 7: Settings
         String settingsName = items.getString("settings-item", "&2Settings &7(Right-Click to use)");
@@ -322,9 +321,9 @@ public class HotbarManager implements Listener {
 
         switch (slot) {
             case ReplaySession.SLOT_TIMELINE:
-                // Left = rewind 5 s, Right = fast-forward 5 s
-                if (leftClick) session.rewind(100);
-                else           session.fastForward(100);
+                // Left = rewind 0.5 s, Right = fast-forward 0.5 s
+                if (leftClick) session.rewind(10);
+                else           session.fastForward(10);
                 break;
             case ReplaySession.SLOT_PAUSE_RESUME:
                 session.togglePause();

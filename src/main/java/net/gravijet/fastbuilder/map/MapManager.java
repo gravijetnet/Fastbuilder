@@ -214,6 +214,12 @@ public class MapManager {
         data.setFinishMaxY(session.getFinishMaxY());
         data.setFinishMaxZ(session.getFinishMaxZ());
 
+        // Diagonal mode
+        if (session.isDiagonalMode()) {
+            data.setDiagonal(true);
+            data.setDiagonalStepX(session.getDiagonalStepX());
+        }
+
         // Default gap = 3 blocks between south edge of one island and north edge of the next
         data.setDistance(3);
         data.setScale(1);
@@ -234,14 +240,21 @@ public class MapManager {
      * Must be called after createMap() to place the template in the world.
      */
     public void pasteInitialIsland(MapData map) {
-        plugin.getFawePaster().pasteIslands(
-                map.getWorld(),
-                map.getTemplateFile(),
-                map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                map.getActualZStep(),
-                0, map.getScale(),
-                () -> plugin.getLogger().info("Pasted initial island(s) for map: " + map.getName())
-        );
+        if (map.isDiagonal()) {
+            plugin.getFawePaster().pasteIslandsDiagonal(
+                    map.getWorld(), map.getTemplateFile(),
+                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                    map.getActualZStep(), map.getDiagonalStepX(),
+                    0, map.getScale(),
+                    () -> plugin.getLogger().info("Pasted initial island(s) for map: " + map.getName()));
+        } else {
+            plugin.getFawePaster().pasteIslands(
+                    map.getWorld(), map.getTemplateFile(),
+                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                    map.getActualZStep(),
+                    0, map.getScale(),
+                    () -> plugin.getLogger().info("Pasted initial island(s) for map: " + map.getName()));
+        }
     }
 
     public boolean renameMap(String oldName, String newName) {
@@ -335,10 +348,17 @@ public class MapManager {
         String mapKey = map.getName().toLowerCase();
 
         if (newScale > oldScale) {
-            plugin.getFawePaster().pasteIslands(
-                    map.getWorld(), map.getTemplateFile(),
-                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                    map.getActualZStep(), oldScale, newScale, null);
+            if (map.isDiagonal()) {
+                plugin.getFawePaster().pasteIslandsDiagonal(
+                        map.getWorld(), map.getTemplateFile(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getActualZStep(), map.getDiagonalStepX(), oldScale, newScale, null);
+            } else {
+                plugin.getFawePaster().pasteIslands(
+                        map.getWorld(), map.getTemplateFile(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getActualZStep(), oldScale, newScale, null);
+            }
 
             List<IslandInstance> list = islands.computeIfAbsent(mapKey, k -> new ArrayList<>());
             for (int i = oldScale; i < newScale; i++) list.add(new IslandInstance(i));
@@ -373,11 +393,19 @@ public class MapManager {
                 while (list.size() > newScale) list.remove(list.size() - 1);
             }
 
-            plugin.getFawePaster().clearIslands(
-                    map.getWorld(),
-                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
-                    map.getActualZStep(), newScale, oldScale, null);
+            if (map.isDiagonal()) {
+                plugin.getFawePaster().clearIslandsDiagonal(
+                        map.getWorld(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        map.getActualZStep(), map.getDiagonalStepX(), newScale, oldScale, null);
+            } else {
+                plugin.getFawePaster().clearIslands(
+                        map.getWorld(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        map.getActualZStep(), newScale, oldScale, null);
+            }
         }
 
         map.setScale(newScale);
@@ -385,22 +413,15 @@ public class MapManager {
     }
 
     /**
-     * Clear all islands at oldDistance and re-paste at the new distance stored in map.
-     * Also teleports all players back to their new spawn positions.
-     */
-    /**
      * Re-paste all islands after a distance change.
-     * @param oldGap previous gap value (southernmost-to-northernmost, new semantics)
+     * @param oldActualStep previous total Z step (islandLength + gap, or physicalLength + gap)
      */
-    public void regenerateIslands(final MapData map, final int oldGap) {
+    public void regenerateIslands(final MapData map, final int oldActualStep) {
         final int scale = map.getScale();
-        final int newGap = map.getDistance();
-        // Compute actual Z steps (total separation including island length)
-        final int oldActualStep = map.getIslandLength() + oldGap;
         final int newActualStep = map.getActualZStep();
 
         plugin.getLogger().info("Regenerating " + scale + " islands for map '" + map.getName()
-                + "' (old gap=" + oldGap + ", new gap=" + newGap + ")");
+                + "' (old step=" + oldActualStep + ", new step=" + newActualStep + ")");
 
         // Step 1: Evict all players from this map to world spawn temporarily
         List<IslandInstance> list = islands.get(map.getName().toLowerCase());
@@ -417,51 +438,63 @@ public class MapManager {
             }
         }
 
-        // Step 2: Clear all old island positions
-        plugin.getFawePaster().clearIslands(
-                map.getWorld(),
-                map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
-                oldActualStep, 0, scale,
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        // Step 3: Paste at new distance positions
-                        plugin.getFawePaster().pasteIslands(
-                                map.getWorld(), map.getTemplateFile(),
-                                map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                                newActualStep, 0, scale,
-                                new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        plugin.getLogger().info("Regeneration complete for map: " + map.getName());
-                                        // Teleport players back to new spawn positions and respawn entities
-                                        List<IslandInstance> iList = islands.get(map.getName().toLowerCase());
-                                        if (iList == null) return;
-                                        for (IslandInstance island : iList) {
-                                            if (island.isOccupied()) {
-                                                org.bukkit.entity.Player p = Bukkit.getPlayer(island.getOccupantUuid());
-                                                if (p != null && p.isOnline()) {
-                                                    p.teleport(map.getIslandSpawn(island.getIndex()));
-                                                    p.sendMessage(ColorUtil.translate(
-                                                            plugin.getConfigManager().getPrefix()
-                                                            + "&aIsland layout updated! Teleported to new spawn."));
-                                                    if (plugin.getNpcManager() != null) {
-                                                        plugin.getNpcManager().despawnNpc(p.getUniqueId());
-                                                        plugin.getNpcManager().spawnNpc(p, map.getIslandNpcLocation(island.getIndex()));
-                                                    }
-                                                    if (plugin.getHologramManager() != null) {
-                                                        plugin.getHologramManager().updateHologram(map.getName(), island.getIndex(), p);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                        );
+        // Step 2: Clear old positions, then paste at new positions
+        Runnable onPasteComplete = new Runnable() {
+            @Override
+            public void run() {
+                plugin.getLogger().info("Regeneration complete for map: " + map.getName());
+                List<IslandInstance> iList = islands.get(map.getName().toLowerCase());
+                if (iList == null) return;
+                for (IslandInstance island : iList) {
+                    if (island.isOccupied()) {
+                        org.bukkit.entity.Player p = Bukkit.getPlayer(island.getOccupantUuid());
+                        if (p != null && p.isOnline()) {
+                            p.teleport(map.getIslandSpawn(island.getIndex()));
+                            p.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                    + "&aIsland layout updated! Teleported to new spawn."));
+                            if (plugin.getNpcManager() != null) {
+                                plugin.getNpcManager().despawnNpc(p.getUniqueId());
+                                plugin.getNpcManager().spawnNpc(p, map.getIslandNpcLocation(island.getIndex()));
+                            }
+                            if (plugin.getHologramManager() != null) {
+                                plugin.getHologramManager().updateHologram(map.getName(), island.getIndex(), p);
+                            }
+                        }
                     }
                 }
-        );
+            }
+        };
+
+        Runnable onClearComplete = new Runnable() {
+            @Override
+            public void run() {
+                if (map.isDiagonal()) {
+                    plugin.getFawePaster().pasteIslandsDiagonal(
+                            map.getWorld(), map.getTemplateFile(),
+                            map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                            newActualStep, map.getDiagonalStepX(), 0, scale, onPasteComplete);
+                } else {
+                    plugin.getFawePaster().pasteIslands(
+                            map.getWorld(), map.getTemplateFile(),
+                            map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                            newActualStep, 0, scale, onPasteComplete);
+                }
+            }
+        };
+
+        if (map.isDiagonal()) {
+            plugin.getFawePaster().clearIslandsDiagonal(
+                    map.getWorld(),
+                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                    oldActualStep, map.getDiagonalStepX(), 0, scale, onClearComplete);
+        } else {
+            plugin.getFawePaster().clearIslands(
+                    map.getWorld(),
+                    map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                    oldActualStep, 0, scale, onClearComplete);
+        }
     }
 
     public void checkAutoscale(MapData map) {

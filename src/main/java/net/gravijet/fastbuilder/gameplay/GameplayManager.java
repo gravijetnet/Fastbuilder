@@ -18,11 +18,14 @@ import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -47,6 +50,10 @@ public class GameplayManager {
 
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
+
+    // Islands currently being reset — key format: "mapName:islandIndex"
+    // Blocks placements on these islands are rejected until reset finishes.
+    private final Set<String> resettingIslands = Collections.synchronizedSet(new HashSet<>());
 
     // -------------------------------------------------------------------------
     // Death Sounds: display name → Bukkit Sound enum name (1.8.8)
@@ -273,6 +280,14 @@ public class GameplayManager {
 
             int coins = plugin.getCoinManager().awardCompletionCoins(player, time, session.getMapName());
 
+            // Resolve booster state so we can display it in chat / title
+            double boostMult = plugin.getBoosterManager().getMultiplier(player);
+            boolean hasBoost = boostMult > 1.01;
+            String boostLabel = hasBoost ? formatMult(boostMult) + "x Booster" : "";
+            int baseCoins = hasBoost
+                    ? plugin.getCoinManager().computeBaseCoins(player.getUniqueId(), time, session.getMapName())
+                    : coins;
+
             String prefix = plugin.getConfigManager().getPrefix();
             if (isNewPB) {
                 List<String> messages = plugin.getConfigManager().getEndPBMessages();
@@ -281,6 +296,8 @@ public class GameplayManager {
                             .replace("%pb%", TimeUtil.formatTime(time))
                             .replace("%difference%", oldBest > 0
                                     ? TimeUtil.formatDifference(time, oldBest) : "N/A")
+                            .replace("%coins%", String.valueOf(coins))
+                            .replace("%booster%", boostLabel)
                             .replace("%prefix%", prefix);
                     player.sendMessage(ColorUtil.translate(line));
                 }
@@ -290,18 +307,36 @@ public class GameplayManager {
                     line = line.replace("%time%", TimeUtil.formatTime(time))
                             .replace("%pb%", TimeUtil.formatTime(stats.bestTime))
                             .replace("%difference%", TimeUtil.formatDifference(time, stats.bestTime))
+                            .replace("%coins%", String.valueOf(coins))
+                            .replace("%booster%", boostLabel)
                             .replace("%prefix%", prefix);
                     player.sendMessage(ColorUtil.translate(line));
                 }
+            }
+
+            // Always show booster breakdown in chat when one was active
+            if (hasBoost) {
+                player.sendMessage(ColorUtil.translate(prefix
+                        + "&6" + formatMult(boostMult) + "x Booster &7active! &8("
+                        + baseCoins + " \u2192 &6" + coins + " coins&8)"));
             }
 
             String title = plugin.getConfigManager().getTitle();
             String subtitle = plugin.getConfigManager().getSubtitle();
             if (title != null && !title.isEmpty()) {
                 title = title.replace("%time%", TimeUtil.formatTime(time))
-                        .replace("%coins%", String.valueOf(coins));
-                subtitle = subtitle != null ? subtitle.replace("%time%", TimeUtil.formatTime(time))
-                        .replace("%coins%", String.valueOf(coins)) : "";
+                        .replace("%coins%", String.valueOf(coins))
+                        .replace("%booster%", boostLabel);
+                if (subtitle == null) subtitle = "";
+                subtitle = subtitle.replace("%time%", TimeUtil.formatTime(time))
+                        .replace("%coins%", String.valueOf(coins))
+                        .replace("%booster%", boostLabel);
+                // Append booster notice to subtitle when no %booster% placeholder was configured
+                if (hasBoost && !subtitle.contains(formatMult(boostMult))) {
+                    subtitle = subtitle.isEmpty()
+                            ? "&6" + formatMult(boostMult) + "x Booster active"
+                            : subtitle + " &8| &6" + formatMult(boostMult) + "x";
+                }
                 player.sendTitle(ColorUtil.translate(title), ColorUtil.translate(subtitle));
             }
 
@@ -496,12 +531,35 @@ public class GameplayManager {
      * Start the block-clearing animation immediately (for instant death/finish response).
      * Does NOT teleport the player — call finalizeReset() after the delay.
      */
+    // =========================================================================
+    // Island reset lock (block placements rejected while island is resetting)
+    // =========================================================================
+
+    private static String islandKey(String mapName, int islandIndex) {
+        return mapName + ":" + islandIndex;
+    }
+
+    public void markIslandResetting(String mapName, int islandIndex) {
+        resettingIslands.add(islandKey(mapName, islandIndex));
+    }
+
+    public void unmarkIslandResetting(String mapName, int islandIndex) {
+        resettingIslands.remove(islandKey(mapName, islandIndex));
+    }
+
+    public boolean isIslandResetting(String mapName, int islandIndex) {
+        return resettingIslands.contains(islandKey(mapName, islandIndex));
+    }
+
+    // =========================================================================
+
     public void startResetAnimation(Player player) {
         RunSession session = activeSessions.get(player.getUniqueId());
         if (session == null) return;
 
         // Lock the session immediately so no second reset can fire.
         session.setResetting(true);
+        markIslandResetting(session.getMapName(), session.getIslandIndex());
 
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         String animation = pData != null ? pData.getSelectedAnimation() : "NONE";
@@ -527,8 +585,16 @@ public class GameplayManager {
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
+        String mapName = session.getMapName();
+        int islandIndex = session.getIslandIndex();
+
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
+
+        // Persist block count so the scoreboard doesn't flash "0" between runs
+        if (!lastFinishBlocks.containsKey(player.getUniqueId())) {
+            lastFinishBlocks.put(player.getUniqueId(), session.getPlacedBlocks().size());
+        }
 
         session.reset();
 
@@ -542,6 +608,9 @@ public class GameplayManager {
         }
 
         plugin.getScoreboardManager().updateScoreboard(player);
+
+        // Island reset is complete — unblock placements
+        unmarkIslandResetting(mapName, islandIndex);
     }
 
     /**
@@ -562,6 +631,11 @@ public class GameplayManager {
 
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
+
+        // Persist block count so the scoreboard doesn't flash "0" between runs
+        if (!lastFinishBlocks.containsKey(player.getUniqueId())) {
+            lastFinishBlocks.put(player.getUniqueId(), session.getPlacedBlocks().size());
+        }
 
         session.reset();
 
@@ -614,6 +688,7 @@ public class GameplayManager {
         // Free old island, remove old session
         plugin.getMapManager().freeIsland(map.getName(), uuid);
         removeSession(uuid);
+        unmarkIslandResetting(map.getName(), oldIsland);
 
         // Assign new island
         plugin.getMapManager().assignIsland(map.getName(), targetIsland, uuid, player.getName());
@@ -735,6 +810,21 @@ public class GameplayManager {
                 pData.clearActiveFinishZone(map.getName());
             }
 
+            // Respawn NPC at the design-profile NPC position if one is recorded
+            if (profile.hasNpcPosition() && plugin.getNpcManager() != null) {
+                long diagX = (long) islandIndex * map.getDiagonalStepX();
+                long slotZ = map.getOriginZ() + (long) islandIndex * map.getActualZStep();
+                org.bukkit.Location npcLoc = new org.bukkit.Location(
+                        map.getWorld(),
+                        map.getOriginX() + diagX + profile.npcOffsetX,
+                        map.getOriginY() + profile.npcOffsetY,
+                        slotZ + profile.npcOffsetZ,
+                        profile.npcYaw, profile.npcPitch
+                );
+                plugin.getNpcManager().despawnNpc(player.getUniqueId());
+                plugin.getNpcManager().spawnNpc(player, npcLoc);
+            }
+
             // For custom-length maps: if this design has a different island width,
             // shift the end-island so the physical gap stays the same.
             if (map.hasEndIsland() && profile.islandWidth > 0
@@ -835,10 +925,15 @@ public class GameplayManager {
             map.getEndIslandWidth(), map.getEndIslandHeight(), map.getEndIslandLength()
         });
 
-        // Clear the target area first, then paste the template into it
+        // Clear the target area first, then paste the template into it.
+        // Also force-load all chunks between start and end island so spectators and
+        // late-joining players can see the destination regardless of view distance.
         int clearMaxX = endX + map.getEndIslandWidth()  - 1;
         int clearMaxY = endY + map.getEndIslandHeight() - 1;
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
+        forceLoadChunkCorridor(world,
+                map.getOriginX(), endY, map.getOriginZ() + islandIndex * map.getActualZStep(),
+                clearMaxX, clearMaxY, clearMaxZ);
         plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
             plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
         );
@@ -1469,9 +1564,7 @@ public class GameplayManager {
 
                     String timer;
                     if (session.isRunning()) {
-                        // Snap displayed time to nearest 50 ms — keeps actionbar in sync with recorded finish times
-                        long snappedElapsed = Math.round(session.getElapsed() / 50.0) * 50;
-                        timer = TimeUtil.formatTime(snappedElapsed);
+                        timer = TimeUtil.formatTime(session.getElapsed());
                     } else {
                         long lastTime = lastFinishTimes.containsKey(entry.getKey())
                                 ? lastFinishTimes.get(entry.getKey()) : -1L;
@@ -1520,6 +1613,50 @@ public class GameplayManager {
     private Class<?> getNMSClass(String name) throws ClassNotFoundException {
         String version = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
         return Class.forName("net.minecraft.server." + version + "." + name);
+    }
+
+    /**
+     * Force-loads every chunk in the rectangular corridor between two block coordinates,
+     * batched across ticks so large distances (1700+ blocks ≈ 200+ chunks) don't cause
+     * a server freeze.  Chunk loading is done on the main thread in batches of 10 per tick.
+     */
+    private void forceLoadChunkCorridor(org.bukkit.World world,
+                                         int fromX, int fromY, int fromZ,
+                                         int toX,   int toY,   int toZ) {
+        int minCX = Math.min(fromX, toX) >> 4;
+        int maxCX = Math.max(fromX, toX) >> 4;
+        int minCZ = Math.min(fromZ, toZ) >> 4;
+        int maxCZ = Math.max(fromZ, toZ) >> 4;
+
+        List<int[]> chunks = new ArrayList<>();
+        for (int cx = minCX; cx <= maxCX; cx++) {
+            for (int cz = minCZ; cz <= maxCZ; cz++) {
+                if (!world.isChunkLoaded(cx, cz)) {
+                    chunks.add(new int[]{cx, cz});
+                }
+            }
+        }
+        if (chunks.isEmpty()) return;
+
+        final int batchSize = 10;
+        final int[] idx = {0};
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < batchSize && idx[0] < chunks.size(); i++, idx[0]++) {
+                    int[] c = chunks.get(idx[0]);
+                    if (!world.isChunkLoaded(c[0], c[1])) {
+                        world.loadChunk(c[0], c[1], true);
+                    }
+                }
+                if (idx[0] >= chunks.size()) this.cancel();
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private static String formatMult(double mult) {
+        if (mult == Math.floor(mult)) return (int) mult + "x";
+        return String.format("%.1fx", mult);
     }
 
     public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }

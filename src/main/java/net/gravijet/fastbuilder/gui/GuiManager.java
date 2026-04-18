@@ -49,6 +49,7 @@ public class GuiManager implements Listener {
     private static final String MAP_SELECTOR_PREFIX = "Map Selector";
     private static final String REPLAYS_PREFIX = "Replays";
     private static final String SHOP_PREFIX = "Shop";
+    private static final String BOOSTER_HUB_PREFIX = "Booster Menu";
     private static final String BOOSTER_SHOP_PREFIX = "Booster Shop";
     private static final String BOOSTER_INVENTORY_PREFIX = "Booster Inventory";
     private static final String PICKAXE_SELECTOR_PREFIX = "Pickaxe Shop";
@@ -311,6 +312,9 @@ public class GuiManager implements Listener {
                 String mat = pageSection.getString(slotKey + ".material", "STONE:0");
                 int price = pageSection.getInt(slotKey + ".price", 0);
 
+                // Skip wall and fence blocks — not suitable for FastBuilder gameplay
+                if (isWallOrFence(mat)) continue;
+
                 boolean owned = price == 0 || (data != null && data.hasPurchasedBlock(mat))
                         || player.hasPermission("fastbuilder.blocks.*");
 
@@ -457,46 +461,51 @@ public class GuiManager implements Listener {
         int minY = plugin.getConfigManager().getCustomLengthMinY();
         int maxY = plugin.getConfigManager().getCustomLengthMaxY();
 
+        FileConfiguration guisCfg = plugin.getConfigManager().getGuisConfig();
+        int menuSize = guisCfg.getInt("custom-length-menu.max-slots", 27);
+        menuSize = Math.max(27, Math.min(54, ((menuSize + 8) / 9) * 9));
+
         String title = ColorUtil.translate("&cCustom Length &7- &f" + map.getName());
-        Inventory inv = Bukkit.createInventory(null, 27, title);
+        Inventory inv = Bukkit.createInventory(null, menuSize, title);
 
         // Fill all slots with gray glass pane
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
-        for (int i = 0; i < 27; i++) inv.setItem(i, filler);
+        for (int i = 0; i < menuSize; i++) inv.setItem(i, filler);
 
-        // Slot 11 — X-axis (distance) control
-        inv.setItem(11, new ItemBuilder(Material.COMPASS)
-                .name("&eX-Axis &7(Distance)")
-                .lore("&7Current: &f" + currentX + " &7blocks",
-                        "&7Range: &f" + minX + " &7— &f" + maxX,
+        // Slot 11 — X-axis (distance) control — STICK
+        inv.setItem(11, new ItemBuilder(Material.STICK)
+                .name("&eX &7— Distance")
+                .lore("&7Current: &f" + currentX + " blocks",
+                        "&7Range: &f" + minX + " &7to &f" + maxX,
                         "",
-                        "&eLeft-click &7» &f-1",
-                        "&eShift-Left &7» &f-10",
-                        "&eRight-click &7» &f+1",
-                        "&eShift-Right &7» &f+10")
+                        "&eLeft-click &8» &f+1 block",
+                        "&eShift + Left &8» &f+10 blocks",
+                        "&eRight-click &8» &f-1 block",
+                        "&eShift + Right &8» &f-10 blocks")
                 .build());
 
-        // Slot 13 — Y-axis (height) control
-        inv.setItem(13, new ItemBuilder(Material.FEATHER)
-                .name("&eY-Axis &7(Height)")
-                .lore("&7Current offset: &f" + (currentY >= 0 ? "+" : "") + currentY,
-                        "&7Range: &f" + minY + " &7— &f" + maxY,
+        // Slot 13 — Y-axis (height) control — BLAZE_ROD
+        inv.setItem(13, new ItemBuilder(Material.BLAZE_ROD)
+                .name("&eY &7— Height Offset")
+                .lore("&7Current: &f" + (currentY >= 0 ? "+" : "") + currentY,
+                        "&7Range: &f" + minY + " &7to &f" + maxY,
                         "",
-                        "&eLeft-click &7» &f-1",
-                        "&eShift-Left &7» &f-10",
-                        "&eRight-click &7» &f+1",
-                        "&eShift-Right &7» &f+10")
+                        "&eLeft-click &8» &f+1 block",
+                        "&eShift + Left &8» &f+10 blocks",
+                        "&eRight-click &8» &f-1 block",
+                        "&eShift + Right &8» &f-10 blocks")
                 .build());
 
-        // Slot 15 — Reset both axes to defaults
-        inv.setItem(15, new ItemBuilder(Material.BARRIER)
+        // Slot 15 — Reset both axes to defaults — BEDROCK
+        inv.setItem(15, new ItemBuilder(Material.BEDROCK)
                 .name("&cReset to Default")
-                .lore("&7Resets distance and height",
-                        "&7back to the map defaults.")
+                .lore("&7Puts the island back at the",
+                        "&7default distance and height.")
                 .build());
 
-        // Slot 22 — Back to Settings
-        inv.setItem(22, new ItemBuilder(Material.BARRIER)
+        // Back button — center of last row
+        int backSlot = menuSize - 5;
+        inv.setItem(backSlot, new ItemBuilder(Material.BARRIER)
                 .name("&cBack")
                 .lore("&7Return to Settings")
                 .build());
@@ -683,6 +692,94 @@ public class GuiManager implements Listener {
         player.openInventory(inv);
     }
 
+    // ===== Booster Hub =====
+
+    /**
+     * Opens the Booster Hub — a two-button selection screen that lets the player
+     * navigate to either the Booster Shop or their Booster Inventory.
+     *
+     * Layout (27 slots):
+     *   Row 0: filler × 9
+     *   Row 1: filler filler [Shop:11] filler [Status:13] filler [Inv:15] filler filler
+     *   Row 2: filler × 4  [Back:22]  filler × 4
+     */
+    public void openBoosterHub(Player player) {
+        int size = 27;
+        Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_HUB_PREFIX));
+
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < size; i++) inv.setItem(i, filler);
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        boolean hasActive = data != null && data.getBoosterExpiry() > System.currentTimeMillis();
+        double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
+        int ownedTotal = data != null ? countOwnedBoosters(data) : 0;
+
+        // Slot 11 — Booster Shop
+        inv.setItem(11, new ItemBuilder(Material.NETHER_STAR)
+                .name("&6Booster Shop")
+                .lore("&7Browse and purchase boosters",
+                      "&7that multiply your coin earnings.",
+                      "",
+                      "&eClick to open")
+                .build());
+
+        // Slot 13 — Active status indicator
+        if (hasActive) {
+            String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
+            inv.setItem(13, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data((short) 8194) // water potion — yellow-ish glow
+                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
+                    .lore("&7Remaining: &e" + remaining,
+                          "",
+                          "&7All coin rewards are multiplied.")
+                    .build());
+        } else {
+            inv.setItem(13, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
+                    .name("&cNo active booster")
+                    .lore(ownedTotal > 0
+                            ? "&7You have &f" + ownedTotal + " booster(s) &7ready to activate."
+                            : "&7Purchase a booster from the shop first.")
+                    .build());
+        }
+
+        // Slot 15 — Booster Inventory
+        String invLore1 = ownedTotal > 0
+                ? "&7You own &f" + ownedTotal + " booster(s)&7."
+                : "&7You don't own any boosters yet.";
+        inv.setItem(15, new ItemBuilder(Material.CHEST)
+                .name("&aBooster Inventory")
+                .lore(invLore1,
+                      "&7Activate one to start multiplying coins.",
+                      "",
+                      "&eClick to open")
+                .build());
+
+        // Slot 22 — Back to Shop
+        FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+        String backMat  = itemsCfg.getString("change-page.back-to-shop.material", "BARRIER:0");
+        String backName = itemsCfg.getString("change-page.back-to-shop.name", "&cBack to Shop");
+        inv.setItem(22, ItemBuilder.fromString(backMat).name(backName).build());
+
+        player.openInventory(inv);
+    }
+
+    private void handleBoosterHubClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        int slot = event.getSlot();
+
+        if (slot == 11) {
+            player.closeInventory();
+            openBoosterShop(player);
+        } else if (slot == 15) {
+            player.closeInventory();
+            openBoosterInventory(player);
+        } else if (slot == 22) {
+            player.closeInventory();
+            openShop(player);
+        }
+    }
+
     // ===== Booster Shop =====
 
     /**
@@ -751,13 +848,12 @@ public class GuiManager implements Listener {
 
         // Bottom row navigation
         inv.setItem(45, new ItemBuilder(Material.CHEST)
-                .name("&6My Booster Inventory")
+                .name("&aBooster Inventory")
                 .lore("&7View and activate boosters you own.")
                 .build());
         FileConfiguration boosterShopItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String bsBackMat  = boosterShopItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
-        String bsBackName = boosterShopItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
-        inv.setItem(49, ItemBuilder.fromString(bsBackMat).name(bsBackName).build());
+        String bsBackMat = boosterShopItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
+        inv.setItem(49, ItemBuilder.fromString(bsBackMat).name("&cBack").build());
 
         player.openInventory(inv);
     }
@@ -776,10 +872,10 @@ public class GuiManager implements Listener {
             return;
         }
 
-        // Back button
+        // Back button — return to Booster Hub
         if (slot == 49) {
             player.closeInventory();
-            openShop(player);
+            openBoosterHub(player);
             return;
         }
 
@@ -878,9 +974,8 @@ public class GuiManager implements Listener {
                 .lore("&7Buy more boosters.")
                 .build());
         FileConfiguration boosterInvItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String biBackMat  = boosterInvItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
-        String biBackName = boosterInvItemsConfig.getString("change-page.back-to-shop.name", "&cBack to Shop");
-        inv.setItem(49, ItemBuilder.fromString(biBackMat).name(biBackName).build());
+        String biBackMat = boosterInvItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
+        inv.setItem(49, ItemBuilder.fromString(biBackMat).name("&cBack").build());
 
         player.openInventory(inv);
     }
@@ -897,10 +992,10 @@ public class GuiManager implements Listener {
             return;
         }
 
-        // Back button
+        // Back button — return to Booster Hub
         if (slot == 49) {
             player.closeInventory();
-            openShop(player);
+            openBoosterHub(player);
             return;
         }
 
@@ -1183,10 +1278,11 @@ public class GuiManager implements Listener {
 
         // One-Click Pick — rendered on its configured page at its configured slot
         int ocpPage = guis.getInt("one-click-pick.page", 1);
-        if (page == ocpPage && !player.hasPermission("fastbuilder.shop.pickaxe.one_click_pick.hide")) {
+        if (page == ocpPage) {
             boolean hasOcp       = data != null && data.hasOneClickPick();
             boolean ocpPurchased = (data != null && data.hasPurchasedBlock("cosmetic:one_click_pick"))
-                    || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
+                    || player.hasPermission("fastbuilder.cosmetic.oneclickpick")
+                    || player.hasPermission("fastbuilder.blocks.*");
 
             int    ocpPrice = guis.getInt("one-click-pick.price",  5000);
             int    ocpSlot  = guis.getInt("one-click-pick.slot",   23) - 1; // 1-based → 0-based
@@ -1519,6 +1615,7 @@ public class GuiManager implements Listener {
                     meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                     List<String> lore = new ArrayList<>();
                     lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));
+                    lore.add(ColorUtil.translate("&eClick to watch replay"));
                     meta.setLore(lore);
                     skull.setItemMeta(meta);
                     inv.setItem(entrySlots[i], skull);
@@ -1529,12 +1626,10 @@ public class GuiManager implements Listener {
                     inv.setItem(22, none);
                 }
 
-                // Close button — center of bottom row (slot 49)
+                // Back button — center of bottom row (slot 49) — returns to map picker
                 FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
                 String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
-                String closeName = itemsCfg.getString("island-selector.back-button.name", "&cClose");
-                ItemStack closeBtn = ItemBuilder.fromString(closeMat).name(closeName).build();
-                inv.setItem(49, closeBtn);
+                inv.setItem(49, ItemBuilder.fromString(closeMat).name("&cBack").build());
 
                 player.openInventory(inv);
             });
@@ -1547,9 +1642,15 @@ public class GuiManager implements Listener {
         int invSize = event.getInventory().getSize();
         String stripped = ColorUtil.strip(event.getView().getTitle());
 
-        // Close / back button — center of bottom row
+        // Back / close button — center of bottom row
         if (slot == invSize - 5) {
-            player.closeInventory();
+            // In a per-map leaderboard the title contains " - <mapName>"; go back to picker.
+            // In the map picker itself, just close.
+            if (stripped.contains(" - ")) {
+                openLeaderboardMapPicker(player);
+            } else {
+                player.closeInventory();
+            }
             return;
         }
 
@@ -1561,8 +1662,55 @@ public class GuiManager implements Listener {
             String mapName = ColorUtil.strip(item.getItemMeta().getDisplayName());
             if (plugin.getMapManager().getMap(mapName) == null) return;
             openLeaderboardGui(player, mapName);
+            return;
         }
-        // Single-map leaderboard entries are read-only — no action needed
+
+        // Per-map leaderboard: skull click → watch that player's PB replay
+        if (stripped.contains(" - ") && slot != invSize - 5) {
+            ItemStack item = event.getCurrentItem();
+            if (item == null || item.getType() != Material.SKULL_ITEM) return;
+            if (!item.hasItemMeta() || !item.getItemMeta().hasDisplayName()) return;
+            // Extract map name from title (format: "§8Leaderboard - <mapName>")
+            String[] parts = stripped.split(" - ", 2);
+            if (parts.length < 2) return;
+            String mapName = parts[1].trim();
+
+            // Strip rank prefix from display name to get player name
+            String displayName = ColorUtil.strip(item.getItemMeta().getDisplayName());
+            // Display name format: "#1 PlayerName" — extract name after "# N "
+            String targetName = displayName.replaceFirst("^#\\d+\\s+", "").trim();
+            if (targetName.isEmpty()) return;
+
+            player.closeInventory();
+
+            if (plugin.getReplayManager() == null) {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                        + "&cReplay system is not available."));
+                return;
+            }
+
+            final String finalMapName = mapName;
+            final String finalName = targetName;
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                UUID targetUuid = plugin.getPlayerManager().getUuidForPlayerName(finalName);
+                if (targetUuid == null) {
+                    Bukkit.getScheduler().runTask(plugin, () ->
+                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                + "&cCould not find player data for &f" + finalName + "&c.")));
+                    return;
+                }
+                net.gravijet.fastbuilder.replay.ReplayData pbReplay =
+                        plugin.getReplayManager().getPbReplay(targetUuid, finalMapName);
+                if (pbReplay == null) {
+                    Bukkit.getScheduler().runTask(plugin, () ->
+                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                                + "&cNo replay found for &f" + finalName + " &con map &f" + finalMapName + "&c.")));
+                    return;
+                }
+                Bukkit.getScheduler().runTask(plugin, () ->
+                        plugin.getReplayManager().startPlayback(player, pbReplay));
+            });
+        }
     }
 
     // =========================================================================
@@ -1581,6 +1729,7 @@ public class GuiManager implements Listener {
                 || stripped.startsWith(MAP_SELECTOR_PREFIX)
                 || stripped.startsWith(REPLAYS_PREFIX)
                 || stripped.startsWith(SHOP_PREFIX)
+                || stripped.startsWith(BOOSTER_HUB_PREFIX)
                 || stripped.startsWith(BOOSTER_SHOP_PREFIX)
                 || stripped.startsWith(BOOSTER_INVENTORY_PREFIX)
                 || stripped.startsWith(PICKAXE_SELECTOR_PREFIX)
@@ -1656,6 +1805,8 @@ public class GuiManager implements Listener {
             handleMapSelectorClick(event);
         } else if (stripped.startsWith(REPLAYS_PREFIX)) {
             handleReplayClick(event);
+        } else if (stripped.startsWith(BOOSTER_HUB_PREFIX)) {
+            handleBoosterHubClick(event);
         } else if (stripped.startsWith(BOOSTER_INVENTORY_PREFIX)) {
             handleBoosterInventoryClick(event);
         } else if (stripped.startsWith(BOOSTER_SHOP_PREFIX)) {
@@ -1757,6 +1908,7 @@ public class GuiManager implements Listener {
         plugin.getMapManager().assignIsland(map.getName(), islandIndex, player.getUniqueId(), player.getName());
         data.setLastIsland(islandIndex);
         player.teleport(map.getIslandSpawn(islandIndex));
+        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
         player.closeInventory();
 
         // Create new gameplay session and set up end island / design
@@ -2039,9 +2191,10 @@ public class GuiManager implements Listener {
         if (pData == null) { player.closeInventory(); return; }
 
         org.bukkit.event.inventory.ClickType click = event.getClick();
+        int invSize = event.getInventory().getSize();
 
-        if (slot == 22) {
-            // Back to Settings
+        // Back button — dynamic position based on menu size
+        if (slot == invSize - 5) {
             openSettings(player);
             return;
         }
@@ -2054,18 +2207,18 @@ public class GuiManager implements Listener {
             if (plugin.getGameplayManager() != null) {
                 plugin.getGameplayManager().placeEndPlatform(player, map, run, defaultX);
             }
-            player.sendMessage(ColorUtil.translate(prefix + "&fCustom length reset to default."));
+            player.sendMessage(ColorUtil.translate(prefix + "&fDistance and height reset to map defaults."));
             openCustomLengthMenu(player);
             return;
         }
 
-        // Determine delta from click type (same for both axes)
+        // Left = increase, Right = decrease (intuitive: left-click = more, right-click = less)
         int delta;
-        if (click == org.bukkit.event.inventory.ClickType.LEFT) delta = -1;
-        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) delta = -10;
-        else if (click == org.bukkit.event.inventory.ClickType.RIGHT) delta = 1;
-        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) delta = 10;
-        else return; // middle-click, etc. — ignore
+        if (click == org.bukkit.event.inventory.ClickType.LEFT) delta = 1;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) delta = 10;
+        else if (click == org.bukkit.event.inventory.ClickType.RIGHT) delta = -1;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) delta = -10;
+        else return;
 
         if (slot == 11) {
             // X-axis (distance) control
@@ -2077,9 +2230,9 @@ public class GuiManager implements Listener {
                     Math.min(map.getEffectiveMaxCustomLength(), current + delta));
 
             if (newVal == current) {
-                String limitMsg = delta < 0
-                        ? "&cAlready at minimum (" + map.getEffectiveMinCustomLength() + " blocks)."
-                        : "&cAlready at maximum (" + map.getEffectiveMaxCustomLength() + " blocks).";
+                String limitMsg = delta > 0
+                        ? "&cCan't go further &7(max: &f" + map.getEffectiveMaxCustomLength() + " blocks&7)."
+                        : "&cCan't go shorter &7(min: &f" + map.getEffectiveMinCustomLength() + " blocks&7).";
                 player.sendMessage(ColorUtil.translate(prefix + limitMsg));
             } else {
                 pData.setCustomLength(run.getMapName(), newVal);
@@ -2098,13 +2251,12 @@ public class GuiManager implements Listener {
             int newVal = Math.max(minY, Math.min(maxY, current + delta));
 
             if (newVal == current) {
-                String limitMsg = delta < 0
-                        ? "&cAlready at minimum offset (" + minY + ")."
-                        : "&cAlready at maximum offset (" + maxY + ").";
+                String limitMsg = delta > 0
+                        ? "&cAlready at the highest offset &7(+" + maxY + ")."
+                        : "&cAlready at the lowest offset &7(" + minY + ").";
                 player.sendMessage(ColorUtil.translate(prefix + limitMsg));
             } else {
                 pData.setCustomLengthY(run.getMapName(), newVal);
-                // Re-place end island at current X distance (placeEndIslandTemplate reads Y from pData)
                 int currentX = pData.getCustomLength(run.getMapName());
                 if (currentX <= 0) currentX = map.getBaseCustomLength() > 0
                         ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
@@ -2348,7 +2500,7 @@ public class GuiManager implements Listener {
         if (slot == guis.getInt("shop.blocks-slot", 10)) {
             openBlockSelector(player, 1);
         } else if (slot == guis.getInt("shop.boosters-slot", 28)) {
-            openBoosterShop(player);
+            openBoosterHub(player);
         } else if (slot == guis.getInt("shop.pickaxes-slot", 13)) {
             openPickaxeSelector(player, 1);
         } else if (slot == guis.getInt("shop.designs-slot", 16)) {
@@ -2687,5 +2839,29 @@ public class GuiManager implements Listener {
 
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                 + "&fIsland design &capplied instantly: &f" + templateKey));
+    }
+
+    private static boolean isWallOrFence(String materialString) {
+        if (materialString == null) return false;
+        String upper = materialString.toUpperCase().split(":")[0];
+        switch (upper) {
+            case "COBBLESTONE_WALL":
+            case "FENCE":
+            case "SPRUCE_FENCE":
+            case "BIRCH_FENCE":
+            case "JUNGLE_FENCE":
+            case "DARK_OAK_FENCE":
+            case "ACACIA_FENCE":
+            case "NETHER_BRICK_FENCE":
+            case "FENCE_GATE":
+            case "SPRUCE_FENCE_GATE":
+            case "BIRCH_FENCE_GATE":
+            case "JUNGLE_FENCE_GATE":
+            case "DARK_OAK_FENCE_GATE":
+            case "ACACIA_FENCE_GATE":
+                return true;
+            default:
+                return false;
+        }
     }
 }

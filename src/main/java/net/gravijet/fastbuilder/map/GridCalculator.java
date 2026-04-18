@@ -13,7 +13,7 @@ public final class GridCalculator {
 
     /**
      * Get the absolute world position of an island instance's min corner.
-     * Islands scale along the Z-axis from the map origin.
+     * For diagonal maps, X shifts by diagonalStepX per island index.
      *
      * @param map   The map data
      * @param index The 0-based island index
@@ -21,7 +21,7 @@ public final class GridCalculator {
      */
     public static Location getIslandOrigin(MapData map, int index) {
         return new Location(map.getWorld(),
-                map.getOriginX(),
+                map.getOriginX() + (long) index * map.getDiagonalStepX(),
                 map.getOriginY(),
                 map.getOriginZ() + (long) index * map.getActualZStep());
     }
@@ -35,55 +35,50 @@ public final class GridCalculator {
 
     /**
      * Determine which island index a world location belongs to.
-     * Islands are spaced along Z-axis with the configured distance.
+     * Z uniquely identifies the island slot; X is checked against the slot-specific
+     * bounds (which shift per slot for diagonal maps).
      *
-     * @return The island index (0-based), or -1 if the location is not within any island
+     * @return The island index (0-based), or -1 if outside all island bounds
      */
     public static int getIslandIndex(MapData map, Location loc) {
         if (!loc.getWorld().getName().equals(map.getWorldName())) return -1;
 
-        double relX = loc.getX() - map.getOriginX();
         double relY = loc.getY() - map.getOriginY();
-        double relZ = loc.getZ() - map.getOriginZ();
-
-        // Check Y bounds
         if (relY < -1 || relY > map.getIslandHeight() + 1) return -1;
 
-        // Check X bounds (island width along X, the build direction)
-        if (relX < -1 || relX > map.getIslandWidth()) return -1;
-
-        // Check Z bounds and determine island index
+        double relZ = loc.getZ() - map.getOriginZ();
         if (relZ < 0) return -1;
 
         int step = map.getActualZStep();
         if (step <= 0) return -1;
 
-        int index = (int) (relZ / step);
-        if (index >= map.getScale()) return -1;
+        int index = (int)(relZ / step);
+        if (index < 0 || index >= map.getScale()) return -1;
 
-        // Check if within the island area (not in the gap between islands)
-        double posInSlot = relZ - ((long) index * step);
+        // Not in island Z area (in the gap between islands)
+        double posInSlot = relZ - (long) index * step;
         if (posInSlot >= map.getIslandLength()) return -1;
+
+        // Verify X is within this slot's X range (diagonal maps shift X per slot)
+        double slotMinX = map.getOriginX() + (long) index * map.getDiagonalStepX();
+        double relX = loc.getX() - slotMinX;
+        if (relX < -1 || relX > map.getIslandWidth()) return -1;
 
         return index;
     }
 
     /**
-     * Check if a location is strictly within the bounds of a specific island.
+     * Check if a location is strictly within the bounds of a specific island slot.
      */
     public static boolean isWithinIsland(MapData map, int index, Location loc) {
         if (!loc.getWorld().getName().equals(map.getWorldName())) return false;
 
-        int islandMinX = map.getOriginX();
-        int islandMinY = map.getOriginY();
-        long islandMinZ = map.getOriginZ() + (long) index * map.getActualZStep();
+        double slotMinX = map.getOriginX() + (long) index * map.getDiagonalStepX();
+        long   islandMinZ = map.getOriginZ() + (long) index * map.getActualZStep();
 
-        double x = loc.getX();
-        double y = loc.getY();
-        double z = loc.getZ();
-
-        return x >= islandMinX && x < islandMinX + map.getIslandWidth()
-                && y >= islandMinY && y < islandMinY + map.getIslandHeight()
+        double x = loc.getX(), y = loc.getY(), z = loc.getZ();
+        return x >= slotMinX && x < slotMinX + map.getIslandWidth()
+                && y >= map.getOriginY() && y < map.getOriginY() + map.getIslandHeight()
                 && z >= islandMinZ && z < islandMinZ + map.getIslandLength();
     }
 
@@ -115,9 +110,10 @@ public final class GridCalculator {
 
     /**
      * Get the bounding box of an island as [minX, minY, minZ, maxX, maxY, maxZ].
+     * Accounts for diagonal X shift.
      */
     public static int[] getIslandBounds(MapData map, int index) {
-        int minX = map.getOriginX();
+        int minX = (int)(map.getOriginX() + (long) index * map.getDiagonalStepX());
         int minY = map.getOriginY();
         int minZ = map.getOriginZ() + index * map.getActualZStep();
         int maxX = minX + map.getIslandWidth() - 1;

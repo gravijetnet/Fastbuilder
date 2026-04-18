@@ -53,9 +53,7 @@ public class RunSession {
     public long finish() {
         if (!running) return -1;
         long rawMs = System.currentTimeMillis() - startTime;
-        // Snap to the nearest 50 ms increment — sub-50 ms precision is not physically achievable
-        // by human reactions, so values like 3,001 are measurement noise rather than real data.
-        finishTimeMs = Math.round(rawMs / 50.0) * 50;
+        finishTimeMs = (rawMs / 10) * 10; // floor to 10 ms — matches display granularity
         running = false;
         finished = true;
         return finishTimeMs;

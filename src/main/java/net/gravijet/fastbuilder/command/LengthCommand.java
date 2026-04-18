@@ -118,7 +118,12 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
         if (args.length == 1) {
-            return java.util.Arrays.asList("reset");
+            List<String> options = new java.util.ArrayList<>(java.util.Arrays.asList(
+                    "reset", "10", "20", "30", "50", "75", "100", "150", "200"));
+            String input = args[0].toLowerCase();
+            List<String> result = new java.util.ArrayList<>();
+            for (String o : options) if (o.toLowerCase().startsWith(input)) result.add(o);
+            return result;
         }
         return Collections.emptyList();
     }

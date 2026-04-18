@@ -91,6 +91,10 @@ public class ReplaySession {
     private int replayMinY, replayMaxY;
     private int replayMinZ, replayMaxZ;
 
+    // Saved XP bar state so we can restore it when the replay ends
+    private float savedExp   = 0f;
+    private int   savedLevel = 0;
+
     public ReplaySession(FastBuilder plugin, UUID viewerUuid, ReplayData replayData, int replaySlot) {
         this.plugin = plugin;
         this.viewerUuid = viewerUuid;
@@ -144,9 +148,19 @@ public class ReplaySession {
 
         viewer.setAllowFlight(true);
         viewer.setFlying(true);
+
+        // Save XP bar so we can restore it when the replay ends
+        savedExp   = viewer.getExp();
+        savedLevel = viewer.getLevel();
+        viewer.setExp(0f);
+        viewer.setLevel(0);
+
         giveControlItems(viewer);
 
-        // Paste template in replay area, then teleport and begin playback
+        // Paste template in replay area, then teleport and begin playback.
+        // After the start island is placed, also paste the end island (if the map uses one)
+        // so it is visible during the replay regardless of how far away it normally sits.
+        final int replayAreaXFinal = replayAreaX;
         plugin.getFawePaster().pasteIslands(
                 map.getWorld(),
                 map.getTemplateFile(),
@@ -160,12 +174,55 @@ public class ReplaySession {
                         if (v == null || !v.isOnline()) return;
 
                         placeInitialBlocks(map.getWorld());
+
+                        // Force-paste the end island at its replay-area position.
+                        // The base custom length positions it the same distance away as
+                        // it sits in the live world.  Chunks this far out are not normally
+                        // loaded, so we also force-load every chunk between the start and
+                        // end islands so the viewer can see the full bridging distance.
+                        if (map.hasEndIsland() && map.getEndIslandTemplateFile() != null) {
+                            int len = map.getBaseCustomLength() > 0
+                                    ? map.getBaseCustomLength()
+                                    : map.getEffectiveMinCustomLength();
+                            int endX = replayAreaXFinal + map.getIslandWidth() - 1 + len;
+                            int endY = REPLAY_AREA_Y + map.getEndIslandYOffset();
+                            int endZ = replayAreaZ + map.getEndIslandZOffset();
+                            forceLoadChunksInLine(map.getWorld(),
+                                    replayAreaXFinal, REPLAY_AREA_Y, replayAreaZ,
+                                    endX + map.getEndIslandWidth(), endY, endZ + map.getEndIslandLength());
+                            plugin.getFawePaster().pasteTemplate(
+                                    map.getWorld(), map.getEndIslandTemplateFile(),
+                                    endX, endY, endZ, null);
+                        }
+
                         v.teleport(viewerWatchLocation);
                         spawnReplayNpc(v);
                         startPlaybackLoop();
                     }
                 }
         );
+    }
+
+    /**
+     * Synchronously force-loads all chunks in the corridor between two positions.
+     * Called from the async FAWE callback thread before the end-island template paste;
+     * the paste itself is also scheduled on a worker thread so sync loading here is safe
+     * and avoids cross-thread scheduling complexity.
+     */
+    private void forceLoadChunksInLine(org.bukkit.World world,
+                                        int fromX, int fromY, int fromZ,
+                                        int toX,   int toY,   int toZ) {
+        int minCX = Math.min(fromX, toX) >> 4;
+        int maxCX = Math.max(fromX, toX) >> 4;
+        int minCZ = Math.min(fromZ, toZ) >> 4;
+        int maxCZ = Math.max(fromZ, toZ) >> 4;
+        for (int cx = minCX; cx <= maxCX; cx++) {
+            for (int cz = minCZ; cz <= maxCZ; cz++) {
+                if (!world.isChunkLoaded(cx, cz)) {
+                    world.loadChunk(cx, cz, true);
+                }
+            }
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -188,11 +245,16 @@ public class ReplaySession {
         taskId = new BukkitRunnable() {
             @Override
             public void run() {
-                if (paused) return;
-
                 Player p = Bukkit.getPlayer(viewerUuid);
                 if (p == null || !p.isOnline()) {
                     stop();
+                    return;
+                }
+
+                // When paused: freeze the NPC in place (prevents gravity pulling it down)
+                // and keep the XP bar at the current position, then exit early.
+                if (paused) {
+                    updateNpcPosition(p);
                     return;
                 }
 
@@ -214,11 +276,19 @@ public class ReplaySession {
                     refreshCameraHandItem(p);
                 }
 
+                // Update XP bar timeline (0% = start, 100% = end)
+                int totalFrames = replayData.getFrames().size();
+                if (totalFrames > 0) {
+                    float progress = Math.min(1.0f,
+                            (float)(currentTick + Math.min(playbackFraction, 1.0)) / totalFrames);
+                    p.setExp(progress);
+                }
+
                 if (!ended && currentTick >= replayData.getFrames().size()) {
                     ended = true;
                     paused = true;
-                    Player p2 = Bukkit.getPlayer(viewerUuid);
-                    if (p2 != null) showReplayEndItems(p2);
+                    p.setExp(1.0f);
+                    showReplayEndItems(p);
                 }
             }
         }.runTaskTimer(plugin, 0L, 1L).getTaskId();
@@ -353,6 +423,8 @@ public class ReplaySession {
         if (viewer != null && viewer.isOnline()) {
             viewer.setFlying(false);
             viewer.setAllowFlight(false);
+            viewer.setExp(savedExp);
+            viewer.setLevel(savedLevel);
             viewer.getInventory().clear();
 
             net.gravijet.fastbuilder.player.PlayerData pData =
@@ -408,6 +480,8 @@ public class ReplaySession {
 
         Player viewer = Bukkit.getPlayer(viewerUuid);
         if (viewer != null) {
+            viewer.setExp(0f);
+            viewer.setLevel(0);
             giveControlItems(viewer);
             viewer.teleport(viewerWatchLocation);
         }
@@ -564,17 +638,17 @@ public class ReplaySession {
         player.getInventory().setItem(SLOT_TIMELINE,
                 new ItemBuilder(Material.STICK)
                         .name("&e\u2190 Rewind  &8|  &aFast-Forward \u2192")
-                        .lore("&7Left-Click:  &eRewind 5s",
-                              "&7Right-Click: &aFast-Forward 5s")
+                        .lore("&7Left-Click:  &eRewind 0.5s",
+                              "&7Right-Click: &aFast-Forward 0.5s")
                         .build());
 
-        // Slot 4 – Play / Pause (Lime Dye = playing, Gray Dye = paused)
+        // Slot 4 – Play / Pause (Gray Dye = playing, Lime Dye = paused/stopped)
         boolean playing = !paused;
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
-                new ItemBuilder(Material.INK_SACK, playing ? (byte) 10 : (byte) 8)
+                new ItemBuilder(Material.INK_SACK, playing ? (byte) 8 : (byte) 10)
                         .name(playing
-                                ? "&a\u25BA Playing  &7\u2014 Click to Pause"
-                                : "&7\u25A0 Paused  &a\u2014 Click to Play")
+                                ? "&7\u25BA Playing  &7\u2014 Click to Pause"
+                                : "&a\u25A0 Paused  &7\u2014 Click to Play")
                         .lore("&7Click to toggle playback")
                         .build());
 
@@ -604,8 +678,8 @@ public class ReplaySession {
         }
 
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
-                new ItemBuilder(Material.INK_SACK, (byte) 8)  // gray = stopped
-                        .name("&7\u25A0 Replay Finished  &7\u2014 Watch again or leave")
+                new ItemBuilder(Material.INK_SACK, (byte) 10)  // lime = stopped/paused
+                        .name("&a\u25A0 Replay Finished  &7\u2014 Watch again or leave")
                         .lore("&7Click &aPlay Again &7or &cLeave Replay&7.")
                         .build());
         player.getInventory().setItem(SLOT_REPLAY_AGAIN,

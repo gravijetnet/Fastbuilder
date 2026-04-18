@@ -106,6 +106,10 @@ public class FastBuilder extends JavaPlugin {
         net.gravijet.fastbuilder.command.BuildCommand buildCmd = new net.gravijet.fastbuilder.command.BuildCommand(this);
         getCommand("build").setExecutor(buildCmd);
 
+        net.gravijet.fastbuilder.command.LengthCommand lengthCmd = new net.gravijet.fastbuilder.command.LengthCommand(this);
+        getCommand("length").setExecutor(lengthCmd);
+        getCommand("length").setTabCompleter(lengthCmd);
+
         BoosterCommand boosterCmd = new BoosterCommand(this);
         getCommand("booster").setExecutor(boosterCmd);
         getCommand("booster").setTabCompleter(boosterCmd);

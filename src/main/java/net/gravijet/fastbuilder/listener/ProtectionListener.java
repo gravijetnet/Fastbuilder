@@ -29,6 +29,7 @@ public class ProtectionListener implements Listener {
 
     private final FastBuilder plugin;
     private final java.util.Map<java.util.UUID, Long> fallCooldown = new java.util.HashMap<>();
+    private final java.util.Set<java.util.UUID> switchingPlayers = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     public ProtectionListener(FastBuilder plugin) {
         this.plugin = plugin;
@@ -45,6 +46,11 @@ public class ProtectionListener implements Listener {
         if (plugin.getGameplayManager() != null) {
             RunSession sess = plugin.getGameplayManager().getSession(player.getUniqueId());
             if (sess != null && sess.isResetting()) {
+                event.setCancelled(true);
+                return;
+            }
+            // Also block if the island itself is being reset (another player's reset cleared it)
+            if (sess != null && plugin.getGameplayManager().isIslandResetting(sess.getMapName(), sess.getIslandIndex())) {
                 event.setCancelled(true);
                 return;
             }
@@ -271,15 +277,24 @@ public class ProtectionListener implements Listener {
                 // Island hopping: detect which island the player is moving into
                 if (plugin.getConfigManager().isIslandHoppingEnabled()) {
                     int targetIsland = GridCalculator.getIslandIndex(map, to);
-                    if (targetIsland >= 0 && targetIsland != session.getIslandIndex()) {
-                        java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
-                                plugin.getMapManager().getIslands(map.getName());
-                        if (islandList != null && targetIsland < islandList.size()) {
-                            net.gravijet.fastbuilder.map.IslandInstance targetInstance = islandList.get(targetIsland);
-                            if (!targetInstance.isOccupied()) {
-                                // Empty target → auto-switch session
-                                plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
-                                return;
+                    int currentIsland = session.getIslandIndex();
+                    if (targetIsland >= 0 && targetIsland != currentIsland) {
+                        // Adjacent-only: skip non-adjacent hops (fall instead)
+                        if (Math.abs(targetIsland - currentIsland) <= 1
+                                && !switchingPlayers.contains(player.getUniqueId())) {
+                            java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
+                                    plugin.getMapManager().getIslands(map.getName());
+                            if (islandList != null && targetIsland < islandList.size()) {
+                                net.gravijet.fastbuilder.map.IslandInstance targetInstance = islandList.get(targetIsland);
+                                if (!targetInstance.isOccupied()) {
+                                    // Empty adjacent target → auto-switch session
+                                    switchingPlayers.add(player.getUniqueId());
+                                    java.util.UUID switchUuid = player.getUniqueId();
+                                    plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
+                                    Bukkit.getScheduler().runTaskLater(plugin,
+                                            () -> switchingPlayers.remove(switchUuid), 20L);
+                                    return;
+                                }
                             }
                         }
                     }
@@ -299,15 +314,10 @@ public class ProtectionListener implements Listener {
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
             int absoluteDeathY = mapForVoid.getDeathY();
-            // Ping-aware Y prediction: project the player's position half a round-trip
-            // ahead so high-latency players are reset at the correct plane, not several
-            // blocks below it (where the server first sees them cross the threshold).
-            // lagTicks = half-RTT in ticks (50 ms/tick), capped at 10 (= 500 ms).
-            int ping = player.spigot().getPing();
-            int lagTicks = Math.min(10, Math.max(0, (ping / 2) / 50));
-            double vy = player.getVelocity().getY(); // blocks/tick; negative when falling
-            double predictedY = to.getY() + vy * lagTicks;
-            inVoid = predictedY < absoluteDeathY;
+            // Trigger 10 blocks above the configured death Y so high-latency players
+            // are reset at the right plane rather than ~10 blocks below it.
+            // Lightweight single-comparison approach — no velocity math needed.
+            inVoid = to.getY() < absoluteDeathY + 10;
         } else {
             inVoid = to.getBlockY() < bounds[1] - maxDist;
         }

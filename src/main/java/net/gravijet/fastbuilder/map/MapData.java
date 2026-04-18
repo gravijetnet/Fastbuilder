@@ -51,6 +51,10 @@ public class MapData {
     private int distance;
     private int scale;
     private boolean autoscale;
+    // Physical Z extent of the template's non-air blocks (0 = not yet computed, falls back to islandLength).
+    // When set, getActualZStep() uses this instead of islandLength so that the stored distance
+    // equals the visual gap regardless of how much air padding the selection contains.
+    private int physicalIslandLength = 0;
 
     // Template file name (primary design)
     private String templateFile;
@@ -91,15 +95,23 @@ public class MapData {
     private long silverTime = -1;
     private long bronzeTime = -1;
 
+    // ── Diagonal layout ───────────────────────────────────────────────────────
+    // When diagonal=true, island slot i is placed at:
+    //   X = originX + i * diagonalStepX
+    //   Z = originZ + i * actualZStep   (Z step is unchanged)
+    // A positive diagonalStepX shifts each successive island eastward (+X).
+    private boolean diagonal = false;
+    private int diagonalStepX = 0;
+
     // Per-design spawn/finish/dimension profiles for alternative island templates.
     // Keyed by template file name (lower-case). Saved in the map YAML file.
     private final Map<String, DesignProfile> designProfiles = new HashMap<>();
 
     /**
      * Metadata for an alternative island design template: spawn location offset,
-     * finish zone bounds, and island dimensions — all relative to the island's
-     * min corner. Stored per template key so the plugin can apply the correct
-     * spawn point and finish detection when a player picks a non-default design.
+     * finish zone bounds, NPC position, and island dimensions — all relative to
+     * the island's min corner. Stored per template key so the plugin can apply
+     * the correct positions when a player selects a non-default design.
      */
     public static class DesignProfile {
         /** Spawn position offsets (in blocks) relative to island min corner. */
@@ -110,12 +122,20 @@ public class MapData {
         public int finishMaxX, finishMaxY, finishMaxZ;
         /** Island dimensions for this design (used to adjust end-island gaps). */
         public int islandWidth, islandHeight, islandLength;
+        /** NPC position relative to island min corner (0,0,0 = use map default). */
+        public double npcOffsetX, npcOffsetY, npcOffsetZ;
+        public float  npcYaw, npcPitch;
 
         public DesignProfile() {}
 
         /** Returns true when a custom finish zone is configured for this profile. */
         public boolean hasFinishZone() {
             return finishMaxX > finishMinX || finishMaxZ > finishMinZ;
+        }
+
+        /** Returns true when a custom NPC position is configured for this profile. */
+        public boolean hasNpcPosition() {
+            return npcOffsetX != 0 || npcOffsetY != 0 || npcOffsetZ != 0;
         }
     }
 
@@ -162,6 +182,7 @@ public class MapData {
         config.set("finish.max.z", finishMaxZ);
         config.set("distance", distance);
         config.set("distance-version", 2); // gap-only format (not total Z step)
+        config.set("island.physical-length", physicalIslandLength > 0 ? physicalIslandLength : null);
         config.set("scale", scale);
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
@@ -184,6 +205,10 @@ public class MapData {
         config.set("rank.silver", silverTime > 0 ? silverTime : null);
         config.set("rank.bronze", bronzeTime > 0 ? bronzeTime : null);
 
+        // Diagonal layout
+        config.set("diagonal", diagonal ? true : null);
+        config.set("diagonal-step-x", diagonalStepX != 0 ? diagonalStepX : null);
+
         // Design profiles
         config.set("design-profiles", null); // clear stale entries
         for (Map.Entry<String, DesignProfile> e : designProfiles.entrySet()) {
@@ -203,6 +228,13 @@ public class MapData {
             config.set(b + "island.width",   p.islandWidth);
             config.set(b + "island.height",  p.islandHeight);
             config.set(b + "island.length",  p.islandLength);
+            if (p.hasNpcPosition()) {
+                config.set(b + "npc.x",     p.npcOffsetX);
+                config.set(b + "npc.y",     p.npcOffsetY);
+                config.set(b + "npc.z",     p.npcOffsetZ);
+                config.set(b + "npc.yaw",   (double) p.npcYaw);
+                config.set(b + "npc.pitch", (double) p.npcPitch);
+            }
         }
     }
 
@@ -226,6 +258,7 @@ public class MapData {
         if (!config.contains("distance-version") && islandLength > 0 && distance >= islandLength) {
             distance -= islandLength;
         }
+        physicalIslandLength = config.getInt("island.physical-length", 0);
 
         spawnOffsetX = config.getDouble("spawn.x");
         spawnOffsetY = config.getDouble("spawn.y");
@@ -269,6 +302,10 @@ public class MapData {
         silverTime = config.getLong("rank.silver", -1);
         bronzeTime = config.getLong("rank.bronze", -1);
 
+        // Diagonal layout
+        diagonal      = config.getBoolean("diagonal", false);
+        diagonalStepX = config.getInt("diagonal-step-x", 0);
+
         // Design profiles
         designProfiles.clear();
         ConfigurationSection profilesSec = config.getConfigurationSection("design-profiles");
@@ -290,6 +327,11 @@ public class MapData {
                 p.islandWidth   = config.getInt(b + "island.width");
                 p.islandHeight  = config.getInt(b + "island.height");
                 p.islandLength  = config.getInt(b + "island.length");
+                p.npcOffsetX    = config.getDouble(b + "npc.x", 0);
+                p.npcOffsetY    = config.getDouble(b + "npc.y", 0);
+                p.npcOffsetZ    = config.getDouble(b + "npc.z", 0);
+                p.npcYaw        = (float) config.getDouble(b + "npc.yaw", 0);
+                p.npcPitch      = (float) config.getDouble(b + "npc.pitch", 0);
                 designProfiles.put(key.toLowerCase(), p);
             }
         }
@@ -307,11 +349,20 @@ public class MapData {
 
     /**
      * The actual Z separation between adjacent island slots.
-     * {@code distance} stores only the gap between islands (southernmost of island N
-     * to northernmost of island N+1). The total step is {@code islandLength + distance}.
+     * Uses physicalIslandLength (non-air block span) when available so that
+     * {@code distance} equals the visible gap in-game. Falls back to islandLength
+     * for maps that pre-date physical-length tracking.
      */
     public int getActualZStep() {
-        return islandLength > 0 ? islandLength + distance : distance;
+        int len = physicalIslandLength > 0 ? physicalIslandLength : islandLength;
+        return len > 0 ? len + distance : distance;
+    }
+
+    /**
+     * X offset for island slot {@code index} due to diagonal layout (0 for straight maps).
+     */
+    private long diagonalX(int index) {
+        return (long) index * diagonalStepX;
     }
 
     /**
@@ -319,7 +370,9 @@ public class MapData {
      */
     public Location getIslandSpawn(int islandIndex) {
         Location origin = getOrigin();
-        origin.add(spawnOffsetX, spawnOffsetY, (long) islandIndex * getActualZStep() + spawnOffsetZ);
+        origin.add(diagonalX(islandIndex) + spawnOffsetX,
+                   spawnOffsetY,
+                   (long) islandIndex * getActualZStep() + spawnOffsetZ);
         origin.setYaw(spawnYaw);
         origin.setPitch(spawnPitch);
         return origin;
@@ -330,7 +383,9 @@ public class MapData {
      */
     public Location getIslandNpcLocation(int islandIndex) {
         Location origin = getOrigin();
-        origin.add(npcOffsetX, npcOffsetY, (long) islandIndex * getActualZStep() + npcOffsetZ);
+        origin.add(diagonalX(islandIndex) + npcOffsetX,
+                   npcOffsetY,
+                   (long) islandIndex * getActualZStep() + npcOffsetZ);
         origin.setYaw(npcYaw);
         origin.setPitch(npcPitch);
         return origin;
@@ -342,22 +397,26 @@ public class MapData {
      */
     public Location getIslandHologramLocation(int islandIndex) {
         if (hologramOffsetX == 0 && hologramOffsetY == 0 && hologramOffsetZ == 0) {
-            // Fallback: 3 blocks above spawn point
             Location spawn = getIslandSpawn(islandIndex);
             return spawn.clone().add(0, 3, 0);
         }
         Location origin = getOrigin();
-        origin.add(hologramOffsetX, hologramOffsetY, (long) islandIndex * getActualZStep() + hologramOffsetZ);
+        origin.add(diagonalX(islandIndex) + hologramOffsetX,
+                   hologramOffsetY,
+                   (long) islandIndex * getActualZStep() + hologramOffsetZ);
         return origin;
     }
 
     public Location getIslandMin(int islandIndex) {
-        return new Location(getWorld(), originX, originY, originZ + (long) islandIndex * getActualZStep());
+        return new Location(getWorld(),
+                originX + diagonalX(islandIndex),
+                originY,
+                originZ + (long) islandIndex * getActualZStep());
     }
 
     public Location getIslandMax(int islandIndex) {
         return new Location(getWorld(),
-                originX + islandWidth - 1,
+                originX + diagonalX(islandIndex) + islandWidth - 1,
                 originY + islandHeight - 1,
                 originZ + (long) islandIndex * getActualZStep() + islandLength - 1);
     }
@@ -442,6 +501,15 @@ public class MapData {
     public double getHologramOffsetZ() { return hologramOffsetZ; }
     public void setHologramOffsetZ(double z) { this.hologramOffsetZ = z; }
 
+    public int getPhysicalIslandLength() { return physicalIslandLength; }
+    public void setPhysicalIslandLength(int l) { this.physicalIslandLength = l; }
+
+    public boolean isDiagonal() { return diagonal; }
+    public void setDiagonal(boolean diagonal) { this.diagonal = diagonal; }
+
+    public int getDiagonalStepX() { return diagonalStepX; }
+    public void setDiagonalStepX(int stepX) { this.diagonalStepX = stepX; }
+
     public int getDistance() { return distance; }
     public void setDistance(int distance) { this.distance = distance; }
 
@@ -524,14 +592,19 @@ public class MapData {
         return 1;
     }
 
+    /** Hard cap on custom length regardless of per-map configuration. */
+    public static final int GLOBAL_MAX_CUSTOM_LENGTH = 1700;
+
     /**
-     * Effective maximum custom length. For end-island maps without explicit bounds,
-     * defaults to 2× the base distance.
+     * Effective maximum custom length. Hard-capped at {@value #GLOBAL_MAX_CUSTOM_LENGTH} blocks.
+     * For end-island maps without explicit bounds, defaults to 2× the base distance (or the cap).
      */
     public int getEffectiveMaxCustomLength() {
-        if (maxCustomLength > 0) return maxCustomLength;
-        if (baseCustomLength > 0) return baseCustomLength * 2;
-        return 200;
+        int configured;
+        if (maxCustomLength > 0) configured = maxCustomLength;
+        else if (baseCustomLength > 0) configured = baseCustomLength * 2;
+        else configured = GLOBAL_MAX_CUSTOM_LENGTH;
+        return Math.min(configured, GLOBAL_MAX_CUSTOM_LENGTH);
     }
 
     public String getEndIslandTemplateFile() { return endIslandTemplateFile; }
