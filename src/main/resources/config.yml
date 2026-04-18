@@ -211,6 +211,20 @@ finish-trigger-mode: "zone"
 island-hopping:
   enabled: true
 
+# Island jump switch: player physically walks into an adjacent empty island → auto-switch.
+# Requires island-hopping.enabled=true. Adjacent-only: non-adjacent crossings always reset.
+island-jump-switch:
+  enabled: true
+
+# Reset lock: while an island is resetting (clearing placed blocks), reject all block
+# placements on that island so no phantom blocks survive the animation.
+reset-lock: true
+
+# Scale generation: limit how many island ranges can be generated concurrently.
+# Raise this on high-performance servers; lower it to reduce lag spikes on /scale.
+scale-generation:
+  max-concurrent: 4
+
 # Autoscale defaults
 autoscale:
   min-islands: 15

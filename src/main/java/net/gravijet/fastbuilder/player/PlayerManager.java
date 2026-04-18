@@ -176,6 +176,26 @@ public class PlayerManager {
      * Returns null if no record exists (provider will return empty-name data when
      * the backend has no entry for this UUID — we treat that as "not found").
      */
+    /**
+     * Look up the UUID for a player by name.
+     * Checks online players first, then falls back to Bukkit's offline-player cache.
+     * Returns null when no UUID can be determined.
+     */
+    public UUID getUuidForPlayerName(String name) {
+        for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
+            if (p.getName().equalsIgnoreCase(name)) return p.getUniqueId();
+        }
+        // Scan cache by name
+        for (Map.Entry<UUID, PlayerData> entry : cache.entrySet()) {
+            if (name.equalsIgnoreCase(entry.getValue().getName())) return entry.getKey();
+        }
+        // Fall back to Bukkit's offline-player registry (works on online-mode servers)
+        @SuppressWarnings("deprecation")
+        org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(name);
+        UUID uuid = op.getUniqueId();
+        return uuid;
+    }
+
     public PlayerData loadOfflineData(UUID uuid) {
         // First check live cache
         PlayerData cached = cache.get(uuid);

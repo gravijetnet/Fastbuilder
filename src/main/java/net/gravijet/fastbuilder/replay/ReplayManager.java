@@ -206,6 +206,33 @@ public class ReplayManager {
     public ReplaySession getPlaybackSession(UUID viewerUuid) { return activeSessions.get(viewerUuid); }
     public boolean isInPlayback(UUID uuid) { return activeSessions.containsKey(uuid); }
 
+    /**
+     * Load and return the personal best replay for a given player + map.
+     * Returns null if no successful replay exists on disk.
+     * This is a blocking I/O call — invoke from an async thread.
+     */
+    public ReplayData getPbReplay(UUID playerUuid, String mapName) {
+        File playerDir = new File(replaysDir, playerUuid.toString());
+        if (!playerDir.exists()) return null;
+        File[] files = playerDir.listFiles((dir, name) ->
+                name.contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+        if (files == null || files.length == 0) return null;
+
+        ReplayData best = null;
+        long bestTime = Long.MAX_VALUE;
+        for (File f : files) {
+            try {
+                ReplayData rd = loadReplay(f);
+                if (rd == null || !rd.isSuccessful() || rd.getRunTimeMillis() <= 0) continue;
+                if (rd.getRunTimeMillis() < bestTime) {
+                    bestTime = rd.getRunTimeMillis();
+                    best = rd;
+                }
+            } catch (Exception ignored) {}
+        }
+        return best;
+    }
+
     /** Find a replay session by its NPC entity ID (used to route NPC right-click events). */
     public ReplaySession getPlaybackSessionByNpcId(int npcId) {
         for (ReplaySession session : activeSessions.values()) {

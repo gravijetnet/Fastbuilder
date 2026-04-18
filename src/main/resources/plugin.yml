@@ -3,8 +3,8 @@ version: 2.1.0
 main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
-depend: [WorldEdit]
-softdepend: [FastAsyncWorldEdit, Citizens, DecentHolograms, PlaceholderAPI]
+depend: [WorldEdit, Citizens]
+softdepend: [FastAsyncWorldEdit, DecentHolograms, PlaceholderAPI]
 commands:
   map:
     description: Map administration commands
@@ -32,6 +32,9 @@ commands:
     usage: /<command> [map] [limit]
     aliases: [lb]
     permission: fastbuilder.command.leaderboard
+  length:
+    description: Set or reset custom run length on a map that supports it
+    usage: /<command> [blocks|reset]
 permissions:
   fastbuilder.admin:
     description: Access to all admin commands and features

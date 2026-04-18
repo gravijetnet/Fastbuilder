@@ -36,8 +36,9 @@ public final class TimeUtil {
     public static String formatTime(long millis) {
         if (millis < 0) return EMPTY;
 
-        long totalSeconds = millis / 1000;
-        long ms           = millis % 1000;
+        long floored      = (millis / 10) * 10; // floor to nearest 10 ms — no trailing 9s
+        long totalSeconds = floored / 1000;
+        long ms           = floored % 1000;
 
         return totalSeconds + "," + String.format("%03d", ms);
     }
@@ -56,8 +57,9 @@ public final class TimeUtil {
      */
     public static String formatTimeFull(long millis) {
         if (millis < 0) return "0,000";
-        long totalSeconds = millis / 1000;
-        long ms           = millis % 1000;
+        long floored      = (millis / 10) * 10;
+        long totalSeconds = floored / 1000;
+        long ms           = floored % 1000;
         return totalSeconds + "," + String.format("%03d", ms);
     }
 
@@ -74,11 +76,11 @@ public final class TimeUtil {
      * </ul>
      */
     public static String formatDifference(long currentMillis, long bestMillis) {
-        long diff = currentMillis - bestMillis;
-        String sign = diff >= 0 ? "+" : "-";
-        long   abs  = Math.abs(diff);
-        long   sec  = abs / 1000;
-        long   ms   = abs % 1000;
+        long diff    = currentMillis - bestMillis;
+        String sign  = diff >= 0 ? "+" : "-";
+        long   abs   = (Math.abs(diff) / 10) * 10; // floor to nearest 10 ms
+        long   sec   = abs / 1000;
+        long   ms    = abs % 1000;
         return sign + sec + "," + String.format("%03d", ms) + "s";
     }
 

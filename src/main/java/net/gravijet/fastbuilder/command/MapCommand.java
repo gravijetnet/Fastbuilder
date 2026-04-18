@@ -39,7 +39,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "setup", "rename", "regen", "seticon", "enable", "disable", "delete", "scale", "distance",
             "autoscale", "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign",
-            "removedesign", "setdesignmeta", "info", "help"
+            "removedesign", "setdesignmeta", "customlength", "info", "help"
     );
     private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "cancel");
@@ -152,19 +152,25 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         if (args.length == 1) {
             // /map setup — start new setup (normal)
-            startSetup(player, mm, false, false);
+            startSetup(player, mm, false, false, false);
             return;
         }
 
         // /map setup --infinite — start as infinite map
         if (args[1].equalsIgnoreCase("--infinite")) {
-            startSetup(player, mm, true, false);
+            startSetup(player, mm, true, false, false);
             return;
         }
 
         // /map setup --customlength — start with separate end island + real-time distance
         if (args[1].equalsIgnoreCase("--customlength")) {
-            startSetup(player, mm, false, true);
+            startSetup(player, mm, false, true, false);
+            return;
+        }
+
+        // /map setup --diagonal — diagonal island layout (admin selects X-step after island selection)
+        if (args[1].equalsIgnoreCase("--diagonal")) {
+            startSetup(player, mm, false, false, true);
             return;
         }
 
@@ -191,7 +197,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void startSetup(Player player, MapManager mm, boolean infinite, boolean customLength) {
+    private void startSetup(Player player, MapManager mm, boolean infinite, boolean customLength, boolean diagonal) {
         // Cancel existing session
         mm.removeSetupSession(player.getUniqueId());
 
@@ -202,6 +208,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         SetupSession session = mm.startSetupSession(player.getUniqueId(), origin);
         if (infinite) session.setInfinite(true);
         if (customLength) session.setCustomLengthMode(true);
+        if (diagonal) session.setDiagonalMode(true);
 
         // Prepare player
         player.teleport(origin);
@@ -222,7 +229,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.getInventory().setItem(0, rod);
 
         String prefix = plugin.getConfigManager().getPrefix();
-        String modeTag = infinite ? " &7(Infinite Mode)" : customLength ? " &7(Custom Length Mode)" : "";
+        String modeTag = infinite ? " &7(Infinite Mode)" : customLength ? " &7(Custom Length Mode)" : diagonal ? " &7(Diagonal Mode)" : "";
         player.sendMessage(ColorUtil.translate(prefix + "&aMap Setup Wizard started!" + modeTag));
         player.sendMessage(ColorUtil.translate("&7You have been teleported to the setup area."));
         if (customLength) {
@@ -259,13 +266,21 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         switch (session.getState()) {
             case SELECTING_ISLAND:
-                session.advanceToSpawn();
-                player.sendMessage(ColorUtil.translate(prefix + "&aIsland area saved!"));
-                player.sendMessage(ColorUtil.translate("&e&lStep 2: &fSet the spawn point."));
-                player.sendMessage(ColorUtil.translate("&7  Stand exactly where players should spawn on the island."));
-                player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set the spawn."));
-                player.sendMessage(ColorUtil.translate("&7  Then type:"));
-                sendClickableContinue(player);
+                if (session.isDiagonalMode()) {
+                    session.advanceToDiagonal();
+                    player.sendMessage(ColorUtil.translate(prefix + "&aIsland area saved!"));
+                    player.sendMessage(ColorUtil.translate("&e&lStep 2 (Diagonal): &fSet the diagonal X direction."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fa block at the X position where island slot 1's west edge should start."));
+                    player.sendMessage(ColorUtil.translate("&7  The plugin will compute the X step automatically from that click."));
+                } else {
+                    session.advanceToSpawn();
+                    player.sendMessage(ColorUtil.translate(prefix + "&aIsland area saved!"));
+                    player.sendMessage(ColorUtil.translate("&e&lStep 2: &fSet the spawn point."));
+                    player.sendMessage(ColorUtil.translate("&7  Stand exactly where players should spawn on the island."));
+                    player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set the spawn."));
+                    player.sendMessage(ColorUtil.translate("&7  Then type:"));
+                    sendClickableContinue(player);
+                }
                 break;
             case SELECTING_SPAWN:
                 session.advanceToNpc();
@@ -449,6 +464,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         map.setTemplateFile(name.toLowerCase());
         if (session.isInfinite()) {
             map.setInfinite(true);
+        }
+
+        // Compute physical island length so distance == visual gap from day one
+        if (!session.isInfinite() && plugin.getFawePaster() != null) {
+            int physLen = computePhysicalIslandLength(name.toLowerCase());
+            if (physLen > 0) {
+                map.setPhysicalIslandLength(physLen);
+            }
         }
 
         // Custom-length mode: rename end island template and store end-island metadata
@@ -673,8 +696,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate(prefix + "&eRegenerating all " + map.getScale()
                 + " island(s) for &c" + map.getName() + "&e. Please wait..."));
 
-        // Re-paste all islands at current distance (passes oldDistance = distance so no positional shift)
-        mm.regenerateIslands(map, map.getDistance());
+        // Re-paste all islands at current positions (oldActualStep == newActualStep — pure regen)
+        mm.regenerateIslands(map, map.getActualZStep());
 
         player.sendMessage(ColorUtil.translate(prefix + "&aRegeneration started for &c" + map.getName() + "&a."));
     }
@@ -900,23 +923,48 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // distance is now the gap (southernmost of one island to northernmost of next)
-        int actualDistance = Math.max(1, blocks);
-        int oldDistance = map.getDistance(); // old gap
-        map.setDistance(actualDistance);
+        int requestedGap = Math.max(1, blocks);
+
+        // Capture actual step BEFORE any changes (used to detect whether repaste is needed)
+        int oldActualZStep = map.getActualZStep();
+
+        // If physicalIslandLength hasn't been computed yet for this map, do it now by
+        // scanning the template. This one-time scan ensures distance == visual gap.
+        if (map.getPhysicalIslandLength() <= 0 && map.getTemplateFile() != null
+                && plugin.getFawePaster() != null) {
+            int physLen = computePhysicalIslandLength(map.getTemplateFile());
+            if (physLen > 0) {
+                map.setPhysicalIslandLength(physLen);
+            }
+        }
+
+        map.setDistance(requestedGap);
         mm.saveMap(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-distance-set");
-        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(actualDistance))
+        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(requestedGap))
                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
 
-        // Regenerate islands at new positions if distance actually changed
-        if (actualDistance != oldDistance && map.getScale() > 0) {
+        int newActualZStep = map.getActualZStep();
+        if (newActualZStep != oldActualZStep && map.getScale() > 0) {
             player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                     + "&eRegenerating " + map.getScale() + " island(s) at new distance. Please wait..."));
-            mm.regenerateIslands(map, oldDistance);
+            mm.regenerateIslands(map, oldActualZStep);
         }
+    }
+
+    /** Scan a template file and return the Z span of its non-air blocks. Returns 0 on failure. */
+    private int computePhysicalIslandLength(String templateFile) {
+        java.util.List<net.gravijet.fastbuilder.paste.FawePaster.BlockEntry> entries =
+                plugin.getFawePaster().loadTemplate(templateFile);
+        if (entries == null || entries.isEmpty()) return 0;
+        int minRelZ = Integer.MAX_VALUE, maxRelZ = Integer.MIN_VALUE;
+        for (net.gravijet.fastbuilder.paste.FawePaster.BlockEntry e : entries) {
+            if (e.relZ < minRelZ) minRelZ = e.relZ;
+            if (e.relZ > maxRelZ) maxRelZ = e.relZ;
+        }
+        return (minRelZ <= maxRelZ) ? maxRelZ - minRelZ + 1 : 0;
     }
 
     // --- /map autoscale <map> <true/false> ---
@@ -1380,7 +1428,6 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             {"fastbuilder.command.map.setrank",   "/map setrank <map> <tier> <ms>",      "Set rank time threshold"},
             {"fastbuilder.command.map.adddesign",       "/map adddesign <map> [<designKey>]",                     "Add alternative island design"},
             {"fastbuilder.command.map.adddesign",       "/map removedesign <map> <key>",                          "Remove alternative island design"},
-            {"fastbuilder.command.map.setcustomlength", "/map customlength <map> <true|false> [minBlocks]",       "Enable custom run length on a map"},
         };
 
         List<String> lines = new ArrayList<>();
@@ -1420,6 +1467,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "setup":
                     List<String> setupOpts = new ArrayList<>(SETUP_SUBS);
                     setupOpts.add("--infinite");
+                    setupOpts.add("--customlength");
                     return filter(setupOpts, args[1]);
                 case "rename":
                 case "setname":
@@ -1485,10 +1533,11 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     return Collections.emptyList();
                 }
                 case "adddesign": {
-                    MapData amap = mm.getMap(args[1]);
-                    if (amap != null) return filter(amap.getAllTemplates(), args[2]);
-                    return Collections.emptyList();
+                    // Complete with all .template files available on disk
+                    return filter(getAvailableTemplates(), args[2]);
                 }
+                case "setdeathy":
+                    return Arrays.asList("-1", "0", "10", "20", "30", "50");
                 default:
                     return Collections.emptyList();
             }
@@ -1497,8 +1546,23 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         if (args.length == 4 && sub.equals("setrank")) {
             return Arrays.asList("1000", "2000", "5000", "10000", "30000");
         }
+        if (args.length == 4 && sub.equals("customlength")) {
+            return Arrays.asList("10", "20", "30", "50", "100");
+        }
 
         return Collections.emptyList();
+    }
+
+    private List<String> getAvailableTemplates() {
+        if (plugin.getFawePaster() == null) return Collections.emptyList();
+        java.io.File dir = plugin.getFawePaster().getTemplatesDir();
+        java.io.File[] files = dir.listFiles((d, name) -> name.endsWith(".template"));
+        if (files == null) return Collections.emptyList();
+        List<String> names = new ArrayList<>();
+        for (java.io.File f : files) {
+            names.add(f.getName().replace(".template", ""));
+        }
+        return names;
     }
 
     private List<String> filter(List<String> options, String input) {

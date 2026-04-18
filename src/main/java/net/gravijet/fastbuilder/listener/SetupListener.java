@@ -45,6 +45,9 @@ public class SetupListener implements Listener {
             case SELECTING_ISLAND:
                 handleIslandSelection(player, session, action, clicked);
                 break;
+            case SELECTING_DIAGONAL:
+                handleDiagonalSelection(player, session, action, clicked);
+                break;
             case SELECTING_SPAWN:
                 handleSpawnSelection(player, session, action);
                 break;
@@ -93,6 +96,22 @@ public class SetupListener implements Listener {
                     .replace("%prefix%", prefix);
             player.sendMessage(ColorUtil.translate(msg));
             sendClickableContinue(player);
+        }
+    }
+
+    /**
+     * Diagonal selection: the admin right-clicks a block to indicate where island slot 1's
+     * minimum X corner should be. The plugin computes diagonalStepX = clickedX - islandMinX
+     * and advances to spawn selection.
+     */
+    private void handleDiagonalSelection(Player player, SetupSession session, Action action, Block clicked) {
+        if (action != Action.RIGHT_CLICK_BLOCK || clicked == null) return;
+        String prefix = plugin.getConfigManager().getPrefix();
+        int clickedX = clicked.getX();
+        if (session.finalizeDiagonal(clickedX)) {
+            player.sendMessage(ColorUtil.translate(prefix
+                    + "&aDiagonal step set: &fX+" + session.getDiagonalStepX()
+                    + " per island. &7Now right-click to set the spawn point."));
         }
     }
 

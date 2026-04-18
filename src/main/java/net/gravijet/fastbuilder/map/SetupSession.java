@@ -19,6 +19,7 @@ public class SetupSession {
 
     public enum State {
         SELECTING_ISLAND,
+        SELECTING_DIAGONAL,     // diagonal mode: admin right-clicks where island-1 min-X should be
         SELECTING_SPAWN,
         SELECTING_NPC,
         SELECTING_HOLOGRAM,
@@ -34,6 +35,9 @@ public class SetupSession {
     private boolean infinite = false;
     // Set during setup if the admin uses --customlength (separate end island, real-time movement)
     private boolean customLengthMode = false;
+    // Set during setup if the admin uses --diagonal; diagonalStepX computed from selection
+    private boolean diagonalMode = false;
+    private int diagonalStepX = 0;
 
     // Map origin (where the admin was teleported)
     private Location setupOrigin;
@@ -66,6 +70,30 @@ public class SetupSession {
     }
 
     // --- State transitions ---
+
+    /**
+     * After island selection, advance to the diagonal-direction step (diagonal mode only).
+     * The admin right-clicks where island-slot 1's min X corner should be to set the step.
+     */
+    public boolean advanceToDiagonal() {
+        if (state != State.SELECTING_ISLAND) return false;
+        if (islandPos1 == null || islandPos2 == null) return false;
+        state = State.SELECTING_DIAGONAL;
+        return true;
+    }
+
+    /**
+     * Record the diagonal X step from a block click location and advance to spawn selection.
+     * stepX = clickedX - islandMinX.
+     */
+    public boolean finalizeDiagonal(int clickedX) {
+        if (state != State.SELECTING_DIAGONAL) return false;
+        Location islandMin = getIslandMin();
+        if (islandMin == null) return false;
+        diagonalStepX = clickedX - islandMin.getBlockX();
+        state = State.SELECTING_SPAWN;
+        return true;
+    }
 
     public boolean advanceToSpawn() {
         if (state != State.SELECTING_ISLAND) return false;
@@ -138,6 +166,8 @@ public class SetupSession {
         switch (state) {
             case SELECTING_ISLAND:
                 return islandPos1 != null && islandPos2 != null;
+            case SELECTING_DIAGONAL:
+                return false; // diagonal step is set via right-click, not /map setup continue
             case SELECTING_SPAWN:
                 return spawnPoint != null;
             case SELECTING_NPC:
@@ -309,6 +339,12 @@ public class SetupSession {
 
     public boolean isCustomLengthMode() { return customLengthMode; }
     public void setCustomLengthMode(boolean mode) { this.customLengthMode = mode; }
+
+    public boolean isDiagonalMode() { return diagonalMode; }
+    public void setDiagonalMode(boolean mode) { this.diagonalMode = mode; }
+
+    public int getDiagonalStepX() { return diagonalStepX; }
+    public void setDiagonalStepX(int stepX) { this.diagonalStepX = stepX; }
 
     public Location getEndIslandPos1() { return endIslandPos1; }
     public void setEndIslandPos1(Location pos) { this.endIslandPos1 = pos; }
