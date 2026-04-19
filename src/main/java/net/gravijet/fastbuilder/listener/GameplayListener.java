@@ -130,6 +130,14 @@ public class GameplayListener implements Listener {
         int currentIndex = session.getIslandIndex();
         if (candidateIndex == currentIndex) return;
 
+        // Only trigger if the player has actually left their current island's Z bounds.
+        // When physicalIslandLength < islandLength the step is smaller than the declared
+        // island width, so the step-based slot index can differ from the player's real
+        // island even while they are still standing on it. Without this guard every
+        // movement near the far-Z edge of the island would falsely trigger a hop/reset.
+        int[] ownBounds = net.gravijet.fastbuilder.map.GridCalculator.getIslandBounds(map, currentIndex);
+        if (bz >= ownBounds[2] && bz <= ownBounds[5]) return;
+
         // Only allow hopping to directly adjacent islands (diff of 1)
         if (Math.abs(candidateIndex - currentIndex) > 1) {
             teleportBack(player, map, currentIndex, uuid);
