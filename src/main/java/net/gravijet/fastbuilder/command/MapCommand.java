@@ -453,8 +453,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         // Rename start template to final name
         String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
-        java.io.File tempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), tempName + ".template");
-        java.io.File finalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), name.toLowerCase() + ".template");
+        java.io.File tempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), tempName + ".schematic");
+        java.io.File finalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), name.toLowerCase() + ".schematic");
         if (tempFile.exists()) {
             tempFile.renameTo(finalFile);
         }
@@ -477,9 +477,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         // Custom-length mode: rename end island template and store end-island metadata
         if (session.isCustomLengthMode()) {
             String endTempName = "setup_" + player.getUniqueId().toString().substring(0, 8) + "_end";
-            java.io.File endTempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endTempName + ".template");
+            java.io.File endTempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endTempName + ".schematic");
             String endFinalKey = name.toLowerCase() + "_end";
-            java.io.File endFinalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endFinalKey + ".template");
+            java.io.File endFinalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endFinalKey + ".schematic");
             if (endTempFile.exists()) endTempFile.renameTo(endFinalFile);
 
             map.setEndIslandTemplateFile(endFinalKey);
