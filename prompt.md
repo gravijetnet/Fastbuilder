@@ -1,0 +1,2 @@
+es funktioneirt jetzt fast gear nichts mehr. maps werden nicht richtig skaliert, die schematics werden nicht wie im namen der map gespeichert wenn man die map aufsetzt. in alten github commits war es besser, jetzt ist alles müll.
+man kann auch keine blöcke mehr platzieren oder gehen, da man sofort zurückgesetzt wird wenn man sich bewegt.
