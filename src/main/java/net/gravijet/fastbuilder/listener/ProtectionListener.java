@@ -314,11 +314,7 @@ public class ProtectionListener implements Listener {
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
             int absoluteDeathY = mapForVoid.getDeathY();
-            // Buffer of 10 blocks so high-latency players are reset before reaching the
-            // actual death plane. Only applies while the player is actively falling so
-            // standing on an island near the death Y doesn't cause false resets.
-            boolean falling = to.getY() < event.getFrom().getY() - 0.01;
-            inVoid = to.getY() < absoluteDeathY + (falling ? 10 : 0);
+            inVoid = to.getY() < absoluteDeathY;
         } else {
             inVoid = to.getBlockY() < bounds[1] - maxDist;
         }
