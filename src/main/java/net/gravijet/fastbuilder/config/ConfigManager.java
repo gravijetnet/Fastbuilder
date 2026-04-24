@@ -242,6 +242,10 @@ public class ConfigManager {
         return messagesConfig.getString("admin." + key, "");
     }
 
+    public String getBoosterMessage(String key) {
+        return messagesConfig.getString("booster." + key, "");
+    }
+
     public String getTitle() {
         return messagesConfig.getString("title", "");
     }

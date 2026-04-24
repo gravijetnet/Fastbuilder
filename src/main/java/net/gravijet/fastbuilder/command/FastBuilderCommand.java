@@ -37,10 +37,10 @@ import java.util.List;
 public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER_SUBS = Arrays.asList(
-            "join", "leave", "reset", "list"
+            "join", "leave", "reset"
     );
     private static final List<String> ALL_SUBS = Arrays.asList(
-            "join", "leave", "reset", "list", "reload", "dump"
+            "join", "leave", "reset", "reload", "dump"
     );
 
     private final FastBuilder plugin;
@@ -80,9 +80,6 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 break;
             case "reset":
                 handleReset(player, mm);
-                break;
-            case "list":
-                handleList(player, mm);
                 break;
             case "reload":
                 handleReload(player);
@@ -352,40 +349,6 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         msg(player, plugin.getConfigManager().getPrefix() + "&fYour island has been reset.");
     }
 
-    // --- /fb list ---
-
-    private void handleList(Player player, MapManager mm) {
-        if (!player.hasPermission("fastbuilder.command.fb.list")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
-            return;
-        }
-        List<MapData> enabledMaps = new ArrayList<>();
-        for (MapData map : mm.getAllMaps()) {
-            if (map.isEnabled()) {
-                enabledMaps.add(map);
-            }
-        }
-
-        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &7- &fAvailable Maps"));
-        player.sendMessage(ColorUtil.translate("&8----------------------------------"));
-
-        if (enabledMaps.isEmpty()) {
-            player.sendMessage(ColorUtil.translate("&7No maps available."));
-        } else {
-            for (MapData map : enabledMaps) {
-                int occupied = mm.getOccupiedCount(map.getName());
-                int total = mm.getIslands(map.getName()).size();
-                String mode = map.isInfinite() ? " &7[Infinite]" : map.hasCustomLength() ? " &7[Custom]" : "";
-                player.sendMessage(ColorUtil.translate(
-                        "&4- &c" + map.getName() + " &7(" + occupied + "/" + total + " players)" + mode
-                ));
-            }
-        }
-
-        player.sendMessage(ColorUtil.translate("&8----------------------------------"));
-        player.sendMessage(ColorUtil.translate("&7Use &c/fb join <map> &7to join a map."));
-    }
-
     // --- /fb reload ---
 
     private void handleReload(Player player) {
@@ -610,16 +573,16 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- Help ---
 
     private void sendHelp(Player player) {
-        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &7- &fCommands"));
-        player.sendMessage(ColorUtil.translate("&4- &c/fb join <map> &7- &fJoin a map"));
-        player.sendMessage(ColorUtil.translate("&4- &c/fb leave &7- &fLeave to lobby"));
-        player.sendMessage(ColorUtil.translate("&4- &c/fb reset &7- &fReset your island"));
-        player.sendMessage(ColorUtil.translate("&4- &c/fb list &7- &fList available maps"));
+        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &8» &fCommands"));
+        player.sendMessage(ColorUtil.translate("&c● /fb join &f<map> &8» &fJoin a map."));
+        player.sendMessage(ColorUtil.translate("&c● /fb leave &8» &fLeave to lobby."));
+        player.sendMessage(ColorUtil.translate("&c● /fb reset &8» &fReset your island."));
+        player.sendMessage(ColorUtil.translate("&c● /map list &8» &fList available maps."));
         if (player.hasPermission("fastbuilder.command.fb.reload")) {
-            player.sendMessage(ColorUtil.translate("&4- &c/fb reload &7- &fReload configuration"));
+            player.sendMessage(ColorUtil.translate("&c● /fb reload &8» &fReload configuration."));
         }
         if (player.hasPermission("fastbuilder.command.fb.dump")) {
-            player.sendMessage(ColorUtil.translate("&4- &c/fb dump &7- &fUpload diagnostic report"));
+            player.sendMessage(ColorUtil.translate("&c● /fb dump &8» &fUpload diagnostic report."));
         }
     }
 

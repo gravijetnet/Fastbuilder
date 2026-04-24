@@ -20,13 +20,13 @@ commands:
   coins:
     description: Manage player coins
     usage: /<command> [player] | add/remove/set <player|*> <amount>
+    aliases: [coin]
   build:
     description: Toggle creative build mode on your island
     usage: /<command>
   booster:
-    description: Admin commands for managing player booster inventories
-    usage: /<command> <give|take|clear|info|list> [player] [type] [amount]
-    permission: fastbuilder.booster.admin
+    description: Open booster menu or manage player boosters (admin)
+    usage: /<command> [give|take|clear|info] [player] [type] [amount]
   leaderboard:
     description: View the top players per map
     usage: /<command> [map] [limit]

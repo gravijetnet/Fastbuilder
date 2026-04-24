@@ -39,7 +39,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "setup", "rename", "regen", "seticon", "enable", "disable", "delete", "scale", "distance",
             "autoscale", "setdeathy", "setmintime", "setmaxtime", "setrank", "adddesign",
-            "removedesign", "setdesignmeta", "customlength", "info", "help"
+            "removedesign", "setdesignmeta", "customlength", "setinfinite", "info", "list", "help"
     );
     private static final List<String> RANK_TIERS = Arrays.asList("diamond", "gold", "silver", "bronze");
     private static final List<String> SETUP_SUBS = Arrays.asList("continue", "finish", "cancel");
@@ -61,10 +61,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         Player player = (Player) sender;
-        if (!player.hasPermission("fastbuilder.admin")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
-            return true;
-        }
+        MapManager mm = plugin.getMapManager();
 
         if (args.length == 0) {
             sendHelp(player);
@@ -72,7 +69,17 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         String sub = args[0].toLowerCase();
-        MapManager mm = plugin.getMapManager();
+
+        // /map list is accessible to regular players (fastbuilder.play)
+        if (sub.equals("list")) {
+            handleList(player, mm);
+            return true;
+        }
+
+        if (!player.hasPermission("fastbuilder.admin")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return true;
+        }
 
         switch (sub) {
             case "setup":
@@ -256,7 +263,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         boolean forceSpawnLoc = false;
         for (String a : args) {
-            if ("--force-spawn-location".equalsIgnoreCase(a)) {
+            if ("--force".equalsIgnoreCase(a)) {
                 forceSpawnLoc = true;
                 break;
             }
@@ -283,6 +290,19 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 }
                 break;
             case SELECTING_SPAWN:
+                if (!forceSpawnLoc) {
+                    Location spawnPt = session.getSpawnPoint();
+                    if (spawnPt != null) {
+                        float yaw = spawnPt.getYaw();
+                        float normalized = ((yaw % 360) + 360) % 360; // normalize to 0–360
+                        // East = yaw -90 → normalized 270; allow ±15° tolerance
+                        boolean facingEast = Math.abs(normalized - 270f) <= 15f;
+                        if (!facingEast) {
+                            msgAdmin(player, "setup-spawn-not-east");
+                            return;
+                        }
+                    }
+                }
                 session.advanceToNpc();
                 player.sendMessage(ColorUtil.translate(prefix + "&aSpawn point saved!"));
                 player.sendMessage(ColorUtil.translate("&e&lStep 3: &fSet the NPC location."));
@@ -602,7 +622,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         String prefix = plugin.getConfigManager().getPrefix();
         int occupied = mm.getOccupiedCount(map.getName());
         int total = mm.getIslands(map.getName()).size();
-        player.sendMessage(ColorUtil.translate(prefix + "&f---- Map: &c" + map.getName() + " &f----"));
+        player.sendMessage(ColorUtil.translate(prefix + "&c&l" + map.getName() + " &8» &fMap Info"));
         player.sendMessage(ColorUtil.translate("  &8» &cEnabled: &f" + map.isEnabled()));
         player.sendMessage(ColorUtil.translate("  &8» &cIslands: &f" + occupied + "/" + total
                 + " &7(autoscale: " + map.isAutoscale() + ")"));
@@ -1383,8 +1403,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
 
         footer.addExtra(new net.md_5.bungee.api.chat.TextComponent(
-                ColorUtil.translate("&fShowing page &c" + page + " &fof &c" + totalPages
-                        + " &f(&7" + lines.size() + " results&f)")));
+                ColorUtil.translate("&8Page &c" + page + " &8/ &c" + totalPages
+                        + " &8(&7" + lines.size() + " entries&8)")));
 
         if (page < totalPages) {
             net.md_5.bungee.api.chat.TextComponent next =
@@ -1407,27 +1427,30 @@ public class MapCommand implements CommandExecutor, TabCompleter {
     private List<String> buildHelpLines(Player player) {
         // [permission, command, description]
         Object[][] all = {
-            {"fastbuilder.command.map.setup",     "/map setup",                          "Start map setup wizard"},
-            {"fastbuilder.command.map.setup",     "/map setup --infinite",               "Start setup for an infinite map"},
-            {"fastbuilder.command.map.setup",     "/map setup continue",                 "Advance to next setup step"},
-            {"fastbuilder.command.map.setup",     "/map setup finish <name>",            "Finalize & name the map"},
-            {"fastbuilder.command.map.setup",     "/map setup cancel",                   "Cancel an active setup session"},
-            {"fastbuilder.command.map.info",      "/map info <map>",                     "Show map details"},
-            {"fastbuilder.command.map.rename",    "/map rename <old> <new>",             "Rename a map"},
-            {"fastbuilder.command.map.regen",     "/map regen <map>",                    "Regenerate all islands"},
-            {"fastbuilder.command.map.seticon",   "/map seticon <map> [block]",          "Set map display icon"},
-            {"fastbuilder.command.map.enable",    "/map enable <map>",                   "Enable a map"},
-            {"fastbuilder.command.map.disable",   "/map disable <map>",                  "Disable a map"},
-            {"fastbuilder.command.map.delete",    "/map delete <map> [confirm]",         "Permanently delete a map"},
-            {"fastbuilder.command.map.scale",     "/map scale <map> <count>",            "Set island count"},
-            {"fastbuilder.command.map.distance",  "/map distance <map> <blocks>",        "Set island spacing"},
-            {"fastbuilder.command.map.autoscale", "/map autoscale <map> <true|false>",   "Toggle autoscaling"},
-            {"fastbuilder.command.map.setdeathy", "/map setdeathy <map> <Y>",            "Set fall-death Y level"},
-            {"fastbuilder.command.map.setrank",   "/map setmintime <map> <ms>",          "Set minimum valid run time"},
-            {"fastbuilder.command.map.setrank",   "/map setmaxtime <map> <ms>",          "Set max run time (0=off)"},
-            {"fastbuilder.command.map.setrank",   "/map setrank <map> <tier> <ms>",      "Set rank time threshold"},
-            {"fastbuilder.command.map.adddesign",       "/map adddesign <map> [<designKey>]",                     "Add alternative island design"},
-            {"fastbuilder.command.map.adddesign",       "/map removedesign <map> <key>",                          "Remove alternative island design"},
+            {"fastbuilder.play",                  "/map list",                               "List all available maps."},
+            {"fastbuilder.command.map.setup",     "/map setup",                              "Start the map setup wizard."},
+            {"fastbuilder.command.map.setup",     "/map setup --infinite",                   "Start setup for an infinite map."},
+            {"fastbuilder.command.map.setup",     "/map setup --customlength",               "Start setup with a custom-length end island."},
+            {"fastbuilder.command.map.setup",     "/map setup continue",                     "Advance to the next setup step."},
+            {"fastbuilder.command.map.setup",     "/map setup finish <name>",                "Finalize and name the map."},
+            {"fastbuilder.command.map.setup",     "/map setup cancel",                       "Cancel an active setup session."},
+            {"fastbuilder.command.map.info",      "/map info <map>",                         "Show detailed map information."},
+            {"fastbuilder.command.map.rename",    "/map rename <old> <new>",                 "Rename a map."},
+            {"fastbuilder.command.map.regen",     "/map regen <map>",                        "Regenerate all islands."},
+            {"fastbuilder.command.map.seticon",   "/map seticon <map> [block]",              "Set the map display icon."},
+            {"fastbuilder.command.map.enable",    "/map enable <map>",                       "Enable a map."},
+            {"fastbuilder.command.map.disable",   "/map disable <map>",                      "Disable a map."},
+            {"fastbuilder.command.map.delete",    "/map delete <map> [confirm]",             "Permanently delete a map."},
+            {"fastbuilder.command.map.scale",     "/map scale <map> <count>",                "Set island count."},
+            {"fastbuilder.command.map.distance",  "/map distance <map> <blocks>",            "Set island gap in blocks."},
+            {"fastbuilder.command.map.autoscale", "/map autoscale <map> <true|false>",       "Toggle autoscaling."},
+            {"fastbuilder.command.map.setdeathy", "/map setdeathy <map> <Y>",                "Set fall-death Y level."},
+            {"fastbuilder.command.map.setrank",   "/map setmintime <map> <ms>",              "Set minimum valid run time."},
+            {"fastbuilder.command.map.setrank",   "/map setmaxtime <map> <ms>",              "Set max run time (0=off)."},
+            {"fastbuilder.command.map.setrank",   "/map setrank <map> <tier> <ms>",          "Set rank time threshold."},
+            {"fastbuilder.command.map.adddesign", "/map adddesign <map> [key]",              "Add alternative island design."},
+            {"fastbuilder.command.map.adddesign", "/map removedesign <map> <key>",           "Remove alternative island design."},
+            {"fastbuilder.command.map.adddesign", "/map setdesignmeta <map> <key>",          "Save spawn/finish profile for a design."},
         };
 
         List<String> lines = new ArrayList<>();
@@ -1436,10 +1459,41 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             String cmd  = (String) entry[1];
             String desc = (String) entry[2];
             if (player.hasPermission("fastbuilder.admin") || player.hasPermission(perm)) {
-                lines.add("&4- &c" + cmd + " &7- &f" + desc);
+                lines.add("&c● " + cmd + " &8» &f" + desc);
             }
         }
         return lines;
+    }
+
+    // --- /map list ---
+
+    private void handleList(Player player, MapManager mm) {
+        if (!player.hasPermission("fastbuilder.play")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
+        List<MapData> enabledMaps = new ArrayList<>();
+        for (MapData map : mm.getAllMaps()) {
+            if (map.isEnabled()) enabledMaps.add(map);
+        }
+
+        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &8» &fAvailable Maps"));
+        player.sendMessage(ColorUtil.translate("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+
+        if (enabledMaps.isEmpty()) {
+            player.sendMessage(ColorUtil.translate("&7No maps are currently available."));
+        } else {
+            for (MapData map : enabledMaps) {
+                int occupied = mm.getOccupiedCount(map.getName());
+                int total = mm.getIslands(map.getName()).size();
+                String mode = map.isInfinite() ? " &8[&7Infinite&8]" : map.hasCustomLength() ? " &8[&7Custom&8]" : "";
+                player.sendMessage(ColorUtil.translate(
+                        "&c● &f" + map.getName() + " &8» &7" + occupied + "/" + total + " players" + mode));
+            }
+        }
+
+        player.sendMessage(ColorUtil.translate("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        player.sendMessage(ColorUtil.translate("&7Use &c/fb join <map> &7to join."));
     }
 
     private void sendHelp(Player player) {
@@ -1450,17 +1504,27 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
-        if (!(sender instanceof Player) || !sender.hasPermission("fastbuilder.admin")) {
-            return Collections.emptyList();
-        }
+        if (!(sender instanceof Player)) return Collections.emptyList();
 
         MapManager mm = plugin.getMapManager();
 
         if (args.length == 1) {
+            // Non-admins only see "list"
+            if (!sender.hasPermission("fastbuilder.admin")) {
+                return sender.hasPermission("fastbuilder.play")
+                        ? filter(Collections.singletonList("list"), args[0])
+                        : Collections.emptyList();
+            }
             return filter(SUBCOMMANDS, args[0]);
         }
 
         String sub = args[0].toLowerCase();
+
+        // list takes no arguments
+        if (sub.equals("list")) return Collections.emptyList();
+
+        // All remaining tab completions require admin
+        if (!sender.hasPermission("fastbuilder.admin")) return Collections.emptyList();
 
         if (args.length == 2) {
             switch (sub) {
@@ -1468,13 +1532,13 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     List<String> setupOpts = new ArrayList<>(SETUP_SUBS);
                     setupOpts.add("--infinite");
                     setupOpts.add("--customlength");
+                    setupOpts.add("--diagonal");
                     return filter(setupOpts, args[1]);
                 case "rename":
                 case "setname":
                 case "regen":
                 case "seticon":
                 case "scale":
-                case "distance":
                 case "delete":
                 case "autoscale":
                 case "setdeathy":
@@ -1482,10 +1546,14 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "setmaxtime":
                 case "setrank":
                 case "customlength":
+                case "setinfinite":
                 case "adddesign":
                 case "removedesign":
+                case "setdesignmeta":
                 case "info":
-                    return filter(mm.getEnabledMapNames(), args[1]);
+                    return filter(mm.getMapNames(), args[1]);
+                case "distance":
+                    return filter(mm.getMapNames(), args[1]);
                 case "enable":
                     return filter(mm.getDisabledMapNames(), args[1]);
                 case "disable":
@@ -1503,9 +1571,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     if (args[1].equalsIgnoreCase("finish")) {
                         return Collections.singletonList("<name>");
                     }
-                    if (args[1].equalsIgnoreCase("continue")) {
-                        return filter(Arrays.asList("--force-spawn-location", "--infinite"), args[2]);
-                    }
+                    // "continue" intentionally has no tab completions (--force is hidden)
                     return Collections.emptyList();
                 case "rename":
                 case "setname":
@@ -1515,7 +1581,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 case "scale":
                     return Arrays.asList("1", "5", "10", "15", "20", "30");
                 case "distance":
-                    return Arrays.asList("10", "20", "30", "50", "100");
+                    // --force intentionally not tab-completed
+                    return Arrays.asList("3", "5", "10", "20", "30", "50", "100");
                 case "setmintime":
                     return Arrays.asList("0", "500", "1000", "2000", "5000");
                 case "setmaxtime":
@@ -1524,16 +1591,17 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     return filter(RANK_TIERS, args[2]);
                 case "autoscale":
                 case "customlength":
+                case "setinfinite":
                     return filter(BOOLEANS, args[2]);
                 case "delete":
                     return filter(Collections.singletonList("confirm"), args[2]);
-                case "removedesign": {
+                case "removedesign":
+                case "setdesignmeta": {
                     MapData rmap = mm.getMap(args[1]);
-                    if (rmap != null) return filter(rmap.getAlternativeTemplates(), args[2]);
+                    if (rmap != null) return filter(rmap.getAllTemplates(), args[2]);
                     return Collections.emptyList();
                 }
                 case "adddesign": {
-                    // Complete with all .template files available on disk
                     return filter(getAvailableTemplates(), args[2]);
                 }
                 case "setdeathy":

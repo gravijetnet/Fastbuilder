@@ -17,21 +17,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Admin command for managing player booster inventories.
- *
- * <pre>
- * /booster give   &lt;player&gt; &lt;type&gt; [amount]   – add boosters to inventory
- * /booster take   &lt;player&gt; &lt;type&gt; [amount]   – remove boosters from inventory
- * /booster clear  &lt;player&gt;                    – remove ALL owned boosters + cancel active
- * /booster info   &lt;player&gt;                    – list what a player owns
- * /booster list                               – list all configured booster types
- * </pre>
- *
- * Requires {@code fastbuilder.booster.admin}.
+ * /booster — no args: opens the player booster menu.
+ * /booster give|take|clear|info — admin subcommands (requires fastbuilder.booster.admin).
  */
 public class BoosterCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = Arrays.asList("give", "take", "clear", "info", "list");
+    private static final List<String> ADMIN_SUBS = Arrays.asList("give", "take", "clear", "info");
 
     private final FastBuilder plugin;
 
@@ -43,20 +34,33 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         String prefix = plugin.getConfigManager().getPrefix();
 
-        if (!sender.hasPermission("fastbuilder.booster.admin")) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cYou don't have permission."));
+        // No args → open booster menu for the player
+        if (args.length == 0) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage(ColorUtil.translate(
+                        bMsg("only-players").replace("%prefix%", prefix)));
+                return true;
+            }
+            Player player = (Player) sender;
+            if (!player.hasPermission("fastbuilder.play")) {
+                player.sendMessage(ColorUtil.translate(
+                        bMsg("no-permission").replace("%prefix%", prefix)));
+                return true;
+            }
+            plugin.getGuiManager().openBoosterHub(player);
             return true;
         }
 
-        if (args.length == 0) {
-            sendUsage(sender, prefix);
+        // All subcommands require admin
+        if (!sender.hasPermission("fastbuilder.booster.admin")) {
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("no-permission").replace("%prefix%", prefix)));
             return true;
         }
 
         String sub = args[0].toLowerCase();
 
         switch (sub) {
-            case "list":   return handleList(sender, prefix);
             case "info":   return handleInfo(sender, prefix, args);
             case "give":   return handleGive(sender, prefix, args);
             case "take":   return handleTake(sender, prefix, args);
@@ -69,78 +73,69 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     // -------------------------------------------------------------------------
 
-    private boolean handleList(CommandSender sender, String prefix) {
-        List<BoosterType> types = plugin.getConfigManager().getBoosterTypes();
-        if (types.isEmpty()) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cNo booster types are configured."));
-            return true;
-        }
-        sender.sendMessage(ColorUtil.translate(prefix + "&7Configured booster types:"));
-        for (BoosterType t : types) {
-            sender.sendMessage(ColorUtil.translate(
-                    "&8  " + t.id + " &7→ " + t.formatMultiplier()
-                    + " for &e" + t.durationMinutes + "m &7(&c" + t.price + " coins&7)"));
-        }
-        return true;
-    }
-
     private boolean handleInfo(CommandSender sender, String prefix, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUsage: /booster info <player>"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster info <player>"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayer &f" + args[1] + " &cis not online."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("player-offline").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
         PlayerData data = plugin.getPlayerManager().getCachedData(target.getUniqueId());
         if (data == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cCould not load data for &f" + args[1] + "&c."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("data-error").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
 
-        sender.sendMessage(ColorUtil.translate(prefix + "&7Boosters for &f" + target.getName() + "&7:"));
+        sender.sendMessage(ColorUtil.translate(
+                bMsg("info-header").replace("%prefix%", prefix).replace("%player%", target.getName())));
 
-        // Active booster
         boolean hasActive = data.getBoosterExpiry() > System.currentTimeMillis();
         if (hasActive) {
-            sender.sendMessage(ColorUtil.translate("&8  Active: &a"
-                    + formatMult(data.getBoosterMultiplier())
-                    + " &7(" + plugin.getBoosterManager().formatRemaining(target.getUniqueId()) + " left)"));
+            String remaining = plugin.getBoosterManager().formatRemaining(target.getUniqueId());
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("info-active")
+                            .replace("%multiplier%", formatMult(data.getBoosterMultiplier()))
+                            .replace("%remaining%", remaining)));
         } else {
-            sender.sendMessage(ColorUtil.translate("&8  Active: &cNone"));
+            sender.sendMessage(ColorUtil.translate(bMsg("info-none")));
         }
 
-        // Inventory
         if (data.hasAnyBoosters()) {
             for (java.util.Map.Entry<String, Integer> e : data.getBoosterInventory().entrySet()) {
                 BoosterType type = plugin.getConfigManager().getBoosterType(e.getKey());
                 String typeName = type != null ? type.displayName : e.getKey();
                 sender.sendMessage(ColorUtil.translate(
-                        "&8  Inventory: &f" + e.getValue() + "x " + typeName));
+                        bMsg("info-inventory-entry")
+                                .replace("%amount%", String.valueOf(e.getValue()))
+                                .replace("%type%", typeName)));
             }
         } else {
-            sender.sendMessage(ColorUtil.translate("&8  Inventory: &7(empty)"));
+            sender.sendMessage(ColorUtil.translate(bMsg("info-inventory-empty")));
         }
         return true;
     }
 
     private boolean handleGive(CommandSender sender, String prefix, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUsage: /booster give <player> <type> [amount]"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster give <player> <type> [amount]"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayer &f" + args[1] + " &cis not online."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("player-offline").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
         String typeId = args[2].toUpperCase();
         BoosterType type = plugin.getConfigManager().getBoosterType(typeId);
         if (type == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUnknown booster type &f" + typeId
-                    + "&c. Use &f/booster list &cto see all types."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("unknown-type").replace("%prefix%", prefix).replace("%type%", typeId)));
             return true;
         }
         int amount = 1;
@@ -149,34 +144,42 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
                 amount = Integer.parseInt(args[3]);
                 if (amount < 1) throw new NumberFormatException();
             } catch (NumberFormatException e) {
-                sender.sendMessage(ColorUtil.translate(prefix + "&cInvalid amount."));
+                sender.sendMessage(ColorUtil.translate(
+                        bMsg("invalid-amount").replace("%prefix%", prefix)));
                 return true;
             }
         }
 
         plugin.getBoosterManager().giveBooster(target.getUniqueId(), typeId, amount);
-        sender.sendMessage(ColorUtil.translate(prefix
-                + "&aGave &f" + amount + "x " + type.displayName + " &ato &f" + target.getName() + "&a."));
-        target.sendMessage(ColorUtil.translate(prefix
-                + "&aYou received &f" + amount + "x " + type.displayName
-                + " &a— activate it from your &fBooster Inventory&a!"));
+
+        sender.sendMessage(ColorUtil.translate(
+                bMsg("give-sender").replace("%prefix%", prefix)
+                        .replace("%amount%", String.valueOf(amount))
+                        .replace("%type%", type.displayName)
+                        .replace("%player%", target.getName())));
+        target.sendMessage(ColorUtil.translate(
+                bMsg("give-target").replace("%prefix%", prefix)
+                        .replace("%amount%", String.valueOf(amount))
+                        .replace("%type%", type.displayName)));
         return true;
     }
 
     private boolean handleTake(CommandSender sender, String prefix, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUsage: /booster take <player> <type> [amount]"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster take <player> <type> [amount]"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayer &f" + args[1] + " &cis not online."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("player-offline").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
         String typeId = args[2].toUpperCase();
         BoosterType type = plugin.getConfigManager().getBoosterType(typeId);
         if (type == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUnknown booster type &f" + typeId + "&c."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("unknown-type").replace("%prefix%", prefix).replace("%type%", typeId)));
             return true;
         }
         int amount = 1;
@@ -185,47 +188,53 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
                 amount = Integer.parseInt(args[3]);
                 if (amount < 1) throw new NumberFormatException();
             } catch (NumberFormatException e) {
-                sender.sendMessage(ColorUtil.translate(prefix + "&cInvalid amount."));
+                sender.sendMessage(ColorUtil.translate(
+                        bMsg("invalid-amount").replace("%prefix%", prefix)));
                 return true;
             }
         }
 
         int removed = plugin.getBoosterManager().takeBooster(target.getUniqueId(), typeId, amount);
         if (removed == 0) {
-            sender.sendMessage(ColorUtil.translate(prefix
-                    + "&f" + target.getName() + " &chas no &f" + type.displayName + " &cboosters."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("take-none").replace("%prefix%", prefix)
+                            .replace("%player%", target.getName())
+                            .replace("%type%", type.displayName)));
         } else {
-            sender.sendMessage(ColorUtil.translate(prefix
-                    + "&aRemoved &f" + removed + "x " + type.displayName + " &afrom &f" + target.getName() + "&a."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("take-success").replace("%prefix%", prefix)
+                            .replace("%amount%", String.valueOf(removed))
+                            .replace("%type%", type.displayName)
+                            .replace("%player%", target.getName())));
         }
         return true;
     }
 
     private boolean handleClear(CommandSender sender, String prefix, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUsage: /booster clear <player>"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster clear <player>"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayer &f" + args[1] + " &cis not online."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("player-offline").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
         PlayerData data = plugin.getPlayerManager().getCachedData(target.getUniqueId());
         if (data == null) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cCould not load data for &f" + args[1] + "&c."));
+            sender.sendMessage(ColorUtil.translate(
+                    bMsg("data-error").replace("%prefix%", prefix).replace("%player%", args[1])));
             return true;
         }
 
-        // Clear all owned boosters by consuming everything
         for (java.util.Map.Entry<String, Integer> e : new java.util.HashMap<>(data.getBoosterInventory()).entrySet()) {
             for (int i = 0; i < e.getValue(); i++) data.consumeBooster(e.getKey());
         }
-        // Cancel active booster
         plugin.getBoosterManager().clearActiveBooster(target.getUniqueId());
 
-        sender.sendMessage(ColorUtil.translate(prefix
-                + "&aCleared all boosters for &f" + target.getName() + "&a."));
+        sender.sendMessage(ColorUtil.translate(
+                bMsg("clear-success").replace("%prefix%", prefix).replace("%player%", target.getName())));
         return true;
     }
 
@@ -233,12 +242,23 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
+        if (args.length == 1) {
+            // Players with fastbuilder.play see no suggestions (opening menu needs no args)
+            // Admins see the subcommand list
+            if (sender.hasPermission("fastbuilder.booster.admin")) {
+                return filter(ADMIN_SUBS, args[0]);
+            }
+            return Collections.emptyList();
+        }
+
         if (!sender.hasPermission("fastbuilder.booster.admin")) return Collections.emptyList();
 
-        if (args.length == 1) return filter(SUBS, args[0]);
-
         String sub = args[0].toLowerCase();
-        if (args.length == 2 && !sub.equals("list")) {
+        if (args.length == 2 && !sub.equals("info") && !sub.equals("clear")
+                && !sub.equals("give") && !sub.equals("take")) {
+            return Collections.emptyList();
+        }
+        if (args.length == 2) {
             List<String> players = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) players.add(p.getName());
             return filter(players, args[1]);
@@ -264,12 +284,18 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendUsage(CommandSender sender, String prefix) {
-        sender.sendMessage(ColorUtil.translate(prefix + "&cBooster admin commands:"));
-        sender.sendMessage(ColorUtil.translate("&8  /booster give <player> <type> [amount]"));
-        sender.sendMessage(ColorUtil.translate("&8  /booster take <player> <type> [amount]"));
-        sender.sendMessage(ColorUtil.translate("&8  /booster clear <player>"));
-        sender.sendMessage(ColorUtil.translate("&8  /booster info <player>"));
-        sender.sendMessage(ColorUtil.translate("&8  /booster list"));
+        sender.sendMessage(ColorUtil.translate(
+                bMsg("usage-header").replace("%prefix%", prefix)));
+        sender.sendMessage(ColorUtil.translate(bMsg("usage-give")));
+        sender.sendMessage(ColorUtil.translate(bMsg("usage-take")));
+        sender.sendMessage(ColorUtil.translate(bMsg("usage-clear")));
+        sender.sendMessage(ColorUtil.translate(bMsg("usage-info")));
+    }
+
+    private String bMsg(String key) {
+        String raw = plugin.getConfigManager().getBoosterMessage(key);
+        if (raw == null || raw.isEmpty()) return "&c[booster." + key + " not set]";
+        return raw;
     }
 
     private static String formatMult(double mult) {
