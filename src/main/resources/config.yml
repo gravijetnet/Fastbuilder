@@ -211,8 +211,9 @@ finish-trigger-mode: "zone"
 island-hopping:
   enabled: true
 
-# Island jump switch: player physically walks into an adjacent empty island → auto-switch.
+# Walk-to-adjacent-island: player physically walks into an adjacent empty island → auto-switch.
 # Requires island-hopping.enabled=true. Adjacent-only: non-adjacent crossings always reset.
+# Default: true
 island-jump-switch:
   enabled: true
 

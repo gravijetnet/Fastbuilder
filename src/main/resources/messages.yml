@@ -1,96 +1,136 @@
 # FastBuilder Messages
+# Color scheme: &c = labels/highlights | &f = main text | &7/&8 = secondary/separators
 
-# Action bar timer display — overridden by actionbar.format in config.yml.
-# This field is kept for backward compatibility but the config.yml actionbar section takes priority.
+# Action bar timer display
 # Placeholders: %timer% / %time%
 action-bar: "&7Time &8» &c%time%"
 
+# ──────────────────────────────────────────────────────────────────────────────
 # Completion messages
 # Placeholders: %time%, %pb%, %difference%
+# ──────────────────────────────────────────────────────────────────────────────
 end-messages:
   time:
-    - "&8----------------------------------"
-    - "&7You have finished the course!"
+    - "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    - "&fYou finished the course!"
     - ""
-    - "&cTime: &f&l%time%"
-    - "&cPB: &f&l%pb% &8| &f&l%difference%"
-    - "&8----------------------------------"
+    - "&c● Time: &f%time%"
+    - "&c● PB: &f%pb% &8» &7%difference%"
+    - "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   personal-best:
-    - "&8----------------------------------"
+    - "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     - "&c&lNEW PERSONAL BEST!"
     - ""
-    - "&7You have finished the course!"
+    - "&fYou finished the course!"
     - ""
-    - "&cTime: &f&l%time%"
-    - "&cPB: &f&l%pb% &8| &c&l%difference%"
-    - "&8----------------------------------"
+    - "&c● Time: &f%time%"
+    - "&c● PB: &f%pb% &8» &c%difference%"
+    - "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# ──────────────────────────────────────────────────────────────────────────────
 # General messages
-# Placeholders: %prefix%, %map%, %island_player%, %island_number%, %command%, %player%
+# Placeholders: %prefix%, %map%, %island_player%, %island_number%, %command%,
+#               %player%, %coins%, %amount%, %time%, %rank%
+# ──────────────────────────────────────────────────────────────────────────────
 messages:
   joined-mode: "%prefix%&fYou joined &c%map%&f."
-  island-already-occupied: "%prefix%&cIsland is already occupied by &f%island_player%&c."
+  island-already-occupied: "%prefix%&cIsland is occupied by &f%island_player%&c."
   island-joined: "%prefix%&fYou joined island &c#%island_number%&f."
   no-permission: "%prefix%&cYou do not have permission to do this."
-  usage: "%prefix%&cUsage: &f%command%"
+  usage: "%prefix%&c● Usage: &f%command%"
   player-not-found: "%prefix%&cPlayer &f%player% &cnot found."
   map-not-found: "%prefix%&cMap &f%map% &cnot found."
   map-disabled: "%prefix%&cMap &f%map% &cis currently disabled."
   no-free-islands: "%prefix%&cNo free islands available on this map."
   cannot-build-here: "%prefix%&cYou can only build on your own island."
-  teleported-default: "%prefix%&fYou have been sent to the default map."
+  teleported-default: "%prefix%&fSent to the default map."
   map-already-on: "%prefix%&cYou are already on this map."
   practice-blocks-cleared: "%prefix%&fAll practice blocks cleared."
-  setup-spawn-not-east: "%prefix%&cSpawn must face East (yaw -90). Stand facing East and re-select, or type &f/map setup continue --force-spawn-location &cto bypass."
+  setup-spawn-not-east: "%prefix%&cSpawn must face East. Stand facing East and re-select, or type &f/map setup continue --force &cto bypass."
   no-islands: "%prefix%&cNo islands available. Please wait or try a different map."
-  playtime-reward: "%prefix%&a+%coins% coins &7(hourly playtime reward)."
-  min-time-not-recorded: "%prefix%&cTime too fast to be recorded &7(&f%time%&7)."
-  max-time-exceeded: "%prefix%&cRun failed: time limit exceeded."
-  rank-achieved: "%prefix%&fYou achieved the &6%rank% &frank on &c%map%&f!"
-  coins-balance: "%prefix%&fYour balance: &c%coins% &fcoins."
-  coins-balance-other: "%prefix%&f%player%'s balance: &c%coins% &fcoins."
-  coins-added: "%prefix%&a+%amount% coins &fadded to &c%player%&f."
-  coins-removed: "%prefix%&c-%amount% coins &fremoved from &c%player%&f."
+  playtime-reward: "%prefix%&c+%coins% coins &8» &fPlaytime reward."
+  min-time-not-recorded: "%prefix%&cTime too fast to record &7(&f%time%&7)."
+  max-time-exceeded: "%prefix%&cRun failed &8» &fTime limit exceeded."
+  rank-achieved: "%prefix%&fYou achieved &c%rank% &frank on &c%map%&f!"
+  coins-balance: "%prefix%&fYour balance: &c%coins% coins&f."
+  coins-balance-other: "%prefix%&c%player% &fhas &c%coins% coins&f."
+  coins-added: "%prefix%&c+%amount% coins &8» &fadded to &c%player%&f."
+  coins-removed: "%prefix%&c-%amount% coins &8» &fremoved from &c%player%&f."
   coins-set: "%prefix%&fCoins for &c%player% &fset to &c%amount%&f."
-  coins-not-enough: "%prefix%&cNot enough coins to remove."
-  build-mode-enter: "%prefix%&aYou entered Build Mode. Changes are preserved. Use &f/build &aagain to exit."
-  build-mode-exit: "%prefix%&cBuild Mode exited. Your blocks are preserved until the map is rescaled."
+  coins-not-enough: "%prefix%&cNot enough coins."
+  build-mode-enter: "%prefix%&fBuild Mode &cenabled&f. Changes are preserved. Use &c/build &fagain to exit."
+  build-mode-exit: "%prefix%&fBuild Mode &cdisabled&f. Your blocks are preserved until the map is rescaled."
   build-mode-not-on-island: "%prefix%&cYou must be on an island to use Build Mode."
 
-# Completion title
+# ──────────────────────────────────────────────────────────────────────────────
+# Completion title / subtitle
 # Placeholders: %time%, %coins%
+# ──────────────────────────────────────────────────────────────────────────────
 title: "&cTime: &f%time%"
-subtitle: "+&f%coins% &7coins"
+subtitle: "&c+%coins% &fcoins"
 
-# Admin messages
+# ──────────────────────────────────────────────────────────────────────────────
+# Admin / setup messages
+# ──────────────────────────────────────────────────────────────────────────────
 admin:
   setup-started: "%prefix%&fSetup started. Use the &cBlaze Rod &fto select the island area."
-  setup-pos1: "%prefix%&fPosition 1 set at &c%x% %y% %z%&f."
-  setup-pos2: "%prefix%&fPosition 2 set at &c%x% %y% %z%&f."
+  setup-pos1: "%prefix%&c● Pos 1 &fset at &c%x% %y% %z%&f."
+  setup-pos2: "%prefix%&c● Pos 2 &fset at &c%x% %y% %z%&f."
   setup-select-both: "%prefix%&fBoth positions set. Type &c/map setup continue &fto proceed."
   setup-set-spawn: "%prefix%&fRight-click the &cBlaze Rod &fat your desired spawn point."
-  setup-spawn-saved: "%prefix%&fSpawn point saved. Type &c/map setup continue &fto proceed."
+  setup-spawn-saved: "%prefix%&fSpawn saved. Type &c/map setup continue &fto proceed."
   setup-npc-saved: "%prefix%&fNPC location saved. Type &c/map setup continue &fto proceed."
-  setup-select-finish: "%prefix%&fSelect the finish zone with the &cBlaze Rod&f. Left-click to set Pos 1, Right-click for Pos 2."
-  setup-finish-pos1: "%prefix%&fFinish zone pos1 set at &c%x% %y% %z%&f."
-  setup-finish-pos2: "%prefix%&fFinish zone pos2 set at &c%x% %y% %z%&f."
-  setup-finish-ready: "%prefix%&fFinish zone set. Type &c/map setup finish &fto save."
-  setup-saved: "%prefix%&fMap template saved. Type &c/map setup name <name> &fto finish."
-  setup-complete: "%prefix%&fMap &c%map% &fcreated successfully (disabled)."
-  setup-no-session: "%prefix%&cYou do not have an active setup session."
+  setup-select-finish: "%prefix%&fSelect the finish zone with the &cBlaze Rod&f. &8» &7Left-click: Pos 1 &f| &7Right-click: Pos 2."
+  setup-finish-pos1: "%prefix%&c● Finish Pos 1 &fset at &c%x% %y% %z%&f."
+  setup-finish-pos2: "%prefix%&c● Finish Pos 2 &fset at &c%x% %y% %z%&f."
+  setup-finish-ready: "%prefix%&fFinish zone set. Type &c/map setup finish <name> &fto save."
+  setup-saved: "%prefix%&fTemplate saved. Type &c/map setup finish <name> &fto finish."
+  setup-complete: "%prefix%&fMap &c%map% &fcreated &7(disabled by default)&f."
+  setup-no-session: "%prefix%&cNo active setup session."
   setup-not-ready: "%prefix%&cComplete the current step before continuing."
+  setup-spawn-not-east: "%prefix%&cSpawn must face East. Use &f/map setup continue --force &cto bypass."
   map-enabled: "%prefix%&fMap &c%map% &fenabled."
   map-disabled: "%prefix%&fMap &c%map% &fdisabled."
-  map-renamed: "%prefix%&fMap renamed from &c%old% &fto &c%new%&f."
+  map-renamed: "%prefix%&fMap renamed: &c%old% &8» &c%new%&f."
   map-icon-set: "%prefix%&fIcon for &c%map% &fset to &c%icon%&f."
   map-scale-set: "%prefix%&fScale for &c%map% &fset to &c%scale%&f."
-  map-distance-set: "%prefix%&fDistance for &c%map% &fset to &c%distance% &fblocks."
+  map-distance-set: "%prefix%&fGap for &c%map% &fset to &c%distance% blocks&f."
   map-autoscale-set: "%prefix%&fAutoscale for &c%map% &fset to &c%value%&f."
   map-already-exists: "%prefix%&cA map with that name already exists."
-  distance-too-small: "%prefix%&cDistance must be at least &f%min% &cblocks (island width + 1)."
+  distance-too-small: "%prefix%&cDistance must be at least &f%min% blocks&c."
   scale-updating: "%prefix%&fUpdating island count for &c%map%&f... This may take a moment."
   island-reset: "%prefix%&fYour island has been reset."
-  left-game: "%prefix%&fYou left the game."
+  left-game: "%prefix%&fYou left."
   not-on-island: "%prefix%&cYou are not on any island."
   config-reloaded: "%prefix%&fConfiguration reloaded."
-  setup-spawn-not-east: "%prefix%&cSpawn must face East (yaw -90). Use &f/map setup continue --force-spawn-location &cto bypass."
+  setup-spawn-not-east-player: "%prefix%&cSpawn must face East &7(yaw -90)&c. Stand facing East and re-select, or use &f/map setup continue --force &cto override."
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Booster messages
+# Placeholders: %player%, %amount%, %type%, %multiplier%, %remaining%
+# ──────────────────────────────────────────────────────────────────────────────
+booster:
+  no-permission: "%prefix%&cYou do not have permission to use booster admin commands."
+  only-players: "%prefix%&cOnly players can open the booster menu."
+  types-header: "%prefix%&fConfigured booster types:"
+  types-empty: "%prefix%&cNo booster types are configured."
+  type-entry: "&8  &c%id% &8» &f%multiplier% &8| &c%duration%m &8| &c%price% coins"
+  info-header: "%prefix%&fBoosters for &c%player%&f:"
+  info-active: "&8  &c● Active: &f%multiplier% &7(%remaining% remaining)"
+  info-none: "&8  &c● Active: &7None"
+  info-inventory-entry: "&8  &c● Inventory: &f%amount%x &c%type%"
+  info-inventory-empty: "&8  &c● Inventory: &7(empty)"
+  give-sender: "%prefix%&fGave &c%amount%x %type% &fto &c%player%&f."
+  give-target: "%prefix%&fYou received &c%amount%x %type% &8» &fActivate it from your Booster Inventory!"
+  take-success: "%prefix%&fRemoved &c%amount%x %type% &ffrom &c%player%&f."
+  take-none: "%prefix%&c%player% &fhas no &c%type% &fboosters."
+  clear-success: "%prefix%&fCleared all boosters for &c%player%&f."
+  invalid-amount: "%prefix%&cInvalid amount."
+  player-offline: "%prefix%&cPlayer &f%player% &cis not online."
+  data-error: "%prefix%&cCould not load data for &c%player%&f."
+  unknown-type: "%prefix%&cUnknown booster type &f%type%&c. Admin: use &f/booster info <player> &cto see types."
+  usage-header: "%prefix%&fBooster admin commands:"
+  usage-give: "&8  &c● /booster give &f<player> <type> [amount]"
+  usage-take: "&8  &c● /booster take &f<player> <type> [amount]"
+  usage-clear: "&8  &c● /booster clear &f<player>"
+  usage-info: "&8  &c● /booster info &f<player>"
