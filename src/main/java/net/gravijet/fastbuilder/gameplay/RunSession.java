@@ -53,7 +53,7 @@ public class RunSession {
     public long finish() {
         if (!running) return -1;
         long rawMs = System.currentTimeMillis() - startTime;
-        finishTimeMs = (rawMs / 10) * 10; // floor to 10 ms — matches display granularity
+        finishTimeMs = net.gravijet.fastbuilder.util.TimeUtil.roundTo50(rawMs);
         running = false;
         finished = true;
         return finishTimeMs;
