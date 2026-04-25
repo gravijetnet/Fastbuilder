@@ -7,17 +7,28 @@ package net.gravijet.fastbuilder.util;
  *   - Times use a <strong>comma</strong> as the decimal separator: {@code 3,750}
  *   - Unset / empty slots display as {@code §8-,---} (dark gray)
  *   - Times are ALWAYS in seconds — never minutes or hours: {@code 145,250}
- *   - Difference format: {@code +1,234s} / {@code -0,500s}
+ *   - Millisecond part is always a multiple of 50 (tens digit is 0 or 5, ones digit always 0)
+ *   - Difference format: {@code +1,250s} / {@code -0,500s}
  */
 public final class TimeUtil {
 
     /** Displayed instead of a time value when no data is available (dark gray). */
-    public static final String EMPTY = "\u00A78-,---";
+    public static final String EMPTY = "§8-,---";
 
     /** Raw empty value without color code — for contexts that apply their own color. */
     public static final String EMPTY_RAW = "-,---";
 
     private TimeUtil() {}
+
+    /**
+     * Round millis to the nearest 50 ms boundary.
+     * Guarantees the ms component is always a multiple of 50
+     * (tens digit is 0 or 5, ones digit is always 0).
+     * Examples: 3499 → 3500, 3450 → 3450, 3474 → 3450, 3476 → 3500.
+     */
+    public static long roundTo50(long millis) {
+        return ((millis + 25) / 50) * 50;
+    }
 
     // -------------------------------------------------------------------------
     // Primary formatter  (always seconds,milliseconds with comma decimal)
@@ -25,9 +36,12 @@ public final class TimeUtil {
 
     /**
      * Format milliseconds to {@code SS,mmm} display. Always seconds, never minutes.
+     * The millisecond part is rounded to the nearest 50 ms so the last digit is
+     * always 0 and the tens digit is always 0 or 5.
      *
      * <ul>
      *   <li>{@code 3750} → {@code 3,750}</li>
+     *   <li>{@code 3499} → {@code 3,500}</li>
      *   <li>{@code 63500} → {@code 63,500}</li>
      *   <li>{@code 145250} → {@code 145,250}</li>
      *   <li>Negative → {@value #EMPTY}</li>
@@ -36,9 +50,9 @@ public final class TimeUtil {
     public static String formatTime(long millis) {
         if (millis < 0) return EMPTY;
 
-        long floored      = (millis / 10) * 10; // floor to nearest 10 ms — no trailing 9s
-        long totalSeconds = floored / 1000;
-        long ms           = floored % 1000;
+        long rounded      = roundTo50(millis);
+        long totalSeconds = rounded / 1000;
+        long ms           = rounded % 1000;
 
         return totalSeconds + "," + String.format("%03d", ms);
     }
@@ -49,6 +63,7 @@ public final class TimeUtil {
 
     /**
      * Format milliseconds to {@code SS,mmm} display without color codes on empty.
+     * The millisecond part is rounded to the nearest 50 ms.
      *
      * <ul>
      *   <li>{@code 3750} → {@code 3,750}</li>
@@ -57,9 +72,9 @@ public final class TimeUtil {
      */
     public static String formatTimeFull(long millis) {
         if (millis < 0) return "0,000";
-        long floored      = (millis / 10) * 10;
-        long totalSeconds = floored / 1000;
-        long ms           = floored % 1000;
+        long rounded      = roundTo50(millis);
+        long totalSeconds = rounded / 1000;
+        long ms           = rounded % 1000;
         return totalSeconds + "," + String.format("%03d", ms);
     }
 
@@ -69,16 +84,17 @@ public final class TimeUtil {
 
     /**
      * Format the signed difference between two times.
+     * The absolute difference is rounded to the nearest 50 ms.
      *
      * <ul>
-     *   <li>Slower than PB: {@code +1,234s} (red)</li>
-     *   <li>Faster than PB: {@code -0,500s} (green)</li>
+     *   <li>Slower than PB: {@code +1,250s}</li>
+     *   <li>Faster than PB: {@code -0,500s}</li>
      * </ul>
      */
     public static String formatDifference(long currentMillis, long bestMillis) {
         long diff    = currentMillis - bestMillis;
         String sign  = diff >= 0 ? "+" : "-";
-        long   abs   = (Math.abs(diff) / 10) * 10; // floor to nearest 10 ms
+        long   abs   = roundTo50(Math.abs(diff));
         long   sec   = abs / 1000;
         long   ms    = abs % 1000;
         return sign + sec + "," + String.format("%03d", ms) + "s";

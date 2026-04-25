@@ -385,7 +385,7 @@ public class GameplayManager {
                 int blocksBridged = session.getPlacedBlocks().size();
                 noteSuffix = "&7Custom length &8- &f" + blocksBridged + " blocks";
             } else {
-                noteSuffix = "&7Time not saved";
+                noteSuffix = "";
             }
             player.sendTitle(ColorUtil.translate(modeLabel + "&f" + TimeUtil.formatTime(time)),
                     ColorUtil.translate(noteSuffix));
