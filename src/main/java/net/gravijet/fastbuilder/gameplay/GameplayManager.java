@@ -317,8 +317,8 @@ public class GameplayManager {
             // Always show booster breakdown in chat when one was active
             if (hasBoost) {
                 player.sendMessage(ColorUtil.translate(prefix
-                        + "&6" + formatMult(boostMult) + "x Booster &7active! &8("
-                        + baseCoins + " \u2192 &6" + coins + " coins&8)"));
+                        + "&c" + formatMult(boostMult) + "x Coin Booster &7active &8\u00bb &f"
+                        + baseCoins + " \u2192 &c" + coins + " &fcoins"));
             }
 
             String title = plugin.getConfigManager().getTitle();
@@ -505,6 +505,15 @@ public class GameplayManager {
                         plugin.getHologramManager().updateHologram(
                                 session.getMapName(), session.getIslandIndex(), player);
                     }
+                }
+            }
+
+            // Record best infinite distance (blocks placed) on fall for infinite maps
+            if (fallMap != null && fallMap.isInfinite()) {
+                PlayerData infData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                if (infData != null) {
+                    int blockCount = session.getPlacedBlocks().size();
+                    if (blockCount > 0) infData.updateInfiniteDistance(session.getMapName(), blockCount);
                 }
             }
 

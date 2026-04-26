@@ -1,6 +1,7 @@
 package net.gravijet.fastbuilder.util;
 
 import org.bukkit.Material;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
@@ -20,6 +21,7 @@ public class ItemBuilder {
     private int amount = 1;
     private String name;
     private List<String> lore;
+    private boolean hideFlags = false;
 
     public ItemBuilder(Material material) {
         this.material = material;
@@ -97,6 +99,12 @@ public class ItemBuilder {
         return this;
     }
 
+    /** Suppress all item flag tooltips (potion effects, attributes, enchants, etc.). */
+    public ItemBuilder hideFlags() {
+        this.hideFlags = true;
+        return this;
+    }
+
     @SuppressWarnings("deprecation")
     public ItemStack build() {
         ItemStack item = new ItemStack(material, amount, (short) data);
@@ -107,6 +115,9 @@ public class ItemBuilder {
             }
             if (lore != null) {
                 meta.setLore(lore);
+            }
+            if (hideFlags) {
+                meta.addItemFlags(ItemFlag.values());
             }
             item.setItemMeta(meta);
         }

@@ -935,6 +935,9 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        // --force (not tab-completed): allows negative total-step values (e.g. overlapping islands)
+        boolean force = args.length > 3 && args[3].equalsIgnoreCase("--force");
+
         int blocks;
         try {
             blocks = Integer.parseInt(args[2]);
@@ -943,7 +946,10 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        int requestedGap = Math.max(1, blocks);
+        if (!force && blocks < 1) {
+            msg(player, "&cDistance must be at least 1. Use --force for negative values.");
+            return;
+        }
 
         // Capture actual step BEFORE any changes (used to detect whether repaste is needed)
         int oldActualZStep = map.getActualZStep();
@@ -958,11 +964,16 @@ public class MapCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        map.setDistance(requestedGap);
+        // 1:1 fix: the command value is the desired TOTAL Z step (island + gap).
+        // Internally "distance" stores only the gap, so subtract the physical island span.
+        int physLen = map.getPhysicalIslandLength() > 0 ? map.getPhysicalIslandLength() : map.getIslandLength();
+        int gap = blocks - physLen;
+
+        map.setDistance(gap);
         mm.saveMap(map);
 
         String raw = plugin.getConfigManager().getAdminMessage("map-distance-set");
-        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(requestedGap))
+        raw = raw.replace("%map%", map.getName()).replace("%distance%", String.valueOf(blocks))
                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
 
@@ -1120,19 +1131,31 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         msg(player, plugin.getConfigManager().getPrefix() + "&f" + capitalize(tier) + " rank time for &c" + map.getName() + " &fset to &c" + display + "&f.");
     }
 
-    // --- /map adddesign <map> ---
+    // --- /map adddesign <map> [--customlength|--infinite] ---
     // Saves the current setup area template as an alternative design for the map.
+    // --customlength: design is only available on custom-length maps
+    // --infinite    : design is only available on infinite maps
+    // (no flag)     : standard design, available on normal maps only
 
     private void handleAddDesign(Player player, String[] args, MapManager mm) {
         if (args.length < 2) {
             msg(player, plugin.getConfigManager().getPrefix()
-                    + "&cUsage: &f/map adddesign <map> [<templateKey>]");
+                    + "&cUsage: &f/map adddesign <map> [<templateKey>] [--customlength|--infinite]");
             return;
         }
         MapData map = mm.getMap(args[1]);
         if (map == null) { msgMap(player, "map-not-found", args[1]); return; }
 
         String prefix = plugin.getConfigManager().getPrefix();
+
+        // Parse optional flags from remaining args
+        boolean isCustomLength = false;
+        boolean isInfinite = false;
+        for (String a : args) {
+            if ("--customlength".equalsIgnoreCase(a)) isCustomLength = true;
+            else if ("--infinite".equalsIgnoreCase(a)) isInfinite = true;
+        }
+
         // Save current setup area as a uniquely-named template file
         String designKey = map.getName().toLowerCase() + "_design_" + (map.getAllTemplates().size());
 
@@ -1152,20 +1175,31 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                 return;
             }
         } else {
-            // No active setup session — use the name provided as args[2] if given
-            if (args.length < 3) {
+            // No active setup session — check for explicit key in args
+            String keyArg = null;
+            for (int i = 2; i < args.length; i++) {
+                if (!args[i].startsWith("--")) { keyArg = args[i]; break; }
+            }
+            if (keyArg == null) {
                 msg(player, prefix + "&cNo active setup selection found. "
                         + "&fUse the setup wizard to select an area, or provide a template key: "
                         + "&c/map adddesign <map> <existingTemplateKey>");
                 return;
             }
-            designKey = args[2];
+            designKey = keyArg;
         }
 
-        map.addAlternativeTemplate(designKey);
+        String modeTag = isCustomLength ? " &7[custom-length]" : isInfinite ? " &7[infinite]" : "";
+        if (isCustomLength) {
+            map.addCustomLengthTemplate(designKey);
+        } else if (isInfinite) {
+            map.addInfiniteTemplate(designKey);
+        } else {
+            map.addAlternativeTemplate(designKey);
+        }
         mm.saveMap(map);
-        msg(player, prefix + "&fAlternative design &c" + designKey + " &fadded to map &c" + map.getName() + "&f. "
-                + "&7(" + (map.getAllTemplates().size() - 1) + " alternative(s) total)");
+        msg(player, prefix + "&fAlternative design &c" + designKey + modeTag
+                + " &fadded to map &c" + map.getName() + "&f.");
     }
 
     // --- /map removedesign <map> <templateKey> ---
@@ -1181,12 +1215,16 @@ public class MapCommand implements CommandExecutor, TabCompleter {
 
         String key = args[2];
         String prefix = plugin.getConfigManager().getPrefix();
-        if (map.removeAlternativeTemplate(key)) {
+        // Remove from whichever list contains this key
+        boolean removed = map.removeAlternativeTemplate(key)
+                || map.removeCustomLengthTemplate(key)
+                || map.removeInfiniteTemplate(key);
+        if (removed) {
             mm.saveMap(map);
             msg(player, prefix + "&fDesign &c" + key + " &fremoved from map &c" + map.getName() + "&f.");
         } else {
             msg(player, prefix + "&cDesign &f" + key + " &cnot found for map &f" + map.getName()
-                    + "&c. Available alternatives: &f" + map.getAlternativeTemplates());
+                    + "&c. Available alternatives: &f" + map.getAllTemplates());
         }
     }
 

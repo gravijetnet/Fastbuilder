@@ -34,14 +34,15 @@ coins-per-hour: 150
 coins-drop-interval-min: 900
 coins-drop-interval-max: 900
 
-# ── Completion coin tiers ─────────────────────────────────────────────────────
+# ── Completion coin rewards ───────────────────────────────────────────────────
 # Coins are awarded based on how a player's time compares to the server-wide
-# average for that map (no randomness).  Five tiers:
-#   Elite   (< 70 % of avg)  → 20 coins
-#   Fast    (70–85 %)         → 17–19 coins
-#   Normal  (85–105 %)        → 10–16 coins
-#   Slow    (105–140 %)       → 5–9 coins
-#   Lagging (> 140 %)         → 1–4 coins
+# average for that map (no randomness — identical times always give identical coins).
+# Formula: coins = clamp(5, 30, round(15 / ratio))  where ratio = playerTime / avgTime
+#
+#   At average speed            → ~15 coins
+#   2× faster than average      → 30 coins (cap)
+#   2× slower than average      →  8 coins
+#   3× slower than average      →  5 coins (floor)
 #
 # coins-average-fallback-seconds: used until enough samples are collected.
 # coins-average-min-samples: how many real completions before fallback is replaced.
@@ -49,9 +50,9 @@ coins-average-fallback-seconds: 30
 coins-average-min-samples: 10
 
 # Award coins even for failed runs (falling off the island).
-# Set to true to enable; the flat amount is controlled by coins-on-failed-amount.
-coins-on-failed: false
-coins-on-failed-amount: 2
+# Set to false to disable; the flat amount is controlled by coins-on-failed-amount.
+coins-on-failed: true
+coins-on-failed-amount: 1
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Booster Types
@@ -71,64 +72,64 @@ coins-on-failed-amount: 2
 # ──────────────────────────────────────────────────────────────────────────────
 booster-types:
   STARTER:
-    name: "&aStarter Boost"
-    description: "A small nudge to get you going."
+    name: "&f1.25x Coin Booster"
+    description: "25% extra coins for 20 minutes."
     multiplier: 1.25
     duration-minutes: 20
     price: 100
     potion-data: 8194
   SMALL:
-    name: "&bSwift Boost"
-    description: "A modest 1.5x boost for everyday grinding."
+    name: "&f1.5x Coin Booster"
+    description: "50% extra coins for 30 minutes."
     multiplier: 1.5
     duration-minutes: 30
     price: 200
     potion-data: 8193
   NORMAL:
-    name: "&eDouble Boost"
+    name: "&f2x Coin Booster"
     description: "Double all coin rewards for 30 minutes."
     multiplier: 2.0
     duration-minutes: 30
     price: 400
     potion-data: 8201
   EXTENDED:
-    name: "&6Extended Boost"
-    description: "Steady 1.5x income for a full hour."
+    name: "&f1.5x Coin Booster"
+    description: "50% extra coins for a full hour."
     multiplier: 1.5
     duration-minutes: 60
     price: 350
     potion-data: 8195
   EXTENDED_PLUS:
-    name: "&2Long Double"
+    name: "&f2x Coin Booster"
     description: "Double coins for a full hour of play."
     multiplier: 2.0
     duration-minutes: 60
     price: 700
     potion-data: 8196
   MEGA:
-    name: "&dMega Boost"
-    description: "2.5x income for serious farming sessions."
+    name: "&f2.5x Coin Booster"
+    description: "2.5x coins for serious farming sessions."
     multiplier: 2.5
     duration-minutes: 45
     price: 600
     potion-data: 8197
   LARGE:
-    name: "&cTriple Boost"
+    name: "&f3x Coin Booster"
     description: "Triple all coin rewards for 30 minutes."
     multiplier: 3.0
     duration-minutes: 30
     price: 750
     potion-data: 8200
   ULTRA:
-    name: "&4Ultra Boost"
-    description: "4x coins — an intense short-term spike."
+    name: "&f4x Coin Booster"
+    description: "4x coins for 20 minutes."
     multiplier: 4.0
     duration-minutes: 20
     price: 900
     potion-data: 8204
   SUPREME:
-    name: "&5Supreme Boost"
-    description: "Maximum power. 5x coins for 15 minutes."
+    name: "&f5x Coin Booster"
+    description: "Maximum power — 5x coins for 15 minutes."
     multiplier: 5.0
     duration-minutes: 15
     price: 1500

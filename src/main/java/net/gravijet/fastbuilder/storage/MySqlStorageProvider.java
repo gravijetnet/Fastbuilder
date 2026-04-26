@@ -135,6 +135,13 @@ public class MySqlStorageProvider implements StorageProvider {
                     "PRIMARY KEY (uuid, map_name)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_infinite_distances (" +
+                    "uuid     VARCHAR(36) NOT NULL," +
+                    "map_name VARCHAR(64) NOT NULL," +
+                    "distance INT NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
                     "ON player_map_stats(map_name, best_time)");
         }
@@ -312,6 +319,13 @@ public class MySqlStorageProvider implements StorageProvider {
                         data.setSelectedDesign(rs.getString("map_name"), rs.getString("template_key"));
                 }
             }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT map_name, distance FROM player_infinite_distances WHERE uuid = ?")) {
+                ps.setString(1, uuidStr);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) data.updateInfiniteDistance(rs.getString("map_name"), rs.getInt("distance"));
+                }
+            }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[MySQL] Failed to load player: " + uuid, e);
         }
@@ -372,6 +386,18 @@ public class MySqlStorageProvider implements StorageProvider {
                 }
                 syncTable(c, uuidStr, "player_purchased_blocks", "block_key", data.getPurchasedBlocks());
                 syncTable(c, uuidStr, "player_favorites", "replay_file", data.getFavoriteReplays());
+                // Infinite distances upsert
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO player_infinite_distances (uuid, map_name, distance) VALUES (?,?,?) " +
+                        "ON DUPLICATE KEY UPDATE distance=VALUES(distance)")) {
+                    for (Map.Entry<String, Integer> e : data.getInfiniteDistances().entrySet()) {
+                        if (e.getValue() > 0) {
+                            ps.setString(1, uuidStr); ps.setString(2, e.getKey()); ps.setInt(3, e.getValue());
+                            ps.addBatch();
+                        }
+                    }
+                    ps.executeBatch();
+                }
                 c.commit();
             } catch (SQLException e) {
                 c.rollback();
@@ -456,6 +482,32 @@ public class MySqlStorageProvider implements StorageProvider {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "[MySQL] Failed to query top players for: " + mapName, e);
+        }
+        return results;
+    }
+
+    @Override
+    public java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+            String mapName, int limit) {
+
+        List<java.util.Map.Entry<String, Integer>> results = new ArrayList<java.util.Map.Entry<String, Integer>>();
+        try (Connection c = borrowConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "SELECT pd.name, pid.distance " +
+                     "FROM player_infinite_distances pid " +
+                     "JOIN player_data pd ON pid.uuid = pd.uuid " +
+                     "WHERE pid.map_name = ? AND pid.distance > 0 " +
+                     "ORDER BY pid.distance DESC LIMIT ?")) {
+            ps.setString(1, mapName);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new java.util.AbstractMap.SimpleEntry<>(
+                            rs.getString("name"), rs.getInt("distance")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "[MySQL] Failed to query top infinite distances for: " + mapName, e);
         }
         return results;
     }

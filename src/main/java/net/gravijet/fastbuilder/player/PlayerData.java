@@ -56,12 +56,18 @@ public class PlayerData {
     // Automatically resets to 0 (base distance) when the player logs out or changes maps.
     private final Map<String, Integer> customLengths = new HashMap<>();
 
+    // Per-map SAVED custom run length (persisted). Restored when player re-enters a custom length map.
+    private final Map<String, Integer> savedCustomLengths = new HashMap<>();
+
     // Per-map custom Y offset for end island (session-only, NOT persisted to disk).
     // Adjusts the end island vertically via the Custom Length sub-menu.
     private final Map<String, Integer> customLengthYOffsets = new HashMap<>();
 
     // Per-map custom length toggle (session-only, NOT persisted to disk).
     private final Map<String, Boolean> customLengthToggles = new HashMap<>();
+
+    // Per-map best infinite-mode distance (blocks placed before dying). Persisted to disk.
+    private final Map<String, Integer> infiniteDistances = new HashMap<>();
 
     // Per-map active finish zone override derived from the selected island design profile.
     // Array: {finishMinX, finishMinY, finishMinZ, finishMaxX, finishMaxY, finishMaxZ}
@@ -122,7 +128,16 @@ public class PlayerData {
             config.set("notified-ranks." + e.getKey(),
                     new java.util.ArrayList<>(e.getValue()));
         }
-        // custom-lengths and custom-length-toggles are session-only — intentionally NOT saved.
+        // custom-lengths (session) is not saved, but savedCustomLengths (persistent) is.
+        config.set("saved-custom-lengths", null);
+        for (Map.Entry<String, Integer> e : savedCustomLengths.entrySet()) {
+            if (e.getValue() > 0) config.set("saved-custom-lengths." + e.getKey(), e.getValue());
+        }
+        // Infinite distances (persisted)
+        config.set("infinite-distances", null);
+        for (Map.Entry<String, Integer> e : infiniteDistances.entrySet()) {
+            if (e.getValue() > 0) config.set("infinite-distances." + e.getKey(), e.getValue());
+        }
         config.set("purchased-designs",
                 purchasedDesigns.isEmpty() ? null : new java.util.ArrayList<>(purchasedDesigns));
 
@@ -190,9 +205,27 @@ public class PlayerData {
                 notifiedRanks.put(mapKey, new HashSet<>(rankList));
             }
         }
-        // custom-lengths and custom-length-toggles are session-only — always start empty on load.
+        // Load saved custom lengths (persistent), then seed the session map from them.
+        savedCustomLengths.clear();
+        if (config.isConfigurationSection("saved-custom-lengths")) {
+            for (String key : config.getConfigurationSection("saved-custom-lengths").getKeys(false)) {
+                int v = config.getInt("saved-custom-lengths." + key, 0);
+                if (v > 0) savedCustomLengths.put(key, v);
+            }
+        }
+        // Session custom-lengths start from the saved values so they're immediately usable.
         customLengths.clear();
+        customLengths.putAll(savedCustomLengths);
         customLengthToggles.clear();
+
+        // Infinite distances
+        infiniteDistances.clear();
+        if (config.isConfigurationSection("infinite-distances")) {
+            for (String key : config.getConfigurationSection("infinite-distances").getKeys(false)) {
+                int v = config.getInt("infinite-distances." + key, 0);
+                if (v > 0) infiniteDistances.put(key, v);
+            }
+        }
 
         purchasedDesigns.clear();
         if (config.isList("purchased-designs")) {
@@ -415,14 +448,23 @@ public class PlayerData {
 
     /**
      * Sets the player's preferred custom run length for the given map.
-     * Pass 0 to clear/reset to default.
+     * Pass 0 to clear/reset to default. Automatically persists to savedCustomLengths.
      */
     public void setCustomLength(String mapName, int length) {
+        String key = mapName.toLowerCase();
         if (length <= 0) {
-            customLengths.remove(mapName.toLowerCase());
+            customLengths.remove(key);
+            // Keep savedCustomLengths intact — clearing session length doesn't erase the saved pref.
         } else {
-            customLengths.put(mapName.toLowerCase(), length);
+            customLengths.put(key, length);
+            savedCustomLengths.put(key, length);
         }
+    }
+
+    /** Returns the player's saved (persistent) custom length for the given map, or 0 if none. */
+    public int getSavedCustomLength(String mapName) {
+        Integer v = savedCustomLengths.get(mapName.toLowerCase());
+        return v != null ? v : 0;
     }
 
     /**
@@ -497,6 +539,34 @@ public class PlayerData {
     /** Clears the active finish zone override for this map (reverts to map defaults). */
     public void clearActiveFinishZone(String mapName) {
         activeFinishZoneOverrides.remove(mapName.toLowerCase());
+    }
+
+    // -------------------------------------------------------------------------
+    // Infinite-mode distance leaderboard
+    // -------------------------------------------------------------------------
+
+    /** Returns the player's best infinite-mode distance (blocks placed) for the given map, or 0. */
+    public int getInfiniteDistance(String mapName) {
+        Integer v = infiniteDistances.get(mapName.toLowerCase());
+        return v != null ? v : 0;
+    }
+
+    /**
+     * Updates the player's infinite-mode best distance if {@code distance} is better (higher).
+     * Returns true if a new record was set.
+     */
+    public boolean updateInfiniteDistance(String mapName, int distance) {
+        String key = mapName.toLowerCase();
+        int current = infiniteDistances.getOrDefault(key, 0);
+        if (distance > current) {
+            infiniteDistances.put(key, distance);
+            return true;
+        }
+        return false;
+    }
+
+    public Map<String, Integer> getInfiniteDistances() {
+        return java.util.Collections.unmodifiableMap(infiniteDistances);
     }
 
     public static class MapStats {

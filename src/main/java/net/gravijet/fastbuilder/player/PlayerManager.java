@@ -167,6 +167,11 @@ public class PlayerManager {
         return provider.getTopPlayerTimesForMap(mapName, limit);
     }
 
+    public java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+            String mapName, int limit) {
+        return provider.getTopInfiniteDistancesForMap(mapName, limit);
+    }
+
     // -------------------------------------------------------------------------
     // Offline lookup (no cache)
     // -------------------------------------------------------------------------

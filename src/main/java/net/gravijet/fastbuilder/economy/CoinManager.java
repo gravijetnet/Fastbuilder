@@ -15,19 +15,18 @@ import java.util.UUID;
  * Economy system for coins.
  *
  * <h3>Completion rewards</h3>
- * <p>Coin value is determined by how the player's run time compares to the
- * server-wide average for that map.  No randomness — identical ratios always
- * produce identical coins.  The five tiers are:</p>
+ * <p>Coin value uses a smooth hyperbolic formula based on how the player's run
+ * compares to the blended average (65% personal + 35% server-wide):
+ * {@code coins = clamp(5, 30, round(15 / ratio))} where
+ * {@code ratio = playerTimeMs / averageMs}.</p>
  * <ul>
- *   <li>Elite (&lt; 70 % of average)  → <b>20 coins</b></li>
- *   <li>Very fast (70–85 %)           → 17–19 coins</li>
- *   <li>Normal (85–105 %)             → 10–16 coins</li>
- *   <li>Slow (105–140 %)              → 5–9 coins</li>
- *   <li>Very slow (&gt; 140 %)        → 1–4 coins</li>
+ *   <li>At average speed      → 15 coins</li>
+ *   <li>2× faster than avg    → 30 coins (cap)</li>
+ *   <li>2× slower than avg    →  8 coins</li>
+ *   <li>3× slower than avg    →  5 coins (floor)</li>
  * </ul>
- * <p>The server-wide average is tracked in memory.  Until enough samples have
- * been collected ({@code coins-average-min-samples} in config), a configurable
- * fallback average is used so new servers start with sensible payouts.</p>
+ * <p>No randomness — identical ratios always produce identical coins.
+ * The booster multiplier is applied on top of the base amount.</p>
  *
  * <h3>Playtime rewards</h3>
  * <p>Fires on a configurable interval (default 900 s / 15 minutes).  Amount is
@@ -88,22 +87,12 @@ public class CoinManager {
     /**
      * Award coins for a successfully finished run.
      *
-     * <p>The tier is determined by comparing the player's time against a blended
-     * average: 65% personal average (when enough data exists) + 35% server-wide
-     * average. This rewards players relative to their own skill level while still
-     * anchoring to the server norm.</p>
-     *
-     * <p>Coin tiers (based on ratio = playerTime / blendedAverage):</p>
-     * <ul>
-     *   <li>ratio &lt; 0.70 → 20 (elite)</li>
-     *   <li>0.70–0.85       → 17–19 (very fast)</li>
-     *   <li>0.85–1.05       → 10–16 (normal)</li>
-     *   <li>1.05–1.40       → 5–9   (slow)</li>
-     *   <li>&gt; 1.40       → 1–4   (very slow)</li>
-     * </ul>
-     *
-     * <p>The booster multiplier is applied after the tier is computed.
-     * Base coins are capped at 20; boosters can push the total above that cap.</p>
+     * <p>The reward uses a smooth hyperbolic formula against a blended average
+     * (65% personal + 35% server-wide when enough personal data exists):
+     * {@code coins = clamp(5, 30, round(15 / ratio))} where
+     * {@code ratio = playerTimeMs / averageMs}.  At average speed the payout is
+     * ~15 coins; twice as fast gives the 30-coin cap; three times slower hits the
+     * 5-coin floor.  The booster multiplier is applied on top.</p>
      *
      * @param player     the player who finished
      * @param timeMillis run duration in milliseconds
@@ -150,14 +139,17 @@ public class CoinManager {
     /**
      * Award a small consolation amount for a failed run (fall/out-of-bounds reset).
      * Only called when {@code coins-on-failed} is true in config.
+     * The booster multiplier is applied so all coin sources scale consistently.
      *
-     * @return the coins awarded, or 0 if not configured
+     * @return the final coins awarded (after booster), or 0 if not configured
      */
     public int awardFailedRunCoins(Player player) {
-        int amount = plugin.getConfigManager().getCoinsOnFailedAmount();
-        if (amount <= 0) return 0;
-        addCoins(player.getUniqueId(), amount);
-        return amount;
+        int base = plugin.getConfigManager().getCoinsOnFailedAmount();
+        if (base <= 0) return 0;
+        double boost = plugin.getBoosterManager().getMultiplier(player);
+        int coins = (int) Math.round(base * boost);
+        addCoins(player.getUniqueId(), coins);
+        return coins;
     }
 
     /** Reset playtime and EXP counters on disconnect. */
@@ -207,34 +199,20 @@ public class CoinManager {
     }
 
     /**
-     * Map a performance ratio (player time / server average) onto a coin reward.
+     * Map a performance ratio (playerTime / blendedAverage) onto a coin reward.
      *
-     * <pre>
-     * ratio &lt; 0.70  → 20 (elite)
-     * 0.70–0.85     → 17–19 (very fast, linear interpolation)
-     * 0.85–1.05     → 10–16 (normal, linear interpolation)
-     * 1.05–1.40     → 5–9  (slow, linear interpolation)
-     * &gt; 1.40       → 1–4  (very slow, linear interpolation, floor at 1)
-     * </pre>
+     * <p>Formula: {@code coins = clamp(5, 30, round(15 / ratio))}</p>
+     * <ul>
+     *   <li>ratio = 0.5 (2× faster) → 30 coins (cap)</li>
+     *   <li>ratio = 1.0 (at average) → 15 coins</li>
+     *   <li>ratio = 3.0 (3× slower) →  5 coins (floor)</li>
+     * </ul>
+     * The curve is smooth and continuous — no discrete tiers.
      */
     private int computeTierCoins(long timeMs, double averageMs) {
         double ratio = timeMs / averageMs;
-
-        if (ratio < 0.70) {
-            return 20;
-        } else if (ratio < 0.85) {
-            double t = (ratio - 0.70) / (0.85 - 0.70); // 0→1 across this band
-            return (int) Math.round(19 - t * 2);         // 19 → 17
-        } else if (ratio < 1.05) {
-            double t = (ratio - 0.85) / (1.05 - 0.85);
-            return (int) Math.round(16 - t * 6);          // 16 → 10
-        } else if (ratio < 1.40) {
-            double t = (ratio - 1.05) / (1.40 - 1.05);
-            return (int) Math.round(9 - t * 4);           // 9 → 5
-        } else {
-            double t = Math.min(1.0, (ratio - 1.40) / (1.80 - 1.40));
-            return Math.max(1, (int) Math.round(4 - t * 3)); // 4 → 1
-        }
+        int raw = (int) Math.round(15.0 / ratio);
+        return Math.max(5, Math.min(30, raw));
     }
 
     // -------------------------------------------------------------------------
