@@ -62,9 +62,7 @@ public class BuildCommand implements CommandExecutor {
             if (msg == null || msg.isEmpty()) msg = prefix + "&cBuild Mode exited. Your blocks are preserved until the map is rescaled.";
             player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
         } else {
-            // Enter build mode: clear any active run first
-            gm.clearAllPlacedBlocks(player.getUniqueId());
-            session.reset();
+            // Enter build mode — session and blocks intentionally preserved
             gm.enterBuildMode(player.getUniqueId());
             player.setGameMode(GameMode.CREATIVE);
             player.setAllowFlight(true);

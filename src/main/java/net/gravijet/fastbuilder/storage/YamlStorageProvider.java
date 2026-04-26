@@ -168,6 +168,48 @@ public class YamlStorageProvider implements StorageProvider {
     }
 
     @Override
+    public synchronized java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+            String mapName, int limit) {
+
+        java.util.Map<String, Integer> best = new java.util.LinkedHashMap<>();
+
+        // Online players first (live cache is authoritative)
+        synchronized (liveCache) {
+            for (PlayerData pd : liveCache.values()) {
+                int dist = pd.getInfiniteDistance(mapName);
+                if (dist > 0) best.merge(pd.getName(), dist, Math::max);
+            }
+        }
+
+        // Scan on-disk files, skip UUIDs already in the live cache
+        File[] files = dataDir.listFiles((dir, n) -> n.endsWith(".yml"));
+        if (files != null) {
+            for (File file : files) {
+                String fileName = file.getName().replace(".yml", "");
+                try {
+                    UUID uuid = UUID.fromString(fileName);
+                    synchronized (liveCache) {
+                        if (liveCache.containsKey(uuid)) continue;
+                    }
+                    YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+                    int dist = cfg.getInt("infinite-distances." + mapName.toLowerCase(), 0);
+                    if (dist > 0) {
+                        String playerName = cfg.getString("name", fileName);
+                        best.merge(playerName, dist, Math::max);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[YAML] Could not read playerdata file: " + fileName);
+                }
+            }
+        }
+
+        List<java.util.Map.Entry<String, Integer>> sorted = new ArrayList<>(best.entrySet());
+        sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue())); // descending
+        return sorted.subList(0, Math.min(limit, sorted.size()));
+    }
+
+    @Override
     public void shutdown() {
         // No persistent connections to close
     }

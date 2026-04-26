@@ -62,6 +62,11 @@ public class MapData {
     // Alternative design templates (admins can add extra schematics for the same map)
     private List<String> alternativeTemplates = new ArrayList<>();
 
+    // Mode-specific design templates: custom-length maps use customLengthTemplates,
+    // infinite maps use infiniteTemplates. Standard alternativeTemplates are for normal maps only.
+    private List<String> customLengthTemplates = new ArrayList<>();
+    private List<String> infiniteTemplates = new ArrayList<>();
+
     // Minimum valid run time (ms). Times faster than this are rejected. 0 = use global.
     private long minValidTime = 0;
 
@@ -187,6 +192,8 @@ public class MapData {
         config.set("autoscale", autoscale);
         config.set("template", templateFile);
         config.set("alternative-templates", alternativeTemplates.isEmpty() ? null : alternativeTemplates);
+        config.set("custom-length-templates", customLengthTemplates.isEmpty() ? null : customLengthTemplates);
+        config.set("infinite-templates", infiniteTemplates.isEmpty() ? null : infiniteTemplates);
         config.set("death-y", deathY == Integer.MIN_VALUE ? null : deathY);
         config.set("min-valid-time", minValidTime > 0 ? minValidTime : null);
         config.set("max-completion-time", maxCompletionTime > 0 ? maxCompletionTime : null);
@@ -284,6 +291,10 @@ public class MapData {
         templateFile = config.getString("template");
         alternativeTemplates = config.getStringList("alternative-templates");
         if (alternativeTemplates == null) alternativeTemplates = new ArrayList<>();
+        customLengthTemplates = config.getStringList("custom-length-templates");
+        if (customLengthTemplates == null) customLengthTemplates = new ArrayList<>();
+        infiniteTemplates = config.getStringList("infinite-templates");
+        if (infiniteTemplates == null) infiniteTemplates = new ArrayList<>();
         deathY = config.getInt("death-y", Integer.MIN_VALUE);
         minValidTime = config.getLong("min-valid-time", 0);
         maxCompletionTime = config.getLong("max-completion-time", 0);
@@ -538,6 +549,44 @@ public class MapData {
 
     public boolean removeAlternativeTemplate(String template) {
         return alternativeTemplates.remove(template);
+    }
+
+    // Custom-length-specific designs
+    public List<String> getCustomLengthTemplates() { return customLengthTemplates; }
+    public void addCustomLengthTemplate(String template) {
+        if (!customLengthTemplates.contains(template)) customLengthTemplates.add(template);
+    }
+    public boolean removeCustomLengthTemplate(String template) {
+        return customLengthTemplates.remove(template);
+    }
+
+    // Infinite-specific designs
+    public List<String> getInfiniteTemplates() { return infiniteTemplates; }
+    public void addInfiniteTemplate(String template) {
+        if (!infiniteTemplates.contains(template)) infiniteTemplates.add(template);
+    }
+    public boolean removeInfiniteTemplate(String template) {
+        return infiniteTemplates.remove(template);
+    }
+
+    /**
+     * Returns the available design templates for a given map mode.
+     * Always includes the primary template as index 0.
+     * Custom-length maps show customLengthTemplates; infinite maps show infiniteTemplates;
+     * standard maps show alternativeTemplates.
+     */
+    public List<String> getTemplatesForMode() {
+        List<String> result = new ArrayList<>();
+        if (templateFile != null) result.add(templateFile);
+        if (infinite) {
+            result.addAll(infiniteTemplates);
+        } else if (minCustomLength > 0 || maxCustomLength > 0 || baseCustomLength > 0
+                || endIslandTemplateFile != null) {
+            result.addAll(customLengthTemplates);
+        } else {
+            result.addAll(alternativeTemplates);
+        }
+        return result;
     }
 
     public int getDeathY() { return deathY; }

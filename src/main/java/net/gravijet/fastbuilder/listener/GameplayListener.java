@@ -108,7 +108,7 @@ public class GameplayListener implements Listener {
      * Teleports back if the target island is occupied or out of bounds.
      */
     private void checkIslandHop(Player player, GameplayManager gm, MapData map, RunSession session, Location to) {
-        if (!plugin.getConfigManager().isIslandHoppingEnabled()) return;
+        if (!plugin.getConfigManager().isIslandJumpSwitchEnabled()) return;
 
         java.util.UUID uuid = player.getUniqueId();
         if (islandHopCooldown.contains(uuid)) return;

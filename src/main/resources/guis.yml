@@ -1,5 +1,23 @@
 # FastBuilder GUI Configuration
 
+# Booster Menus
+booster-hub:
+  name: "&cBooster Menu"
+  shop-slot: 11
+  status-slot: 13
+  inventory-slot: 15
+  back-slot: 22
+booster-shop:
+  name: "&cBooster Shop"
+  status-slot: 4
+  inventory-btn-slot: 45
+  back-slot: 49
+booster-inventory:
+  name: "&cBooster Inventory"
+  status-slot: 4
+  shop-btn-slot: 45
+  back-slot: 49
+
 # Block Selector GUI
 # Placeholder: %page% - Current page number
 block-selector:

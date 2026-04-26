@@ -109,6 +109,13 @@ public class SqliteStorageProvider implements StorageProvider {
                     "PRIMARY KEY (uuid, map_name)" +
                     ")");
 
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_infinite_distances (" +
+                    "uuid     TEXT NOT NULL," +
+                    "map_name TEXT NOT NULL," +
+                    "distance INTEGER NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name)" +
+                    ")");
+
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
                     "ON player_map_stats(map_name, best_time)");
         }
@@ -172,7 +179,20 @@ public class SqliteStorageProvider implements StorageProvider {
                 }
             }
         }
-        // ... (Weitere Tabellen hier analog)
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT map_name, length FROM player_custom_lengths WHERE uuid = ?")) {
+            ps.setString(1, uuidStr);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) data.setCustomLength(rs.getString("map_name"), rs.getInt("length"));
+            }
+        }
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT map_name, distance FROM player_infinite_distances WHERE uuid = ?")) {
+            ps.setString(1, uuidStr);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) data.updateInfiniteDistance(rs.getString("map_name"), rs.getInt("distance"));
+            }
+        }
     }
 
     @Override
@@ -223,6 +243,19 @@ public class SqliteStorageProvider implements StorageProvider {
                     ps.setLong(3, e.getValue().bestTime); ps.setInt(4, e.getValue().totalAttempts);
                     ps.setInt(5, e.getValue().successfulAttempts); ps.setLong(6, e.getValue().totalSuccessTime);
                     ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+
+            // Infinite distances upsert
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO player_infinite_distances (uuid, map_name, distance) VALUES (?,?,?) " +
+                    "ON CONFLICT(uuid, map_name) DO UPDATE SET distance=excluded.distance")) {
+                for (Map.Entry<String, Integer> e : data.getInfiniteDistances().entrySet()) {
+                    if (e.getValue() > 0) {
+                        ps.setString(1, uuidStr); ps.setString(2, e.getKey()); ps.setInt(3, e.getValue());
+                        ps.addBatch();
+                    }
                 }
                 ps.executeBatch();
             }
@@ -286,6 +319,31 @@ public class SqliteStorageProvider implements StorageProvider {
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "[SQLite] Failed to query top players.", e);
+        }
+        return results;
+    }
+
+    @Override
+    public synchronized java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+            String mapName, int limit) {
+
+        List<java.util.Map.Entry<String, Integer>> results = new ArrayList<java.util.Map.Entry<String, Integer>>();
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT pd.name, pid.distance " +
+                "FROM player_infinite_distances pid " +
+                "JOIN player_data pd ON pid.uuid = pd.uuid " +
+                "WHERE pid.map_name = ? AND pid.distance > 0 " +
+                "ORDER BY pid.distance DESC LIMIT ?")) {
+            ps.setString(1, mapName);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new java.util.AbstractMap.SimpleEntry<>(
+                            rs.getString("name"), rs.getInt("distance")));
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "[SQLite] Failed to query top infinite distances.", e);
         }
         return results;
     }

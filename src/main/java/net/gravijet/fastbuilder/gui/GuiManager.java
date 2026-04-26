@@ -90,7 +90,13 @@ public class GuiManager implements Listener {
     // ===== Island Selector =====
 
     public void openIslandSelector(Player player, MapData map) {
-        openIslandSelectorPage(player, map, 1);
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int pageSize = guis.getInt("island-selector-gui.page-size", 45);
+        pageSize = Math.max(9, Math.min(45, (pageSize / 9) * 9));
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        int currentIsland = data != null ? data.getLastIsland() : -1;
+        int page = currentIsland >= 0 ? (currentIsland / pageSize) + 1 : 1;
+        openIslandSelectorPage(player, map, page);
     }
 
     public void openIslandSelectorPage(Player player, MapData map, int page) {
@@ -475,25 +481,13 @@ public class GuiManager implements Listener {
         // Slot 11 — X-axis (distance) control — STICK
         inv.setItem(11, new ItemBuilder(Material.STICK)
                 .name("&eX &7— Distance")
-                .lore("&7Current: &f" + currentX + " blocks",
-                        "&7Range: &f" + minX + " &7to &f" + maxX,
-                        "",
-                        "&eLeft-click &8» &f+1 block",
-                        "&eShift + Left &8» &f+10 blocks",
-                        "&eRight-click &8» &f-1 block",
-                        "&eShift + Right &8» &f-10 blocks")
+                .lore("&7Click to adjust distance")
                 .build());
 
         // Slot 13 — Y-axis (height) control — BLAZE_ROD
         inv.setItem(13, new ItemBuilder(Material.BLAZE_ROD)
                 .name("&eY &7— Height Offset")
-                .lore("&7Current: &f" + (currentY >= 0 ? "+" : "") + currentY,
-                        "&7Range: &f" + minY + " &7to &f" + maxY,
-                        "",
-                        "&eLeft-click &8» &f+1 block",
-                        "&eShift + Left &8» &f+10 blocks",
-                        "&eRight-click &8» &f-1 block",
-                        "&eShift + Right &8» &f-10 blocks")
+                .lore("&7Click to adjust height")
                 .build());
 
         // Slot 15 — Reset both axes to defaults — BEDROCK
@@ -695,8 +689,8 @@ public class GuiManager implements Listener {
     // ===== Booster Hub =====
 
     /**
-     * Opens the Booster Hub — a two-button selection screen that lets the player
-     * navigate to either the Booster Shop or their Booster Inventory.
+     * Opens the Booster Hub — a clean selection screen with two navigation buttons:
+     * Booster Shop and Booster Inventory.
      *
      * Layout (27 slots):
      *   Row 0: filler × 9
@@ -704,8 +698,15 @@ public class GuiManager implements Listener {
      *   Row 2: filler × 4  [Back:22]  filler × 4
      */
     public void openBoosterHub(Player player) {
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title = ColorUtil.translate(guis.getString("booster-hub.name", BOOSTER_HUB_PREFIX));
+        int shopSlot  = guis.getInt("booster-hub.shop-slot", 11);
+        int statSlot  = guis.getInt("booster-hub.status-slot", 13);
+        int invSlot   = guis.getInt("booster-hub.inventory-slot", 15);
+        int backSlot  = guis.getInt("booster-hub.back-slot", 22);
+
         int size = 27;
-        Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_HUB_PREFIX));
+        Inventory inv = Bukkit.createInventory(null, size, title);
 
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
         for (int i = 0; i < size; i++) inv.setItem(i, filler);
@@ -715,27 +716,28 @@ public class GuiManager implements Listener {
         double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
         int ownedTotal = data != null ? countOwnedBoosters(data) : 0;
 
-        // Slot 11 — Booster Shop
-        inv.setItem(11, new ItemBuilder(Material.NETHER_STAR)
-                .name("&6Booster Shop")
+        // Shop button
+        inv.setItem(shopSlot, new ItemBuilder(Material.NETHER_STAR)
+                .name("&cBooster Shop")
                 .lore("&7Browse and purchase boosters",
                       "&7that multiply your coin earnings.",
                       "",
-                      "&eClick to open")
+                      "&fClick to open")
                 .build());
 
-        // Slot 13 — Active status indicator
+        // Active status indicator
         if (hasActive) {
             String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
-            inv.setItem(13, new ItemBuilder(Material.POTION, (byte) 0)
-                    .data((short) 8194) // water potion — yellow-ish glow
-                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
-                    .lore("&7Remaining: &e" + remaining,
+            inv.setItem(statSlot, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data((short) 8201)
+                    .name("&c" + formatMult(activeMult) + " Coin Booster &factive")
+                    .lore("&7Remaining: &f" + remaining,
                           "",
                           "&7All coin rewards are multiplied.")
+                    .hideFlags()
                     .build());
         } else {
-            inv.setItem(13, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
+            inv.setItem(statSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
                     .name("&cNo active booster")
                     .lore(ownedTotal > 0
                             ? "&7You have &f" + ownedTotal + " booster(s) &7ready to activate."
@@ -743,23 +745,23 @@ public class GuiManager implements Listener {
                     .build());
         }
 
-        // Slot 15 — Booster Inventory
+        // Inventory button
         String invLore1 = ownedTotal > 0
                 ? "&7You own &f" + ownedTotal + " booster(s)&7."
                 : "&7You don't own any boosters yet.";
-        inv.setItem(15, new ItemBuilder(Material.CHEST)
-                .name("&aBooster Inventory")
+        inv.setItem(invSlot, new ItemBuilder(Material.CHEST)
+                .name("&cBooster Inventory")
                 .lore(invLore1,
                       "&7Activate one to start multiplying coins.",
                       "",
-                      "&eClick to open")
+                      "&fClick to open")
                 .build());
 
-        // Slot 22 — Back to Shop
+        // Back button
         FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
         String backMat  = itemsCfg.getString("change-page.back-to-shop.material", "BARRIER:0");
         String backName = itemsCfg.getString("change-page.back-to-shop.name", "&cBack to Shop");
-        inv.setItem(22, ItemBuilder.fromString(backMat).name(backName).build());
+        inv.setItem(backSlot, ItemBuilder.fromString(backMat).name(backName).build());
 
         player.openInventory(inv);
     }
@@ -767,14 +769,18 @@ public class GuiManager implements Listener {
     private void handleBoosterHubClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        int shopSlot = guis.getInt("booster-hub.shop-slot", 11);
+        int invSlot  = guis.getInt("booster-hub.inventory-slot", 15);
+        int backSlot = guis.getInt("booster-hub.back-slot", 22);
 
-        if (slot == 11) {
+        if (slot == shopSlot) {
             player.closeInventory();
             openBoosterShop(player);
-        } else if (slot == 15) {
+        } else if (slot == invSlot) {
             player.closeInventory();
             openBoosterInventory(player);
-        } else if (slot == 22) {
+        } else if (slot == backSlot) {
             player.closeInventory();
             openShop(player);
         }
@@ -783,17 +789,28 @@ public class GuiManager implements Listener {
     // ===== Booster Shop =====
 
     /**
-     * Opens the Booster Shop — displays all available booster types as coloured potion
-     * items.  Clicking a booster purchases one and places it in the player's Booster
-     * Inventory; it is NOT auto-activated.
+     * Opens the Booster Shop — displays all available booster types.
+     * The inventory size scales with booster count so there are never empty content rows.
+     * Clicking a booster purchases it into the player's Booster Inventory (not auto-activated).
      */
     public void openBoosterShop(Player player) {
         List<BoosterType> types = plugin.getConfigManager().getBoosterTypes();
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title   = ColorUtil.translate(guis.getString("booster-shop.name", BOOSTER_SHOP_PREFIX));
+        int statSlot   = guis.getInt("booster-shop.status-slot", 4);
+        int invBtnSlot = guis.getInt("booster-shop.inventory-btn-slot", 45);
+        int backSlot   = guis.getInt("booster-shop.back-slot", 49);
 
-        // Always use a 54-slot (6-row) GUI so there's room for many types.
-        int size = 54;
-        Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_SHOP_PREFIX));
+        // Size inventory to content: header row + content rows + footer row (min 3 rows)
+        int contentCount = Math.min(types.size(), 36);
+        int rows = Math.max(3, 2 + (int) Math.ceil(contentCount / 9.0));
+        int size = rows * 9;
+        // Nav slots in the last row
+        int navRowStart = (rows - 1) * 9;
+        int actualInvBtnSlot = navRowStart;
+        int actualBackSlot   = navRowStart + 4;
 
+        Inventory inv = Bukkit.createInventory(null, size, title);
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
         for (int i = 0; i < size; i++) inv.setItem(i, filler);
 
@@ -802,58 +819,60 @@ public class GuiManager implements Listener {
         boolean hasActive = data != null && data.getBoosterExpiry() > now;
         double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
 
-        // Slot 4 — active booster status
+        // Status indicator in header row
         if (hasActive) {
             String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
-            inv.setItem(4, new ItemBuilder(Material.POTION, (byte) 0)
-                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
-                    .lore("&7Remaining: &e" + remaining,
+            inv.setItem(statSlot, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data((short) 8201)
+                    .name("&c" + formatMult(activeMult) + " Coin Booster &factive")
+                    .lore("&7Remaining: &f" + remaining,
                           "",
-                          "&7All coin rewards are multiplied.",
-                          "&8Go to your &7Booster Inventory &8to activate more.")
+                          "&7All coin rewards are multiplied.")
+                    .hideFlags()
                     .build());
         } else {
-            inv.setItem(4, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
+            inv.setItem(statSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
                     .name("&cNo active booster")
-                    .lore("&7Purchase a booster below, then activate it",
-                          "&7from your &fBooster Inventory&7.")
+                    .lore("&7Purchase a booster below, then",
+                          "&7activate it from &fBooster Inventory&7.")
                     .build());
         }
 
-        // Booster type items — rows 2–5 (slots 9–44, up to 36 types)
+        // Booster type items starting at slot 9
         int coins = data != null ? data.getCoins() : 0;
-        for (int i = 0; i < types.size() && i < 36; i++) {
+        for (int i = 0; i < contentCount; i++) {
             BoosterType type = types.get(i);
             boolean canAfford = coins >= type.price;
             int owned = data != null ? data.getBoosterCount(type.id) : 0;
 
             String affordLine = canAfford
-                    ? "&aClick to purchase &7(&e" + type.price + " coins&7)"
-                    : "&cNeed &f" + type.price + " coins &c(have &f" + coins + "&c)";
-            String ownedLine = owned > 0 ? "&7Owned: &f" + owned : "&7You own none";
+                    ? "&fClick to purchase &7(&c" + type.price + " coins&7)"
+                    : "&cNeed &f" + type.price + " coins &7(have &f" + coins + "&7)";
+            String ownedLine = owned > 0 ? "&7Owned: &f" + owned : "&7Not owned";
 
             inv.setItem(9 + i, new ItemBuilder(Material.POTION, (byte) 0)
                     .data(type.potionData)
                     .name(type.displayName)
                     .lore("&7" + type.description,
                           "",
-                          "&7Multiplier: &6" + type.formatMultiplier(),
-                          "&7Duration:   &e" + type.durationMinutes + " minutes",
+                          "&7Multiplier: &c" + type.formatMultiplier(),
+                          "&7Duration:   &f" + type.durationMinutes + " min",
                           "&7Price:      &c" + type.price + " coins",
                           ownedLine,
                           "",
                           affordLine)
+                    .hideFlags()
                     .build());
         }
 
-        // Bottom row navigation
-        inv.setItem(45, new ItemBuilder(Material.CHEST)
-                .name("&aBooster Inventory")
+        // Navigation row
+        inv.setItem(actualInvBtnSlot, new ItemBuilder(Material.CHEST)
+                .name("&cBooster Inventory")
                 .lore("&7View and activate boosters you own.")
                 .build());
-        FileConfiguration boosterShopItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String bsBackMat = boosterShopItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
-        inv.setItem(49, ItemBuilder.fromString(bsBackMat).name("&cBack").build());
+        FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+        String backMat = itemsCfg.getString("change-page.back-to-shop.material", "BARRIER:0");
+        inv.setItem(actualBackSlot, ItemBuilder.fromString(backMat).name("&cBack").build());
 
         player.openInventory(inv);
     }
@@ -863,24 +882,26 @@ public class GuiManager implements Listener {
         int slot = event.getSlot();
         Inventory inv = event.getInventory();
         int size = inv.getSize();
+        int rows = size / 9;
+        int navRowStart = (rows - 1) * 9;
+        int invBtnSlot = navRowStart;
+        int backBtnSlot = navRowStart + 4;
         String prefix = plugin.getConfigManager().getPrefix();
 
-        // My Inventory button
-        if (slot == 45) {
+        if (slot == invBtnSlot) {
             player.closeInventory();
             openBoosterInventory(player);
             return;
         }
 
-        // Back button — return to Booster Hub
-        if (slot == 49) {
+        if (slot == backBtnSlot) {
             player.closeInventory();
             openBoosterHub(player);
             return;
         }
 
-        // Content rows: slots 9-44
-        if (slot < 9 || slot > 44) return;
+        // Content rows: slots 9 up to start of nav row
+        if (slot < 9 || slot >= navRowStart) return;
 
         int typeIndex = slot - 9;
         List<BoosterType> types = plugin.getConfigManager().getBoosterTypes();
@@ -892,7 +913,7 @@ public class GuiManager implements Listener {
 
         if (data.getCoins() < type.price) {
             player.sendMessage(ColorUtil.translate(prefix
-                    + "&cNot enough coins! You need &f" + type.price + " &ccoins."));
+                    + "&cNot enough coins &7(&fneed &c" + type.price + "&7, have &f" + data.getCoins() + "&7)."));
             return;
         }
 
@@ -901,8 +922,8 @@ public class GuiManager implements Listener {
         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
 
         player.sendMessage(ColorUtil.translate(prefix
-                + "&aPurchased &f1x " + type.displayName
-                + " &a— activate it from your &fBooster Inventory&a!"));
+                + "&fPurchased &c" + type.displayName
+                + " &7» &fActivate it from your &cBooster Inventory&f."));
         player.closeInventory();
         openBoosterShop(player);
     }
@@ -910,72 +931,89 @@ public class GuiManager implements Listener {
     // ===== Booster Inventory =====
 
     /**
-     * Opens the Booster Inventory — shows all boosters the player owns and lets them
-     * activate one.  Activating while a booster is already running is blocked here.
+     * Opens the Booster Inventory — shows all boosters the player owns.
+     * The inventory size scales with owned booster count so there are no empty rows.
+     * Activating while another booster is running is blocked.
      */
     public void openBoosterInventory(Player player) {
-        int size = 54;
-        Inventory inv = Bukkit.createInventory(null, size, ColorUtil.translate(BOOSTER_INVENTORY_PREFIX));
-
-        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
-        for (int i = 0; i < size; i++) inv.setItem(i, filler);
+        FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
+        String title   = ColorUtil.translate(guis.getString("booster-inventory.name", BOOSTER_INVENTORY_PREFIX));
+        int statSlot   = guis.getInt("booster-inventory.status-slot", 4);
 
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         long now = System.currentTimeMillis();
         boolean hasActive = data != null && data.getBoosterExpiry() > now;
         double activeMult = hasActive ? data.getBoosterMultiplier() : 1.0;
 
-        // Slot 4 — active booster status
+        // Collect owned boosters to determine inventory size
+        List<BoosterType> allTypes = plugin.getConfigManager().getBoosterTypes();
+        List<BoosterType> ownedTypes = new ArrayList<>();
+        for (BoosterType type : allTypes) {
+            if (data != null && data.getBoosterCount(type.id) > 0) ownedTypes.add(type);
+        }
+
+        // Size dynamically: header + content rows + footer
+        int contentCount = Math.min(ownedTypes.size(), 36);
+        int rows = Math.max(3, 2 + (int) Math.ceil(contentCount == 0 ? 0 : contentCount / 9.0));
+        int size = rows * 9;
+        int navRowStart = (rows - 1) * 9;
+        int shopBtnSlot = navRowStart;
+        int backBtnSlot = navRowStart + 4;
+
+        Inventory inv = Bukkit.createInventory(null, size, title);
+        ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+        for (int i = 0; i < size; i++) inv.setItem(i, filler);
+
+        // Status indicator in header row
         if (hasActive) {
             String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
-            inv.setItem(4, new ItemBuilder(Material.POTION, (byte) 0)
-                    .name("&6Active: &a" + formatMult(activeMult) + " Booster")
-                    .lore("&7Remaining: &e" + remaining,
+            inv.setItem(statSlot, new ItemBuilder(Material.POTION, (byte) 0)
+                    .data((short) 8201)
+                    .name("&c" + formatMult(activeMult) + " Coin Booster &factive")
+                    .lore("&7Remaining: &f" + remaining,
                           "",
-                          "&cYou must wait for this booster to expire",
+                          "&cWait for this booster to expire",
                           "&cbefore activating another.")
+                    .hideFlags()
                     .build());
         } else {
-            inv.setItem(4, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 10)
-                    .name("&aNo active booster")
+            inv.setItem(statSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 10)
+                    .name("&fNo active booster")
                     .lore("&7Click a booster below to activate it.")
                     .build());
         }
 
-        // Slots 9-44: one slot per booster type that the player owns at least one of
-        List<BoosterType> allTypes = plugin.getConfigManager().getBoosterTypes();
-        int slot = 9;
-        for (BoosterType type : allTypes) {
-            if (slot > 44) break;
-            int owned = data != null ? data.getBoosterCount(type.id) : 0;
-            if (owned <= 0) continue;
+        // Owned booster items starting at slot 9
+        for (int i = 0; i < contentCount; i++) {
+            BoosterType type = ownedTypes.get(i);
+            int owned = data.getBoosterCount(type.id);
 
             String actionLine = hasActive
-                    ? "&cA booster is already active — wait for it to expire."
-                    : "&aClick to activate";
+                    ? "&cAlready active — wait for it to expire."
+                    : "&fClick to activate";
 
-            inv.setItem(slot, new ItemBuilder(Material.POTION, (byte) 0)
+            inv.setItem(9 + i, new ItemBuilder(Material.POTION, (byte) 0)
                     .data(type.potionData)
-                    .name(type.displayName + " &8x" + owned)
+                    .name(type.displayName + " &7x" + owned)
                     .lore("&7" + type.description,
                           "",
-                          "&7Multiplier: &6" + type.formatMultiplier(),
-                          "&7Duration:   &e" + type.durationMinutes + " minutes",
+                          "&7Multiplier: &c" + type.formatMultiplier(),
+                          "&7Duration:   &f" + type.durationMinutes + " min",
                           "&7Owned:      &f" + owned,
                           "",
                           actionLine)
+                    .hideFlags()
                     .build());
-            slot++;
         }
 
-        // Bottom navigation
-        inv.setItem(45, new ItemBuilder(Material.NETHER_STAR)
-                .name("&6Booster Shop")
-                .lore("&7Buy more boosters.")
+        // Navigation row
+        inv.setItem(shopBtnSlot, new ItemBuilder(Material.NETHER_STAR)
+                .name("&cBooster Shop")
+                .lore("&7Browse and buy more boosters.")
                 .build());
-        FileConfiguration boosterInvItemsConfig = plugin.getConfigManager().getItemsConfig();
-        String biBackMat = boosterInvItemsConfig.getString("change-page.back-to-shop.material", "BARRIER:0");
-        inv.setItem(49, ItemBuilder.fromString(biBackMat).name("&cBack").build());
+        FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+        String backMat = itemsCfg.getString("change-page.back-to-shop.material", "BARRIER:0");
+        inv.setItem(backBtnSlot, ItemBuilder.fromString(backMat).name("&cBack").build());
 
         player.openInventory(inv);
     }
@@ -983,29 +1021,33 @@ public class GuiManager implements Listener {
     private void handleBoosterInventoryClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
+        Inventory inv = event.getInventory();
+        int size = inv.getSize();
+        int rows = size / 9;
+        int navRowStart = (rows - 1) * 9;
+        int shopBtnSlot = navRowStart;
+        int backBtnSlot = navRowStart + 4;
         String prefix = plugin.getConfigManager().getPrefix();
 
-        // Booster Shop button
-        if (slot == 45) {
+        if (slot == shopBtnSlot) {
             player.closeInventory();
             openBoosterShop(player);
             return;
         }
 
-        // Back button — return to Booster Hub
-        if (slot == 49) {
+        if (slot == backBtnSlot) {
             player.closeInventory();
             openBoosterHub(player);
             return;
         }
 
-        // Content rows: slots 9-44
-        if (slot < 9 || slot > 44) return;
+        // Content rows: slots 9 up to nav row
+        if (slot < 9 || slot >= navRowStart) return;
 
-        // Rebuild the same ordered list so click index maps to the same type as render
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
+        // Rebuild owned list in same order as render
         List<BoosterType> allTypes = plugin.getConfigManager().getBoosterTypes();
         List<BoosterType> ownedTypes = new ArrayList<>();
         for (BoosterType type : allTypes) {
@@ -1017,11 +1059,10 @@ public class GuiManager implements Listener {
 
         BoosterType type = ownedTypes.get(index);
 
-        // Block stacking: can't activate while one is already running
         if (plugin.getBoosterManager().hasActiveTemporaryBooster(player.getUniqueId())) {
             String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
             player.sendMessage(ColorUtil.translate(prefix
-                    + "&cYou already have an active booster! Wait &e" + remaining + " &cfor it to expire."));
+                    + "&cYou already have an active booster! &7Wait &c" + remaining + " &7for it to expire."));
             return;
         }
 
@@ -1032,8 +1073,8 @@ public class GuiManager implements Listener {
         }
 
         player.sendMessage(ColorUtil.translate(prefix
-                + "&6" + type.formatMultiplier() + " Coin Booster &factivated for &e"
-                + type.durationMinutes + " minutes&f!"));
+                + "&c" + type.formatMultiplier() + " Coin Booster &factivated &7» &f"
+                + type.durationMinutes + " minutes"));
         player.closeInventory();
         openBoosterInventory(player);
     }
@@ -1157,7 +1198,7 @@ public class GuiManager implements Listener {
         net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(mapName);
         if (map == null) return;
 
-        List<String> templates = map.getAllTemplates();
+        List<String> templates = map.getTemplatesForMode();
         // Spec: Island Selector must be EXACTLY 3×9 (27 slots)
         String title = ColorUtil.translate("&aIsland Designs &7- &f" + map.getName());
         Inventory inv = Bukkit.createInventory(null, 27, title);
@@ -1589,50 +1630,88 @@ public class GuiManager implements Listener {
     /** Fetches the top 10 for {@code mapName} asynchronously, then opens the leaderboard GUI. */
     public void openLeaderboardGui(Player player, String mapName) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            List<Map.Entry<String, Long>> top =
-                    plugin.getPlayerManager().getTopPlayerTimesForMap(mapName, 10);
+            net.gravijet.fastbuilder.map.MapData lbMap = plugin.getMapManager().getMap(mapName);
+            boolean infinite = lbMap != null && lbMap.isInfinite();
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (!player.isOnline()) return;
+            if (infinite) {
+                List<Map.Entry<String, Integer>> topInf =
+                        plugin.getPlayerManager().getTopInfiniteDistancesForMap(mapName, 10);
 
-                String title = ColorUtil.translate("&c&lLeaderboard &7- &f" + mapName);
-                Inventory inv = Bukkit.createInventory(null, 54, title);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    String title = ColorUtil.translate("&c&lLeaderboard &7- &f" + mapName);
+                    Inventory inv = Bukkit.createInventory(null, 54, title);
+                    ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+                    for (int i = 0; i < 54; i++) inv.setItem(i, filler);
+                    int[] entrySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
+                    for (int i = 0; i < Math.min(topInf.size(), entrySlots.length); i++) {
+                        Map.Entry<String, Integer> entry = topInf.get(i);
+                        int pos = i + 1;
+                        String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
+                        ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+                        SkullMeta meta = (SkullMeta) skull.getItemMeta();
+                        meta.setOwner(entry.getKey());
+                        meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
+                        List<String> lore = new ArrayList<>();
+                        lore.add(ColorUtil.translate("&7Distance: &f" + entry.getValue() + " blocks"));
+                        meta.setLore(lore);
+                        skull.setItemMeta(meta);
+                        inv.setItem(entrySlots[i], skull);
+                    }
+                    if (topInf.isEmpty()) {
+                        inv.setItem(22, new ItemBuilder(Material.BARRIER).name("&7No distances recorded yet.").build());
+                    }
+                    FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+                    String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
+                    inv.setItem(49, ItemBuilder.fromString(closeMat).name("&cBack").build());
+                    player.openInventory(inv);
+                });
+            } else {
+                List<Map.Entry<String, Long>> top =
+                        plugin.getPlayerManager().getTopPlayerTimesForMap(mapName, 10);
 
-                ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
-                for (int i = 0; i < 54; i++) inv.setItem(i, filler);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) return;
 
-                // Slots: row 2 (10-16 = 7), row 3 (19-21 = 3) → 10 total
-                int[] entrySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
+                    String title = ColorUtil.translate("&c&lLeaderboard &7- &f" + mapName);
+                    Inventory inv = Bukkit.createInventory(null, 54, title);
 
-                for (int i = 0; i < Math.min(top.size(), entrySlots.length); i++) {
-                    Map.Entry<String, Long> entry = top.get(i);
-                    int pos = i + 1;
-                    String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
+                    ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
+                    for (int i = 0; i < 54; i++) inv.setItem(i, filler);
 
-                    ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
-                    SkullMeta meta = (SkullMeta) skull.getItemMeta();
-                    meta.setOwner(entry.getKey());
-                    meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
-                    List<String> lore = new ArrayList<>();
-                    lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));
-                    lore.add(ColorUtil.translate("&eClick to watch replay"));
-                    meta.setLore(lore);
-                    skull.setItemMeta(meta);
-                    inv.setItem(entrySlots[i], skull);
-                }
+                    // Slots: row 2 (10-16 = 7), row 3 (19-21 = 3) → 10 total
+                    int[] entrySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
 
-                if (top.isEmpty()) {
-                    ItemStack none = new ItemBuilder(Material.BARRIER).name("&7No times recorded yet.").build();
-                    inv.setItem(22, none);
-                }
+                    for (int i = 0; i < Math.min(top.size(), entrySlots.length); i++) {
+                        Map.Entry<String, Long> entry = top.get(i);
+                        int pos = i + 1;
+                        String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
 
-                // Back button — center of bottom row (slot 49) — returns to map picker
-                FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
-                String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
-                inv.setItem(49, ItemBuilder.fromString(closeMat).name("&cBack").build());
+                        ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
+                        SkullMeta meta = (SkullMeta) skull.getItemMeta();
+                        meta.setOwner(entry.getKey());
+                        meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
+                        List<String> lore = new ArrayList<>();
+                        lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));
+                        lore.add(ColorUtil.translate("&eClick to watch replay"));
+                        meta.setLore(lore);
+                        skull.setItemMeta(meta);
+                        inv.setItem(entrySlots[i], skull);
+                    }
 
-                player.openInventory(inv);
-            });
+                    if (top.isEmpty()) {
+                        ItemStack none = new ItemBuilder(Material.BARRIER).name("&7No times recorded yet.").build();
+                        inv.setItem(22, none);
+                    }
+
+                    // Back button — center of bottom row (slot 49) — returns to map picker
+                    FileConfiguration itemsCfg = plugin.getConfigManager().getItemsConfig();
+                    String closeMat = itemsCfg.getString("island-selector.back-button.material", "BARRIER:0");
+                    inv.setItem(49, ItemBuilder.fromString(closeMat).name("&cBack").build());
+
+                    player.openInventory(inv);
+                });
+            }
         });
     }
 
@@ -1749,9 +1828,30 @@ public class GuiManager implements Listener {
     public void onDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) return;
         Inventory top = event.getView().getTopInventory();
-        if (top == null || top.getType() == InventoryType.CRAFTING) return;
+        if (top != null && top.getType() == InventoryType.CRAFTING) {
+            // Player's own inventory (E key) — lock item movement when a session is active
+            Player p = (Player) event.getWhoClicked();
+            if (plugin.getGameplayManager() != null
+                    && plugin.getGameplayManager().getSession(p.getUniqueId()) != null) {
+                event.setCancelled(true);
+            }
+            return;
+        }
+        if (top == null) return;
         String title = event.getView().getTitle();
         if (title != null && isPluginGui(ColorUtil.strip(title))) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPlayerInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+        Inventory top = event.getView().getTopInventory();
+        if (top == null || top.getType() != InventoryType.CRAFTING) return;
+        Player player = (Player) event.getWhoClicked();
+        if (plugin.getGameplayManager() != null
+                && plugin.getGameplayManager().getSession(player.getUniqueId()) != null) {
             event.setCancelled(true);
         }
     }
@@ -2212,12 +2312,12 @@ public class GuiManager implements Listener {
             return;
         }
 
-        // Left = increase, Right = decrease (intuitive: left-click = more, right-click = less)
+        // Left = large increase, Shift+Left = small increase; Right = large decrease, Shift+Right = small decrease
         int delta;
-        if (click == org.bukkit.event.inventory.ClickType.LEFT) delta = 1;
-        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) delta = 10;
-        else if (click == org.bukkit.event.inventory.ClickType.RIGHT) delta = -1;
-        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) delta = -10;
+        if (click == org.bukkit.event.inventory.ClickType.LEFT) delta = 10;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_LEFT) delta = 1;
+        else if (click == org.bukkit.event.inventory.ClickType.RIGHT) delta = -10;
+        else if (click == org.bukkit.event.inventory.ClickType.SHIFT_RIGHT) delta = -1;
         else return;
 
         if (slot == 11) {
