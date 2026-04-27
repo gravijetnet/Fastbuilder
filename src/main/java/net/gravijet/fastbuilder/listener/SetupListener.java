@@ -3,8 +3,11 @@ package net.gravijet.fastbuilder.listener;
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.SetupSession;
 import net.gravijet.fastbuilder.util.ColorUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,6 +17,11 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Handles Blaze Rod interactions during admin map setup.
@@ -21,6 +29,7 @@ import org.bukkit.inventory.ItemStack;
 public class SetupListener implements Listener {
 
     private final FastBuilder plugin;
+    private final Map<UUID, Integer> particleTasks = new HashMap<>();
 
     public SetupListener(FastBuilder plugin) {
         this.plugin = plugin;
@@ -91,6 +100,8 @@ public class SetupListener implements Listener {
             player.sendMessage(ColorUtil.translate(raw));
         }
 
+        startParticleTask(player, session);
+
         if (session.getIslandPos1() != null && session.getIslandPos2() != null) {
             String msg = plugin.getConfigManager().getAdminMessage("setup-select-both")
                     .replace("%prefix%", prefix);
@@ -109,6 +120,7 @@ public class SetupListener implements Listener {
         String prefix = plugin.getConfigManager().getPrefix();
         int clickedX = clicked.getX();
         if (session.finalizeDiagonal(clickedX)) {
+            stopParticleTask(player.getUniqueId());
             player.sendMessage(ColorUtil.translate(prefix
                     + "&aDiagonal step set: &fX+" + session.getDiagonalStepX()
                     + " per island. &7Now right-click to set the spawn point."));
@@ -257,6 +269,81 @@ public class SetupListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getMapManager().removeSetupSession(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        stopParticleTask(uuid);
+        plugin.getMapManager().removeSetupSession(uuid);
+    }
+
+    private void startParticleTask(Player player, SetupSession session) {
+        stopParticleTask(player.getUniqueId());
+        int taskId = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (session.getState() != SetupSession.State.SELECTING_ISLAND) {
+                    stopParticleTask(player.getUniqueId());
+                    cancel();
+                    return;
+                }
+                Location p1 = session.getIslandPos1();
+                Location p2 = session.getIslandPos2();
+                if (p1 != null && p2 != null) {
+                    spawnCuboidParticles(player, p1, p2);
+                } else if (p1 != null) {
+                    spawnPointParticle(player, p1);
+                } else if (p2 != null) {
+                    spawnPointParticle(player, p2);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 10L).getTaskId();
+        particleTasks.put(player.getUniqueId(), taskId);
+    }
+
+    private void stopParticleTask(UUID uuid) {
+        Integer taskId = particleTasks.remove(uuid);
+        if (taskId != null) {
+            Bukkit.getScheduler().cancelTask(taskId);
+        }
+    }
+
+    private void spawnPointParticle(Player player, Location loc) {
+        World world = loc.getWorld();
+        if (world == null) return;
+        world.playEffect(loc.clone().add(0.5, 0.5, 0.5), Effect.CRIT, 0);
+    }
+
+    private void spawnCuboidParticles(Player player, Location p1, Location p2) {
+        World world = p1.getWorld();
+        if (world == null) return;
+
+        double minX = Math.min(p1.getBlockX(), p2.getBlockX());
+        double minY = Math.min(p1.getBlockY(), p2.getBlockY());
+        double minZ = Math.min(p1.getBlockZ(), p2.getBlockZ());
+        double maxX = Math.max(p1.getBlockX(), p2.getBlockX()) + 1.0;
+        double maxY = Math.max(p1.getBlockY(), p2.getBlockY()) + 1.0;
+        double maxZ = Math.max(p1.getBlockZ(), p2.getBlockZ()) + 1.0;
+
+        double step = 1.0;
+
+        // 4 edges along X axis
+        for (double x = minX; x <= maxX; x += step) {
+            world.playEffect(new Location(world, x, minY, minZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, x, maxY, minZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, x, minY, maxZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, x, maxY, maxZ), Effect.CRIT, 0);
+        }
+        // 4 edges along Y axis
+        for (double y = minY; y <= maxY; y += step) {
+            world.playEffect(new Location(world, minX, y, minZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, maxX, y, minZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, minX, y, maxZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, maxX, y, maxZ), Effect.CRIT, 0);
+        }
+        // 4 edges along Z axis
+        for (double z = minZ; z <= maxZ; z += step) {
+            world.playEffect(new Location(world, minX, minY, z), Effect.CRIT, 0);
+            world.playEffect(new Location(world, maxX, minY, z), Effect.CRIT, 0);
+            world.playEffect(new Location(world, minX, maxY, z), Effect.CRIT, 0);
+            world.playEffect(new Location(world, maxX, maxY, z), Effect.CRIT, 0);
+        }
     }
 }

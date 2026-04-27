@@ -483,7 +483,7 @@ public class ReplaySession {
             viewer.setExp(0f);
             viewer.setLevel(0);
             giveControlItems(viewer);
-            viewer.teleport(viewerWatchLocation);
+            // Player stays at current position — no teleport on restart
         }
 
         // Re-paste template then restart loop
@@ -606,6 +606,7 @@ public class ReplaySession {
 
     public double getPlaybackSpeed()         { return playbackSpeed; }
     public boolean isPaused()                { return paused; }
+    public boolean isEnded()                 { return ended; }
     public UUID getViewerUuid()              { return viewerUuid; }
     public ReplayData getReplayData()        { return replayData; }
     public Location getViewerWatchLocation() { return viewerWatchLocation; }
@@ -677,18 +678,15 @@ public class ReplaySession {
             inNpcCamera = false;
         }
 
+        // Lime Dye in SLOT_PAUSE_RESUME restarts the replay when clicked (isEnded() == true)
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
-                new ItemBuilder(Material.INK_SACK, (byte) 10)  // lime = stopped/paused
-                        .name("&a\u25A0 Replay Finished  &7\u2014 Watch again or leave")
-                        .lore("&7Click &aPlay Again &7or &cLeave Replay&7.")
-                        .build());
-        player.getInventory().setItem(SLOT_REPLAY_AGAIN,
-                new ItemBuilder(Material.EMERALD)
-                        .name("&a&lPlay Again")
-                        .lore("&7Click to watch again")
+                new ItemBuilder(Material.INK_SACK, (byte) 10)  // lime dye = restart
+                        .name("&a■ Replay Finished  &7— Click to watch again")
+                        .lore("&7Click to restart the replay")
                         .build());
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fReplay finished. &aPlay Again &7(slot 8) or &cLeave Replay &7(slot 9)."));
+                + "&fReplay finished. &aClick Lime Dye &7(slot 5) to restart or &cLeave Replay &7(slot 9)."));
+
     }
 
     public void updateControlItems() {

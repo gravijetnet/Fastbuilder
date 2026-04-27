@@ -21,6 +21,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
 
 /**
  * Prevents players from building or interacting outside their assigned island.
@@ -78,10 +79,12 @@ public class ProtectionListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.getGameplayManager() == null) return;
 
-        // Must have One-Click Pick cosmetic
+        // Must have One-Click Pick cosmetic AND be holding the OCP item (Diamond Axe)
         net.gravijet.fastbuilder.player.PlayerData pData =
                 plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (pData == null || !pData.hasOneClickPick()) return;
+        ItemStack heldItem = player.getItemInHand();
+        if (heldItem == null || heldItem.getType() != org.bukkit.Material.DIAMOND_AXE) return;
 
         // Must be on own island with an active session
         RunSession session = plugin.getGameplayManager().getSession(player.getUniqueId());

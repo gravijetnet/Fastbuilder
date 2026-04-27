@@ -638,6 +638,9 @@ public class GameplayManager {
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
 
+        String mapName = session.getMapName();
+        int islandIndex = session.getIslandIndex();
+
         java.util.List<Long> bests = new java.util.ArrayList<>(session.getSessionBests());
         boolean practice = session.isPracticeMode();
 
@@ -658,6 +661,9 @@ public class GameplayManager {
         }
 
         plugin.getScoreboardManager().updateScoreboard(player);
+
+        // Unblock block placements — island reset is complete
+        unmarkIslandResetting(mapName, islandIndex);
     }
 
     /**
