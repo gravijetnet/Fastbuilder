@@ -465,6 +465,14 @@ public class ConfigManager {
         return mainConfig.getString("cps-hologram.visibility", "global");
     }
 
+    /**
+     * Duration in seconds to keep the hologram visible after CPS drops to zero.
+     * Configurable via cps-hologram.zero-cps-display-duration in config.yml.
+     */
+    public double getCpsZeroCpsDuration() {
+        return mainConfig.getDouble("cps-hologram.zero-cps-display-duration", 1.0);
+    }
+
     // -------------------------------------------------------------------------
     // GUI Config Accessors
     // -------------------------------------------------------------------------

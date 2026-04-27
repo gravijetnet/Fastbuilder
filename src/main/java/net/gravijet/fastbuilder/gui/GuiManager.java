@@ -1300,6 +1300,10 @@ public class GuiManager implements Listener {
                 String mat   = pageSection.getString(slotKey + ".material", "STONE_PICKAXE:0");
                 int    price = pageSection.getInt(slotKey    + ".price",    0);
 
+                // NONE / reset option must always use BEDROCK (not BARRIER)
+                boolean isNonePickaxe = name.equalsIgnoreCase("None") || mat.toUpperCase().startsWith("BARRIER");
+                if (isNonePickaxe) mat = "BEDROCK:0";
+
                 String pickPerm = "fastbuilder.pickaxe." + mat.toLowerCase().replace(":", ".");
                 boolean owned = price == 0
                         || (data != null && data.hasPurchasedBlock("pickaxe:" + mat))
@@ -1403,6 +1407,9 @@ public class GuiManager implements Listener {
                 int price = slotsSection.getInt(slotKey + ".price", 0);
                 boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("anim:" + animId));
                 boolean selected = animId.equalsIgnoreCase(currentAnim);
+                boolean isNoneOption = animId.equalsIgnoreCase("NONE");
+                // NONE option always uses BEDROCK (not BARRIER or any other material)
+                if (isNoneOption) mat = "BEDROCK:0";
                 java.util.List<String> loreTemplate = slotsSection.getStringList(slotKey + ".lore");
                 java.util.List<String> lore = new java.util.ArrayList<>();
                 for (String line : loreTemplate) {
@@ -1411,7 +1418,8 @@ public class GuiManager implements Listener {
                 if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
                 // Do not add enchant glow to CHEST (Item Drop) — it renders as a broken texture in 1.8.8
-                boolean canGlow = !mat.toUpperCase().startsWith("CHEST");
+                // Do not add enchant glow to NONE option — spec requires no Unbreaking I enchantment
+                boolean canGlow = !mat.toUpperCase().startsWith("CHEST") && !isNoneOption;
                 if (selected && canGlow) {
                     org.bukkit.inventory.meta.ItemMeta im = item.getItemMeta();
                     if (im != null) {
@@ -1462,6 +1470,9 @@ public class GuiManager implements Listener {
                 int price = soundsSection.getInt(slotKey + ".price", 0);
                 boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("sound:" + soundId));
                 boolean selected = soundId.equalsIgnoreCase(currentSound);
+                boolean isNoneOption = soundId.equalsIgnoreCase("NONE");
+                // NONE option always uses BEDROCK (not BARRIER or any other material)
+                if (isNoneOption) mat = "BEDROCK:0";
                 java.util.List<String> loreTemplate = soundsSection.getStringList(slotKey + ".lore");
                 java.util.List<String> lore = new java.util.ArrayList<>();
                 for (String line : loreTemplate) {
@@ -1471,7 +1482,8 @@ public class GuiManager implements Listener {
                 if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 ItemStack it = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
                 // Do not add enchant glow to FIREWORK (Firework Rocket) — unsupported in 1.8.8
-                boolean canGlow = !mat.toUpperCase().startsWith("FIREWORK");
+                // Do not add enchant glow to NONE option — spec requires no Unbreaking I enchantment
+                boolean canGlow = !mat.toUpperCase().startsWith("FIREWORK") && !isNoneOption;
                 if (selected && canGlow) {
                     org.bukkit.inventory.meta.ItemMeta im = it.getItemMeta();
                     if (im != null) { im.addEnchant(org.bukkit.enchantments.Enchantment.DURABILITY, 1, true); it.setItemMeta(im); }

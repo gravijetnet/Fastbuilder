@@ -67,15 +67,21 @@ public class HotbarManager implements Listener {
         }
 
         // Slot 2: Pickaxe (selected by player, unbreakable)
-        // One-Click Pick overrides the tool to a Diamond Axe
+        // One-Click Pick overrides the tool to a Diamond Axe with a custom name.
+        // All other pickaxes use their natural Minecraft item name (no custom display name).
         String pickaxeMat;
-        if (data != null && data.hasOneClickPick()) {
+        boolean isOneClickPick = data != null && data.hasOneClickPick();
+        if (isOneClickPick) {
             pickaxeMat = "DIAMOND_AXE:0";
         } else {
             pickaxeMat = (data != null && data.getSelectedPickaxe() != null && !data.getSelectedPickaxe().isEmpty())
                     ? data.getSelectedPickaxe() : "DIAMOND_PICKAXE:0";
         }
-        ItemStack pickaxe = ItemBuilder.fromString(pickaxeMat).name("&r&bPickaxe").build();
+        ItemBuilder pickaxeBuilder = ItemBuilder.fromString(pickaxeMat);
+        if (isOneClickPick) {
+            pickaxeBuilder = pickaxeBuilder.name("&6One Click Pick");
+        }
+        ItemStack pickaxe = pickaxeBuilder.build();
         org.bukkit.inventory.meta.ItemMeta picMeta = pickaxe.getItemMeta();
         if (picMeta != null) {
             picMeta.spigot().setUnbreakable(true);
@@ -326,8 +332,13 @@ public class HotbarManager implements Listener {
                 else           session.fastForward(10);
                 break;
             case ReplaySession.SLOT_PAUSE_RESUME:
-                session.togglePause();
-                session.updateControlItems();
+                // When replay has ended, the Lime Dye in this slot acts as "restart"
+                if (session.isEnded()) {
+                    session.restart();
+                } else {
+                    session.togglePause();
+                    session.updateControlItems();
+                }
                 break;
             case ReplaySession.SLOT_SPEED:
                 // Finer steps at slow speeds so the viewer can reach 0.05× (1 fps)
@@ -341,9 +352,6 @@ public class HotbarManager implements Listener {
                     session.setPlaybackSpeed(speed + step);
                 }
                 session.updateControlItems();
-                break;
-            case ReplaySession.SLOT_REPLAY_AGAIN:
-                session.restart();
                 break;
             case ReplaySession.SLOT_STOP:
                 plugin.getReplayManager().stopPlayback(player.getUniqueId());
