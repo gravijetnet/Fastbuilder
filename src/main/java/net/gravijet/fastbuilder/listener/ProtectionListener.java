@@ -426,9 +426,19 @@ public class ProtectionListener implements Listener {
             boolean yInBounds = by >= islandMin.getBlockY() - 2
                     && by <= islandMax.getBlockY() + 64;
 
-            // X (build direction): schematic start to schematic end + 10 block buffer
+            // X (build direction): the block must be within 30 blocks of the furthest
+            // already-placed block (or the island's own far X edge if none placed yet).
+            // This means each block extends the reachable zone by up to 30 blocks.
+            int xFrontier = islandMax.getBlockX();
+            RunSession buildSession = plugin.getGameplayManager() != null
+                    ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+            if (buildSession != null) {
+                for (Location pl : buildSession.getPlacedBlocks()) {
+                    if (pl.getBlockX() > xFrontier) xFrontier = pl.getBlockX();
+                }
+            }
             boolean xInBounds = bx >= islandMin.getBlockX()
-                    && bx <= islandMax.getBlockX() + 10;
+                    && bx <= xFrontier + 30;
 
             if (xInBounds && yInBounds && zInBounds) {
                 return true;

@@ -111,6 +111,8 @@ public class GameplayListener implements Listener {
         if (!plugin.getConfigManager().isIslandJumpSwitchEnabled()) return;
 
         java.util.UUID uuid = player.getUniqueId();
+        // Build mode: player is completely untracked — skip all island switching
+        if (gm.isInBuildMode(uuid)) return;
         if (islandHopCooldown.contains(uuid)) return;
         if (session.isResetting()) return;
         if (plugin.getMapManager().hasSetupSession(uuid)) return;
@@ -234,8 +236,8 @@ public class GameplayListener implements Listener {
             // Y adjustment from the Custom Length sub-menu
             int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-            // End island is placed to the -X (west) side of the start island
-            int endX = map.getOriginX() - map.getEndIslandWidth() - customLength;
+            // End island is placed to the +X (east) side of the start island
+            int endX = map.getOriginX() + map.getIslandWidth() + customLength;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
             int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
                     + map.getEndIslandZOffset();

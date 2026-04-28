@@ -42,6 +42,7 @@ messages:
   map-not-found: "%prefix%&cMap &f%map% &cnot found."
   map-disabled: "%prefix%&cMap &f%map% &cis disabled."
   no-free-islands: "%prefix%&cNo free islands available."
+  island-scaling: "%prefix%&cIsland is still being prepared &7— &fplease retry in a moment."
   cannot-build-here: "%prefix%&cYou can only build on your own island."
   teleported-default: "%prefix%&fSent to the default map."
   map-already-on: "%prefix%&cYou are already on this map."

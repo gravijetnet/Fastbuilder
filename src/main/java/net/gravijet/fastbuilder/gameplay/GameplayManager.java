@@ -200,6 +200,17 @@ public class GameplayManager {
             }
         }
 
+        // Enforce max block limit for infinite maps (matches CustomLength's max)
+        MapData infLimitMap = plugin.getMapManager().getMap(session.getMapName());
+        if (infLimitMap != null && infLimitMap.isInfinite()) {
+            int maxBlocks = infLimitMap.getEffectiveMaxCustomLength();
+            if (session.getPlacedBlocks().size() >= maxBlocks) {
+                // Trigger fall/death — player reached the limit
+                onFall(player);
+                return;
+            }
+        }
+
         // Determine if this is a practice block by material
         boolean isPractice = session.isPracticeMode()
                 && block.getTypeId() == PRACTICE_BLOCK_ID
@@ -521,12 +532,14 @@ public class GameplayManager {
         if (session.isResetting()) return;
 
         if (session.isRunning()) {
-            if (plugin.getReplayManager() != null) {
-                plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
-            }
-
             // Only record fall attempts for normal (non-practice, non-infinite, non-custom) maps
             MapData fallMap = plugin.getMapManager().getMap(session.getMapName());
+            if (plugin.getReplayManager() != null) {
+                // Infinite/custom runs: save as successful when blocks were placed so the replay is watchable
+                boolean infiniteOrCustom = fallMap != null && (fallMap.isInfinite() || fallMap.hasCustomLength());
+                boolean saveable = infiniteOrCustom && session.getPlacedBlocks().size() > 0;
+                plugin.getReplayManager().stopRecording(player.getUniqueId(), saveable);
+            }
             boolean fallStatsDisabled = session.isPracticeMode()
                     || (fallMap != null && (fallMap.isInfinite() || fallMap.hasCustomLength()));
             if (!fallStatsDisabled) {
@@ -542,12 +555,13 @@ public class GameplayManager {
                 }
             }
 
-            // Record best infinite distance (blocks placed) on fall for infinite maps
+            // Record best infinite distance (blocks placed) + elapsed time on fall for infinite maps
             if (fallMap != null && fallMap.isInfinite()) {
                 PlayerData infData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (infData != null) {
                     int blockCount = session.getPlacedBlocks().size();
-                    if (blockCount > 0) infData.updateInfiniteDistance(session.getMapName(), blockCount);
+                    long elapsed = session.getElapsed();
+                    if (blockCount > 0) infData.updateInfiniteDistance(session.getMapName(), blockCount, elapsed);
                 }
             }
 
@@ -969,8 +983,8 @@ public class GameplayManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        // End island is placed to the -X (west) side of the start island
-        int endX = map.getOriginX() - map.getEndIslandWidth() - customLength;
+        // End island is placed to the +X (east) side of the start island
+        int endX = map.getOriginX() + map.getIslandWidth() + customLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 

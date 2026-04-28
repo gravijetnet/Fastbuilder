@@ -69,6 +69,9 @@ public class PlayerData {
     // Per-map best infinite-mode distance (blocks placed before dying). Persisted to disk.
     private final Map<String, Integer> infiniteDistances = new HashMap<>();
 
+    // Per-map time (ms) achieved on the best infinite-mode run (same run as the best distance). Persisted.
+    private final Map<String, Long> infiniteDistanceTimes = new HashMap<>();
+
     // Per-map active finish zone override derived from the selected island design profile.
     // Array: {finishMinX, finishMinY, finishMinZ, finishMaxX, finishMaxY, finishMaxZ}
     // Session-only — cleared when the player leaves or resets their design to default.
@@ -137,6 +140,10 @@ public class PlayerData {
         config.set("infinite-distances", null);
         for (Map.Entry<String, Integer> e : infiniteDistances.entrySet()) {
             if (e.getValue() > 0) config.set("infinite-distances." + e.getKey(), e.getValue());
+        }
+        config.set("infinite-distance-times", null);
+        for (Map.Entry<String, Long> e : infiniteDistanceTimes.entrySet()) {
+            if (e.getValue() > 0) config.set("infinite-distance-times." + e.getKey(), e.getValue());
         }
         config.set("purchased-designs",
                 purchasedDesigns.isEmpty() ? null : new java.util.ArrayList<>(purchasedDesigns));
@@ -224,6 +231,13 @@ public class PlayerData {
             for (String key : config.getConfigurationSection("infinite-distances").getKeys(false)) {
                 int v = config.getInt("infinite-distances." + key, 0);
                 if (v > 0) infiniteDistances.put(key, v);
+            }
+        }
+        infiniteDistanceTimes.clear();
+        if (config.isConfigurationSection("infinite-distance-times")) {
+            for (String key : config.getConfigurationSection("infinite-distance-times").getKeys(false)) {
+                long v = config.getLong("infinite-distance-times." + key, 0);
+                if (v > 0) infiniteDistanceTimes.put(key, v);
             }
         }
 
@@ -561,17 +575,25 @@ public class PlayerData {
     }
 
     /**
-     * Updates the player's infinite-mode best distance if {@code distance} is better (higher).
-     * Returns true if a new record was set.
+     * Updates the player's infinite-mode best if {@code distance} beats the current record,
+     * or if distance ties and {@code time} is faster (lower ms). Returns true when a new record is set.
      */
-    public boolean updateInfiniteDistance(String mapName, int distance) {
+    public boolean updateInfiniteDistance(String mapName, int distance, long time) {
         String key = mapName.toLowerCase();
-        int current = infiniteDistances.getOrDefault(key, 0);
-        if (distance > current) {
+        int currentDist = infiniteDistances.getOrDefault(key, 0);
+        long currentTime = infiniteDistanceTimes.getOrDefault(key, Long.MAX_VALUE);
+        if (distance > currentDist || (distance == currentDist && time < currentTime)) {
             infiniteDistances.put(key, distance);
+            infiniteDistanceTimes.put(key, time);
             return true;
         }
         return false;
+    }
+
+    /** Returns the time (ms) of the run that set the best infinite-mode distance, or -1. */
+    public long getInfiniteDistanceTime(String mapName) {
+        Long v = infiniteDistanceTimes.get(mapName.toLowerCase());
+        return v != null ? v : -1L;
     }
 
     public Map<String, Integer> getInfiniteDistances() {

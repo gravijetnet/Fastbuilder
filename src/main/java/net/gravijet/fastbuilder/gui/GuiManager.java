@@ -1991,6 +1991,15 @@ public class GuiManager implements Listener {
             player.closeInventory();
             return;
         }
+        if (plugin.getMapManager().isMapScaling(map.getName())) {
+            String raw = plugin.getConfigManager().getMessage("island-scaling");
+            if (raw != null && !raw.isEmpty()) {
+                raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+                player.sendMessage(ColorUtil.translate(raw));
+            }
+            player.closeInventory();
+            return;
+        }
 
         // Clear placed blocks, end platform, revert design, reset custom length
         if (plugin.getGameplayManager() != null) {
@@ -2781,6 +2790,7 @@ public class GuiManager implements Listener {
                 // Auto-equip on purchase
                 data.setSelectedAnimation(animId);
                 player.closeInventory();
+                if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String aName = slotsSection.getString(configKey + ".name", "Animation");
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased and selected: &c" + aName + " &7(&f" + price + " coins&7)"));
             } else {
@@ -2791,6 +2801,7 @@ public class GuiManager implements Listener {
 
         data.setSelectedAnimation(animId);
         player.closeInventory();
+        if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String aName = slotsSection.getString(configKey + ".name", "Animation");
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected animation: &c" + aName));
     }
@@ -2830,6 +2841,7 @@ public class GuiManager implements Listener {
                 data.purchaseBlock("sound:" + soundId);
                 data.setSelectedDeathSound(soundId);
                 player.closeInventory();
+                if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String sName = slotsSection.getString(configKey + ".name", "Sound");
                 player.sendMessage(ColorUtil.translate(prefix + "&fDeath sound purchased and selected: &c" + sName + " &7(&f" + price + " coins&7)"));
             } else {
@@ -2840,6 +2852,7 @@ public class GuiManager implements Listener {
 
         data.setSelectedDeathSound(soundId);
         player.closeInventory();
+        if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String sName = slotsSection.getString(configKey + ".name", "Sound");
         player.sendMessage(ColorUtil.translate(prefix + "&fSelected death sound: &c" + sName));
     }
@@ -2962,6 +2975,10 @@ public class GuiManager implements Listener {
             case "JUNGLE_FENCE_GATE":
             case "DARK_OAK_FENCE_GATE":
             case "ACACIA_FENCE_GATE":
+            // Thin glass panes (visually broken/physics-aware blocks)
+            case "THIN_GLASS":
+            case "STAINED_GLASS_PANE":
+            case "IRON_FENCE":
                 return true;
             default:
                 return false;

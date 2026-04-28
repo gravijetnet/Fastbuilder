@@ -29,6 +29,8 @@ public class MapManager {
     private final Map<String, MapData> maps = new HashMap<>();
     private final Map<String, List<IslandInstance>> islands = new HashMap<>();
     private final Map<UUID, SetupSession> setupSessions = new HashMap<>();
+    // Maps that are currently being scaled (paste in flight) — joining is blocked while true.
+    private final java.util.Set<String> scalingMaps = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     public MapManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -279,6 +281,11 @@ public class MapManager {
         return list != null ? Collections.unmodifiableList(list) : Collections.<IslandInstance>emptyList();
     }
 
+    /** Returns true if the map is currently being scaled (paste in flight). */
+    public boolean isMapScaling(String mapName) {
+        return scalingMaps.contains(mapName.toLowerCase());
+    }
+
     public int assignFreeIsland(String mapName, UUID playerUuid, String playerName) {
         List<IslandInstance> list = islands.get(mapName.toLowerCase());
         if (list == null) return -1;
@@ -348,16 +355,18 @@ public class MapManager {
         String mapKey = map.getName().toLowerCase();
 
         if (newScale > oldScale) {
+            scalingMaps.add(mapKey);
+            Runnable onScaleDone = () -> scalingMaps.remove(mapKey);
             if (map.isDiagonal()) {
                 plugin.getFawePaster().pasteIslandsDiagonal(
                         map.getWorld(), map.getTemplateFile(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getActualZStep(), map.getDiagonalStepX(), oldScale, newScale, null);
+                        map.getActualZStep(), map.getDiagonalStepX(), oldScale, newScale, onScaleDone);
             } else {
                 plugin.getFawePaster().pasteIslands(
                         map.getWorld(), map.getTemplateFile(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getActualZStep(), oldScale, newScale, null);
+                        map.getActualZStep(), oldScale, newScale, onScaleDone);
             }
 
             List<IslandInstance> list = islands.computeIfAbsent(mapKey, k -> new ArrayList<>());
@@ -518,7 +527,7 @@ public class MapManager {
 
         if (!defaultMap.isEmpty() && !defaultMap.equalsIgnoreCase(excludeMap)) {
             MapData def = getMap(defaultMap);
-            if (def != null && def.isEnabled()) {
+            if (def != null && def.isEnabled() && !isMapScaling(def.getName())) {
                 int island = assignFreeIsland(def.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
                     player.teleport(def.getIslandSpawn(island));
@@ -528,7 +537,7 @@ public class MapManager {
         }
 
         for (MapData m : maps.values()) {
-            if (m.isEnabled() && !m.getName().equalsIgnoreCase(excludeMap)) {
+            if (m.isEnabled() && !m.getName().equalsIgnoreCase(excludeMap) && !isMapScaling(m.getName())) {
                 int island = assignFreeIsland(m.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
                     player.teleport(m.getIslandSpawn(island));
