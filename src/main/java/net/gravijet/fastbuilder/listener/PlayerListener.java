@@ -69,8 +69,17 @@ public class PlayerListener implements Listener {
             player.setGameMode(GameMode.CREATIVE);
             player.setAllowFlight(true);
             player.setFlying(true);
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+
+            // If no maps exist at all, prompt the admin to run /map setup
+            boolean noMapsExist = mm.getAllMaps().isEmpty();
+            if (noMapsExist) {
+                String prefix = plugin.getConfigManager().getPrefix();
+                player.sendMessage(ColorUtil.translate(prefix + "&fNo maps are configured yet."));
+                sendSetupPrompt(player);
+            } else {
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+                        .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+            }
         } else {
             player.kickPlayer(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
                     .replace("%prefix%", plugin.getConfigManager().getPrefix())));
@@ -161,6 +170,28 @@ public class PlayerListener implements Listener {
 
         // Save and unload player data
         plugin.getPlayerManager().unload(player.getUniqueId());
+    }
+
+    private void sendSetupPrompt(Player player) {
+        try {
+            net.md_5.bungee.api.chat.TextComponent line =
+                    new net.md_5.bungee.api.chat.TextComponent(
+                            ColorUtil.translate("&7Click to begin: "));
+            net.md_5.bungee.api.chat.TextComponent btn =
+                    new net.md_5.bungee.api.chat.TextComponent(
+                            ColorUtil.translate("&c[/map setup]"));
+            btn.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                    net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/map setup"));
+            btn.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                    net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                    new net.md_5.bungee.api.chat.BaseComponent[]{
+                            new net.md_5.bungee.api.chat.TextComponent(
+                                    ColorUtil.translate("&7Click to start the map setup wizard"))}));
+            line.addExtra(btn);
+            player.spigot().sendMessage(line);
+        } catch (Exception e) {
+            player.sendMessage(ColorUtil.translate("&7Type &c/map setup &7to create your first map."));
+        }
     }
 
     /**

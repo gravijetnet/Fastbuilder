@@ -309,10 +309,11 @@ public class GameplayManager {
 
             int coins = plugin.getCoinManager().awardCompletionCoins(player, time, session.getMapName());
 
-            // Resolve booster state so we can display it in chat / title
+            // Resolve booster state so we can display it in title
             double boostMult = plugin.getBoosterManager().getMultiplier(player);
             boolean hasBoost = boostMult > 1.01;
-            String boostLabel = hasBoost ? formatMult(boostMult) + "x Booster" : "";
+            // boostLabel used in %booster% placeholder: e.g. "3xx Booster"
+            String boostLabel = hasBoost ? formatMult(boostMult) + " Booster" : "";
             int baseCoins = hasBoost
                     ? plugin.getCoinManager().computeBaseCoins(player.getUniqueId(), time, session.getMapName())
                     : coins;
@@ -343,12 +344,7 @@ public class GameplayManager {
                 }
             }
 
-            // Always show booster breakdown in chat when one was active
-            if (hasBoost) {
-                player.sendMessage(ColorUtil.translate(prefix
-                        + "&c" + formatMult(boostMult) + "x Coin Booster &7active &8\u00bb &f"
-                        + baseCoins + " \u2192 &c" + coins + " &fcoins"));
-            }
+            // Booster display is title-only \u2014 no chat message
 
             String title = plugin.getConfigManager().getTitle();
             String subtitle = plugin.getConfigManager().getSubtitle();
@@ -363,8 +359,8 @@ public class GameplayManager {
                 // Append booster notice to subtitle when no %booster% placeholder was configured
                 if (hasBoost && !subtitle.contains(formatMult(boostMult))) {
                     subtitle = subtitle.isEmpty()
-                            ? "&6" + formatMult(boostMult) + "x Booster active"
-                            : subtitle + " &8| &6" + formatMult(boostMult) + "x";
+                            ? "&6" + formatMult(boostMult) + " Booster active"
+                            : subtitle + " &8| &6" + formatMult(boostMult);
                 }
                 player.sendTitle(ColorUtil.translate(title), ColorUtil.translate(subtitle));
             }
@@ -1718,8 +1714,8 @@ public class GameplayManager {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "x";
-        return String.format("%.1fx", mult);
+        if (mult == Math.floor(mult)) return (int) mult + "xx";
+        return String.format("%.1fxx", mult);
     }
 
     public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }
