@@ -105,9 +105,38 @@ public class GameplayManager {
     private final Map<UUID, Long>    lastFinishTimes  = new HashMap<>();
     private final Map<UUID, Integer> lastFinishBlocks = new HashMap<>();
 
+    private int deathCheckTaskId = -1;
+
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
         startActionbarTask();
+        startDeathCheckTask();
+    }
+
+    /**
+     * Per-tick exact-Y death check for maps with a configured deathY threshold.
+     * PlayerMoveEvent only fires on block changes, causing up to a 1-block lag.
+     * This task checks the player's sub-block Y every tick so death is detected
+     * within 50 ms of crossing the threshold.
+     */
+    private void startDeathCheckTask() {
+        deathCheckTaskId = new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (UUID uuid : new ArrayList<>(activeSessions.keySet())) {
+                    RunSession sess = activeSessions.get(uuid);
+                    if (sess == null || sess.isResetting()) continue;
+                    if (buildModePlayers.contains(uuid)) continue;
+                    Player pl = Bukkit.getPlayer(uuid);
+                    if (pl == null || !pl.isOnline()) continue;
+                    MapData map = plugin.getMapManager().getMap(sess.getMapName());
+                    if (map == null || !map.hasDeathY()) continue;
+                    if (pl.getLocation().getY() < map.getDeathY()) {
+                        onFall(pl);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L).getTaskId();
     }
 
     public RunSession createSession(UUID uuid, String mapName, int islandIndex) {
@@ -395,6 +424,15 @@ public class GameplayManager {
         lastFinishTimes.put(uuid, time);
         lastFinishBlocks.put(uuid, session.getPlacedBlocks().size());
 
+        // Immediately push the actionbar with the rounded finish time so it matches the
+        // title exactly — without this the actionbar would lag 1 tick behind.
+        String abFmt = plugin.getConfigManager().getActionBar();
+        if (abFmt != null && !abFmt.isEmpty()) {
+            String abMsg = abFmt.replace("%time%", TimeUtil.formatTime(time))
+                    .replace("%timer%", TimeUtil.formatTime(time));
+            sendActionBar(player, ColorUtil.translate(abMsg));
+        }
+
         // Massive celebration — full visual fireworks only on a new PB
         launchCelebration(player, player.getLocation(), isNewPB);
 
@@ -517,12 +555,14 @@ public class GameplayManager {
                 }
             }
 
-            // Award consolation coins on failed runs if configured
+            // Award consolation coins on failed runs if configured — shown as title, not chat
             if (plugin.getConfigManager().isCoinsOnFailed()) {
                 int failCoins = plugin.getCoinManager().awardFailedRunCoins(player);
                 if (failCoins > 0) {
-                    String prefix = plugin.getConfigManager().getPrefix();
-                    player.sendMessage(ColorUtil.translate(prefix + "&7+" + failCoins + " coins &8(failed run)"));
+                    player.sendTitle(
+                        ColorUtil.translate("&c&lFailed"),
+                        ColorUtil.translate("&7+" + failCoins + " coin" + (failCoins != 1 ? "s" : ""))
+                    );
                 }
             }
         }
@@ -530,10 +570,10 @@ public class GameplayManager {
         playDeathSound(player);
         // Trigger animation instantly on death (spec requirement)
         startResetAnimation(player);
-        // Finalize on next tick so teleport happens after animation starts
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // Teleport on the very next task slot — minimises post-death fall distance.
+        Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) finalizeReset(player);
-        }, 2L);
+        });
     }
 
     /**
@@ -1170,19 +1210,24 @@ public class GameplayManager {
         } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
             clearBlocksCreativeNpcWithPlayer(player, blocks, practiceBlocks, origStates, isPracticeMode);
         } else {
-            // NONE: fast sequential clear — uses config batch size × 2 for instant feel
-            final int noneBatch = Math.max(1, batchSize * 2);
+            // NONE: flash all blocks as BARRIER for one tick, then restore originals.
+            // The barrier flash gives clear visual feedback that the run was reset.
             List<Location> toClear = new ArrayList<>();
             for (Location loc : blocks) {
                 if (isPracticeMode && practiceBlocks.contains(loc)) continue;
                 toClear.add(loc);
             }
-            final int[] idx = {0};
+            for (Location loc : toClear) {
+                Block block = loc.getBlock();
+                if (block != null && block.getType() != Material.AIR) {
+                    block.setType(Material.BARRIER);
+                }
+            }
             new org.bukkit.scheduler.BukkitRunnable() {
                 @Override
+                @SuppressWarnings("deprecation")
                 public void run() {
-                    for (int i = 0; i < noneBatch && idx[0] < toClear.size(); i++, idx[0]++) {
-                        Location loc = toClear.get(idx[0]);
+                    for (Location loc : toClear) {
                         Block block = loc.getBlock();
                         if (block != null) {
                             String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
@@ -1191,9 +1236,8 @@ public class GameplayManager {
                             else block.setType(Material.AIR);
                         }
                     }
-                    if (idx[0] >= toClear.size()) this.cancel();
                 }
-            }.runTaskTimer(plugin, 0L, 1L);
+            }.runTaskLater(plugin, 1L);
         }
     }
 
@@ -1541,7 +1585,7 @@ public class GameplayManager {
                 String actionBarFormat = plugin.getConfigManager().getActionBar();
                 boolean onlyWhenRunning = plugin.getConfigManager().isActionBarOnlyWhenRunning();
 
-                for (Map.Entry<UUID, RunSession> entry : new HashMap<>(activeSessions).entrySet()) {
+                for (Map.Entry<UUID, RunSession> entry : new ArrayList<>(activeSessions.entrySet())) {
                     Player player = Bukkit.getPlayer(entry.getKey());
                     if (player == null || !player.isOnline()) continue;
 
@@ -1720,6 +1764,7 @@ public class GameplayManager {
 
     public void shutdown() {
         if (actionbarTaskId != -1) Bukkit.getScheduler().cancelTask(actionbarTaskId);
+        if (deathCheckTaskId != -1) Bukkit.getScheduler().cancelTask(deathCheckTaskId);
         clearAllEndPlatforms();
         activeSessions.clear();
         finishCooldown.clear();

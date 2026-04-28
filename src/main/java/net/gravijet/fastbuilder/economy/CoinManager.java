@@ -144,10 +144,10 @@ public class CoinManager {
      * @return the final coins awarded (after booster), or 0 if not configured
      */
     public int awardFailedRunCoins(Player player) {
-        int base = plugin.getConfigManager().getCoinsOnFailedAmount();
-        if (base <= 0) return 0;
+        if (!plugin.getConfigManager().isCoinsOnFailed()) return 0;
+        // Always 1 base coin; booster can push it to 2 (hard cap).
         double boost = plugin.getBoosterManager().getMultiplier(player);
-        int coins = (int) Math.round(base * boost);
+        int coins = Math.min(2, Math.max(1, (int) Math.round(boost)));
         addCoins(player.getUniqueId(), coins);
         return coins;
     }
