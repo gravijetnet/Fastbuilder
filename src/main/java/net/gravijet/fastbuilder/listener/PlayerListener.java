@@ -43,6 +43,13 @@ public class PlayerListener implements Listener {
         if (defaultMapName != null && !defaultMapName.isEmpty()) {
             MapData defMap = mm.getMap(defaultMapName);
             if (defMap != null && defMap.isEnabled()) {
+                if (mm.isMapScaling(defMap.getName())) {
+                    String scalingMsg = plugin.getConfigManager().getMessage("island-scaling");
+                    if (scalingMsg != null && !scalingMsg.isEmpty()) {
+                        player.sendMessage(ColorUtil.translate(scalingMsg.replace("%prefix%", plugin.getConfigManager().getPrefix())));
+                    }
+                    return;
+                }
                 int island = mm.assignFreeIsland(defMap.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
                     finalizeJoin(player, data, mm, defMap, island);
@@ -56,6 +63,7 @@ public class PlayerListener implements Listener {
         for (MapData map : mm.getAllMaps()) {
             if (!map.isEnabled()) continue;
             if (defaultMapName != null && map.getName().equalsIgnoreCase(defaultMapName)) continue; // already tried
+            if (mm.isMapScaling(map.getName())) continue; // skip maps being scaled
             int island = mm.assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
             if (island >= 0) {
                 finalizeJoin(player, data, mm, map, island);

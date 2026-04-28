@@ -171,13 +171,19 @@ public class YamlStorageProvider implements StorageProvider {
     public synchronized java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
             String mapName, int limit) {
 
-        java.util.Map<String, Integer> best = new java.util.LinkedHashMap<>();
+        // Values: long[] { distance, time } — distance desc, time asc on tie
+        java.util.Map<String, long[]> best = new java.util.LinkedHashMap<>();
 
         // Online players first (live cache is authoritative)
         synchronized (liveCache) {
             for (PlayerData pd : liveCache.values()) {
                 int dist = pd.getInfiniteDistance(mapName);
-                if (dist > 0) best.merge(pd.getName(), dist, Math::max);
+                if (dist > 0) {
+                    long t = pd.getInfiniteDistanceTime(mapName);
+                    long[] cur = best.get(pd.getName());
+                    if (cur == null || dist > cur[0] || (dist == cur[0] && t < cur[1]))
+                        best.put(pd.getName(), new long[]{dist, t > 0 ? t : Long.MAX_VALUE});
+                }
             }
         }
 
@@ -195,7 +201,10 @@ public class YamlStorageProvider implements StorageProvider {
                     int dist = cfg.getInt("infinite-distances." + mapName.toLowerCase(), 0);
                     if (dist > 0) {
                         String playerName = cfg.getString("name", fileName);
-                        best.merge(playerName, dist, Math::max);
+                        long t = cfg.getLong("infinite-distance-times." + mapName.toLowerCase(), 0);
+                        long[] cur = best.get(playerName);
+                        if (cur == null || dist > cur[0] || (dist == cur[0] && t > 0 && t < cur[1]))
+                            best.put(playerName, new long[]{dist, t > 0 ? t : Long.MAX_VALUE});
                     }
                 } catch (IllegalArgumentException ignored) {
                 } catch (Exception e) {
@@ -204,9 +213,17 @@ public class YamlStorageProvider implements StorageProvider {
             }
         }
 
-        List<java.util.Map.Entry<String, Integer>> sorted = new ArrayList<>(best.entrySet());
-        sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue())); // descending
-        return sorted.subList(0, Math.min(limit, sorted.size()));
+        List<java.util.Map.Entry<String, long[]>> sorted = new ArrayList<>(best.entrySet());
+        sorted.sort((a, b) -> {
+            int cmp = Long.compare(b.getValue()[0], a.getValue()[0]); // distance desc
+            if (cmp != 0) return cmp;
+            return Long.compare(a.getValue()[1], b.getValue()[1]); // time asc
+        });
+        List<java.util.Map.Entry<String, Integer>> result = new ArrayList<>();
+        for (java.util.Map.Entry<String, long[]> e : sorted.subList(0, Math.min(limit, sorted.size()))) {
+            result.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), (int) e.getValue()[0]));
+        }
+        return result;
     }
 
     @Override

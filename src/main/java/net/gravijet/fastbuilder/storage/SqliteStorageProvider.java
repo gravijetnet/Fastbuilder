@@ -116,6 +116,9 @@ public class SqliteStorageProvider implements StorageProvider {
                     "distance INTEGER NOT NULL," +
                     "PRIMARY KEY (uuid, map_name)" +
                     ")");
+            // Migration: add time column if missing (safe to ignore if already exists)
+            try { stmt.execute("ALTER TABLE player_infinite_distances ADD COLUMN time BIGINT NOT NULL DEFAULT 0"); }
+            catch (Exception ignored) {}
 
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
                     "ON player_map_stats(map_name, best_time)");
@@ -237,10 +240,10 @@ public class SqliteStorageProvider implements StorageProvider {
             }
         }
         try (PreparedStatement ps = connection.prepareStatement(
-                "SELECT map_name, distance FROM player_infinite_distances WHERE uuid = ?")) {
+                "SELECT map_name, distance, time FROM player_infinite_distances WHERE uuid = ?")) {
             ps.setString(1, uuidStr);
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) data.updateInfiniteDistance(rs.getString("map_name"), rs.getInt("distance"));
+                while (rs.next()) data.updateInfiniteDistance(rs.getString("map_name"), rs.getInt("distance"), rs.getLong("time"));
             }
         }
         try (PreparedStatement ps = connection.prepareStatement(
@@ -363,11 +366,13 @@ public class SqliteStorageProvider implements StorageProvider {
 
             // Infinite distances upsert
             try (PreparedStatement ps = connection.prepareStatement(
-                    "INSERT INTO player_infinite_distances (uuid, map_name, distance) VALUES (?,?,?) " +
-                    "ON CONFLICT(uuid, map_name) DO UPDATE SET distance=excluded.distance")) {
+                    "INSERT INTO player_infinite_distances (uuid, map_name, distance, time) VALUES (?,?,?,?) " +
+                    "ON CONFLICT(uuid, map_name) DO UPDATE SET distance=excluded.distance, time=excluded.time")) {
                 for (Map.Entry<String, Integer> e : data.getInfiniteDistances().entrySet()) {
                     if (e.getValue() > 0) {
+                        long t = data.getInfiniteDistanceTime(e.getKey());
                         ps.setString(1, uuidStr); ps.setString(2, e.getKey()); ps.setInt(3, e.getValue());
+                        ps.setLong(4, t > 0 ? t : 0);
                         ps.addBatch();
                     }
                 }
@@ -488,7 +493,7 @@ public class SqliteStorageProvider implements StorageProvider {
                 "FROM player_infinite_distances pid " +
                 "JOIN player_data pd ON pid.uuid = pd.uuid " +
                 "WHERE pid.map_name = ? AND pid.distance > 0 " +
-                "ORDER BY pid.distance DESC LIMIT ?")) {
+                "ORDER BY pid.distance DESC, pid.time ASC LIMIT ?")) {
             ps.setString(1, mapName);
             ps.setInt(2, limit);
             try (ResultSet rs = ps.executeQuery()) {
