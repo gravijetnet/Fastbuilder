@@ -17,6 +17,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -98,6 +99,17 @@ public class ProtectionListener implements Listener {
                     && placed.getBlockZ() == blockLoc.getBlockZ()) {
                 playerPlaced = true;
                 break;
+            }
+        }
+        // Practice blocks persist after death/reset (placedBlocks is cleared but practiceBlocks is not)
+        if (!playerPlaced) {
+            for (Location placed : session.getPracticeBlocks()) {
+                if (placed.getBlockX() == blockLoc.getBlockX()
+                        && placed.getBlockY() == blockLoc.getBlockY()
+                        && placed.getBlockZ() == blockLoc.getBlockZ()) {
+                    playerPlaced = true;
+                    break;
+                }
             }
         }
         if (!playerPlaced) return;
@@ -347,6 +359,37 @@ public class ProtectionListener implements Listener {
         }
         if (plugin.getReplayManager() != null && plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
             event.setCancelled(true);
+        }
+    }
+
+    /**
+     * Cancel all explosions (TNT, creepers, etc.) within any active island region.
+     * This prevents TNT placed at the very end of a run from exploding during/after reset.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityExplode(EntityExplodeEvent event) {
+        Location epicenter = event.getLocation();
+        for (MapData map : plugin.getMapManager().getAllMaps()) {
+            if (!map.isEnabled()) continue;
+            if (!epicenter.getWorld().getName().equals(map.getWorldName())) continue;
+            java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islands =
+                    plugin.getMapManager().getIslands(map.getName());
+            if (islands == null) continue;
+            int maxDist = plugin.getConfigManager().getMaxDistance();
+            for (int i = 0; i < islands.size(); i++) {
+                if (!islands.get(i).isOccupied()) continue;
+                int[] bounds = GridCalculator.getIslandBounds(map, i);
+                // Check if epicenter is within the buildable region of this island
+                if (epicenter.getBlockX() >= bounds[0] - maxDist
+                        && epicenter.getBlockX() <= bounds[3] + 10
+                        && epicenter.getBlockY() >= bounds[1] - 5
+                        && epicenter.getBlockY() <= bounds[4] + 64
+                        && epicenter.getBlockZ() >= bounds[2]
+                        && epicenter.getBlockZ() <= bounds[5]) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
         }
     }
 

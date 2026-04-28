@@ -362,6 +362,10 @@ public class PlayerData {
         notifiedRanks.computeIfAbsent(mapName.toLowerCase(), k -> new HashSet<>()).add(rankName);
     }
 
+    public Map<String, Set<String>> getNotifiedRanks() {
+        return Collections.unmodifiableMap(notifiedRanks);
+    }
+
     // --- Purchased Designs ---
 
     /**
@@ -465,6 +469,11 @@ public class PlayerData {
     public int getSavedCustomLength(String mapName) {
         Integer v = savedCustomLengths.get(mapName.toLowerCase());
         return v != null ? v : 0;
+    }
+
+    /** Returns all saved (persistent) custom lengths as an unmodifiable map. */
+    public Map<String, Integer> getSavedCustomLengthsMap() {
+        return Collections.unmodifiableMap(savedCustomLengths);
     }
 
     /**

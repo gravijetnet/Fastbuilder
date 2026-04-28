@@ -39,8 +39,9 @@ public class MySqlStorageProvider implements StorageProvider {
     private final Connection[] pool    = new Connection[POOL_SIZE];
     private final boolean[]    in_use  = new boolean[POOL_SIZE];
 
-    private final Map<String, long[]> bestTimesCache     = new HashMap<String, long[]>();
-    private final Map<String, Long>   bestTimesCacheTime = new HashMap<String, Long>();
+    private final Map<String, long[]> bestTimesCache     = new java.util.concurrent.ConcurrentHashMap<String, long[]>();
+    private final Map<String, Long>   bestTimesCacheTime = new java.util.concurrent.ConcurrentHashMap<String, Long>();
+    private final java.util.Set<String> refreshing       = java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
 
     public MySqlStorageProvider(FastBuilder plugin) {
         this.plugin   = plugin;
@@ -144,6 +145,24 @@ public class MySqlStorageProvider implements StorageProvider {
 
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
                     "ON player_map_stats(map_name, best_time)");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_booster_inventory (" +
+                    "uuid     VARCHAR(36) NOT NULL," +
+                    "type_id  VARCHAR(64) NOT NULL," +
+                    "quantity INT NOT NULL," +
+                    "PRIMARY KEY (uuid, type_id)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_purchased_designs (" +
+                    "uuid       VARCHAR(36) NOT NULL," +
+                    "design_key VARCHAR(128) NOT NULL," +
+                    "PRIMARY KEY (uuid, design_key)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Schema migrations — catch duplicate-column errors for existing deployments
+            try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_expiry BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
+            try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_multiplier DOUBLE DEFAULT 1.0"); } catch (SQLException ignored) {}
+            try { stmt.execute("ALTER TABLE player_data ADD COLUMN experience INT DEFAULT 0"); } catch (SQLException ignored) {}
         }
 
         plugin.getLogger().info("[MySQL] Database initialised. Connected to " + host + ":" + port + "/" + database);
@@ -265,6 +284,9 @@ public class MySqlStorageProvider implements StorageProvider {
                         data.setAutoRefill(rs.getInt("auto_refill") == 1);
                         data.setInfiniteBlocksUnlocked(rs.getInt("infinite_blocks_unlocked") == 1);
                         data.setInfiniteBlocks(rs.getInt("infinite_blocks") == 1);
+                        try { data.setBoosterExpiry(rs.getLong("booster_expiry")); } catch (SQLException ignored) {}
+                        try { data.setBoosterMultiplier(rs.getDouble("booster_multiplier")); } catch (SQLException ignored) {}
+                        try { data.setExperience(rs.getInt("experience")); } catch (SQLException ignored) {}
                     }
                 }
             }
@@ -326,6 +348,20 @@ public class MySqlStorageProvider implements StorageProvider {
                     while (rs.next()) data.updateInfiniteDistance(rs.getString("map_name"), rs.getInt("distance"));
                 }
             }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT type_id, quantity FROM player_booster_inventory WHERE uuid = ?")) {
+                ps.setString(1, uuidStr);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) data.addBooster(rs.getString("type_id"), rs.getInt("quantity"));
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT design_key FROM player_purchased_designs WHERE uuid = ?")) {
+                ps.setString(1, uuidStr);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) data.purchaseDesign(rs.getString("design_key"));
+                }
+            }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[MySQL] Failed to load player: " + uuid, e);
         }
@@ -343,8 +379,9 @@ public class MySqlStorageProvider implements StorageProvider {
                         "INSERT INTO player_data " +
                                 "(uuid, name, coins, last_map, last_island, selected_block, " +
                                 "selected_pickaxe, selected_animation, selected_death_sound, " +
-                                "one_click_pick, auto_refill, infinite_blocks_unlocked, infinite_blocks) " +
-                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+                                "one_click_pick, auto_refill, infinite_blocks_unlocked, infinite_blocks, " +
+                                "booster_expiry, booster_multiplier, experience) " +
+                                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
                                 "ON DUPLICATE KEY UPDATE " +
                                 "name=VALUES(name), coins=VALUES(coins), " +
                                 "last_map=VALUES(last_map), last_island=VALUES(last_island), " +
@@ -355,7 +392,10 @@ public class MySqlStorageProvider implements StorageProvider {
                                 "one_click_pick=VALUES(one_click_pick), " +
                                 "auto_refill=VALUES(auto_refill), " +
                                 "infinite_blocks_unlocked=VALUES(infinite_blocks_unlocked), " +
-                                "infinite_blocks=VALUES(infinite_blocks)")) {
+                                "infinite_blocks=VALUES(infinite_blocks), " +
+                                "booster_expiry=VALUES(booster_expiry), " +
+                                "booster_multiplier=VALUES(booster_multiplier), " +
+                                "experience=VALUES(experience)")) {
                     ps.setString(1, uuidStr); ps.setString(2, data.getName());
                     ps.setInt(3, data.getCoins()); ps.setString(4, data.getLastMap());
                     ps.setInt(5, data.getLastIsland()); ps.setString(6, data.getSelectedBlock());
@@ -365,6 +405,9 @@ public class MySqlStorageProvider implements StorageProvider {
                     ps.setInt(11, data.hasAutoRefill() ? 1 : 0);
                     ps.setInt(12, data.hasInfiniteBlocksUnlocked() ? 1 : 0);
                     ps.setInt(13, data.hasInfiniteBlocks() ? 1 : 0);
+                    ps.setLong(14, data.getBoosterExpiry());
+                    ps.setDouble(15, data.getBoosterMultiplier());
+                    ps.setInt(16, data.getExperience());
                     ps.executeUpdate();
                 }
                 try (PreparedStatement ps = c.prepareStatement(
@@ -386,6 +429,51 @@ public class MySqlStorageProvider implements StorageProvider {
                 }
                 syncTable(c, uuidStr, "player_purchased_blocks", "block_key", data.getPurchasedBlocks());
                 syncTable(c, uuidStr, "player_favorites", "replay_file", data.getFavoriteReplays());
+                syncTable(c, uuidStr, "player_purchased_designs", "design_key", data.getPurchasedDesigns());
+
+                // Notified ranks
+                try (PreparedStatement del = c.prepareStatement(
+                        "DELETE FROM player_notified_ranks WHERE uuid = ?")) {
+                    del.setString(1, uuidStr); del.executeUpdate();
+                }
+                try (PreparedStatement ins = c.prepareStatement(
+                        "INSERT IGNORE INTO player_notified_ranks (uuid, map_name, rank_name) VALUES (?,?,?)")) {
+                    for (Map.Entry<String, java.util.Set<String>> mapEntry : data.getNotifiedRanks().entrySet()) {
+                        for (String rankName : mapEntry.getValue()) {
+                            ins.setString(1, uuidStr); ins.setString(2, mapEntry.getKey()); ins.setString(3, rankName);
+                            ins.addBatch();
+                        }
+                    }
+                    ins.executeBatch();
+                }
+
+                // Custom lengths (saved, persistent)
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO player_custom_lengths (uuid, map_name, length) VALUES (?,?,?) " +
+                        "ON DUPLICATE KEY UPDATE length=VALUES(length)")) {
+                    for (Map.Entry<String, Integer> e : data.getSavedCustomLengthsMap().entrySet()) {
+                        if (e.getValue() > 0) {
+                            ps.setString(1, uuidStr); ps.setString(2, e.getKey()); ps.setInt(3, e.getValue());
+                            ps.addBatch();
+                        }
+                    }
+                    ps.executeBatch();
+                }
+
+                // Selected designs
+                try (PreparedStatement del = c.prepareStatement(
+                        "DELETE FROM player_selected_designs WHERE uuid = ?")) {
+                    del.setString(1, uuidStr); del.executeUpdate();
+                }
+                try (PreparedStatement ins = c.prepareStatement(
+                        "INSERT IGNORE INTO player_selected_designs (uuid, map_name, template_key) VALUES (?,?,?)")) {
+                    for (Map.Entry<String, String> e : data.getSelectedDesigns().entrySet()) {
+                        ins.setString(1, uuidStr); ins.setString(2, e.getKey()); ins.setString(3, e.getValue());
+                        ins.addBatch();
+                    }
+                    ins.executeBatch();
+                }
+
                 // Infinite distances upsert
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO player_infinite_distances (uuid, map_name, distance) VALUES (?,?,?) " +
@@ -398,6 +486,23 @@ public class MySqlStorageProvider implements StorageProvider {
                     }
                     ps.executeBatch();
                 }
+
+                // Booster inventory
+                try (PreparedStatement del = c.prepareStatement(
+                        "DELETE FROM player_booster_inventory WHERE uuid = ?")) {
+                    del.setString(1, uuidStr); del.executeUpdate();
+                }
+                try (PreparedStatement ins = c.prepareStatement(
+                        "INSERT IGNORE INTO player_booster_inventory (uuid, type_id, quantity) VALUES (?,?,?)")) {
+                    for (Map.Entry<String, Integer> e : data.getBoosterInventory().entrySet()) {
+                        if (e.getValue() > 0) {
+                            ins.setString(1, uuidStr); ins.setString(2, e.getKey()); ins.setInt(3, e.getValue());
+                            ins.addBatch();
+                        }
+                    }
+                    ins.executeBatch();
+                }
+
                 c.commit();
             } catch (SQLException e) {
                 c.rollback();
@@ -431,28 +536,33 @@ public class MySqlStorageProvider implements StorageProvider {
     @Override
     public long[] getGlobalBestTimesForMap(String mapName) {
         Long cacheTime = bestTimesCacheTime.get(mapName);
-        if (cacheTime != null && System.currentTimeMillis() - cacheTime < CACHE_TTL_MS) {
-            long[] cached = bestTimesCache.get(mapName);
-            if (cached != null) return cached;
+        long[] cached = bestTimesCache.get(mapName);
+        boolean expired = cacheTime == null || System.currentTimeMillis() - cacheTime >= CACHE_TTL_MS;
+
+        if (expired && refreshing.add(mapName)) {
+            // Refresh asynchronously — stale cache is returned until the query completes
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                List<Long> times = new ArrayList<Long>();
+                try (Connection c = borrowConnection();
+                     PreparedStatement ps = c.prepareStatement(
+                             "SELECT best_time FROM player_map_stats WHERE map_name = ? AND best_time > 0")) {
+                    ps.setString(1, mapName);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) times.add(rs.getLong("best_time"));
+                    }
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.WARNING, "[MySQL] Failed to query best times for: " + mapName, e);
+                } finally {
+                    refreshing.remove(mapName);
+                }
+                long[] result = new long[times.size()];
+                for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
+                bestTimesCache.put(mapName, result);
+                bestTimesCacheTime.put(mapName, System.currentTimeMillis());
+            });
         }
 
-        List<Long> times = new ArrayList<Long>();
-        try (Connection c = borrowConnection();
-             PreparedStatement ps = c.prepareStatement(
-                     "SELECT best_time FROM player_map_stats WHERE map_name = ? AND best_time > 0")) {
-            ps.setString(1, mapName);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) times.add(rs.getLong("best_time"));
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "[MySQL] Failed to query best times for: " + mapName, e);
-        }
-
-        long[] result = new long[times.size()];
-        for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
-        bestTimesCache.put(mapName, result);
-        bestTimesCacheTime.put(mapName, System.currentTimeMillis());
-        return result;
+        return cached != null ? cached : new long[0];
     }
 
     @Override
