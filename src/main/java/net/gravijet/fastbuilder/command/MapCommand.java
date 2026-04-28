@@ -209,7 +209,8 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         mm.removeSetupSession(player.getUniqueId());
 
         // Setup area is at -1000, 20, -1000 (dedicated build area, not the grid)
-        Location origin = new Location(player.getWorld(), -1000, 20, -1000);
+        // Yaw -90 = facing East (spec requirement)
+        Location origin = new Location(player.getWorld(), -1000, 20, -1000, -90f, 0f);
 
         // Start session and flag modes early
         SetupSession session = mm.startSetupSession(player.getUniqueId(), origin);
@@ -655,6 +656,21 @@ public class MapCommand implements CommandExecutor, TabCompleter {
         }
         if (!map.getAlternativeTemplates().isEmpty()) {
             player.sendMessage(ColorUtil.translate("  &8» &cDesigns: &f" + map.getAlternativeTemplates().size() + " alternative(s)"));
+        }
+        if (map.isDiagonal()) {
+            player.sendMessage(ColorUtil.translate("  &8» &cDiagonal: &fenabled &7(X step: " + map.getDiagonalStepX() + ")"));
+        }
+        if (map.hasDeathY()) {
+            player.sendMessage(ColorUtil.translate("  &8» &cDeath Y: &f" + map.getDeathY()));
+        }
+        if (map.getMinValidTime() > 0) {
+            player.sendMessage(ColorUtil.translate("  &8» &cMin time: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(map.getMinValidTime())));
+        }
+        if (map.getMaxCompletionTime() > 0) {
+            player.sendMessage(ColorUtil.translate("  &8» &cMax time: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(map.getMaxCompletionTime())));
+        }
+        if (map.getPhysicalIslandLength() > 0) {
+            player.sendMessage(ColorUtil.translate("  &8» &cPhysical length: &f" + map.getPhysicalIslandLength() + " blocks"));
         }
         if (map.getDiamondTime() > 0) player.sendMessage(ColorUtil.translate("  &8» &bDiamond: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(map.getDiamondTime())));
         if (map.getGoldTime() > 0)    player.sendMessage(ColorUtil.translate("  &8» &6Gold: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(map.getGoldTime())));

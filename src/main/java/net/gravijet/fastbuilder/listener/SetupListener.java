@@ -287,14 +287,14 @@ public class SetupListener implements Listener {
                 Location p1 = session.getIslandPos1();
                 Location p2 = session.getIslandPos2();
                 if (p1 != null && p2 != null) {
-                    spawnCuboidParticles(player, p1, p2);
+                    spawnCuboidParticles(p1, p2);
                 } else if (p1 != null) {
-                    spawnPointParticle(player, p1);
+                    spawnPointParticle(p1);
                 } else if (p2 != null) {
-                    spawnPointParticle(player, p2);
+                    spawnPointParticle(p2);
                 }
             }
-        }.runTaskTimer(plugin, 0L, 10L).getTaskId();
+        }.runTaskTimer(plugin, 0L, 1L).getTaskId();
         particleTasks.put(player.getUniqueId(), taskId);
     }
 
@@ -305,13 +305,17 @@ public class SetupListener implements Listener {
         }
     }
 
-    private void spawnPointParticle(Player player, Location loc) {
+    private void spawnPointParticle(Location loc) {
         World world = loc.getWorld();
         if (world == null) return;
-        world.playEffect(loc.clone().add(0.5, 0.5, 0.5), Effect.CRIT, 0);
+        world.playEffect(loc.clone().add(0.5, 0.5, 0.5), Effect.SMOKE, 0);
     }
 
-    private void spawnCuboidParticles(Player player, Location p1, Location p2) {
+    /**
+     * Renders the 12 edges of the selection cuboid as a dense blue (SMOKE) line.
+     * Step size 0.25 produces a continuous, non-moving outline.
+     */
+    private void spawnCuboidParticles(Location p1, Location p2) {
         World world = p1.getWorld();
         if (world == null) return;
 
@@ -322,28 +326,29 @@ public class SetupListener implements Listener {
         double maxY = Math.max(p1.getBlockY(), p2.getBlockY()) + 1.0;
         double maxZ = Math.max(p1.getBlockZ(), p2.getBlockZ()) + 1.0;
 
-        double step = 1.0;
+        // Dense step = 0.25 blocks so the line appears continuous with no gaps
+        double step = 0.25;
 
-        // 4 edges along X axis
+        // 4 edges parallel to X axis
         for (double x = minX; x <= maxX; x += step) {
-            world.playEffect(new Location(world, x, minY, minZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, x, maxY, minZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, x, minY, maxZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, x, maxY, maxZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, x, minY, minZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, x, maxY, minZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, x, minY, maxZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, x, maxY, maxZ), Effect.SMOKE, 0);
         }
-        // 4 edges along Y axis
+        // 4 edges parallel to Y axis
         for (double y = minY; y <= maxY; y += step) {
-            world.playEffect(new Location(world, minX, y, minZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, maxX, y, minZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, minX, y, maxZ), Effect.CRIT, 0);
-            world.playEffect(new Location(world, maxX, y, maxZ), Effect.CRIT, 0);
+            world.playEffect(new Location(world, minX, y, minZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, maxX, y, minZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, minX, y, maxZ), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, maxX, y, maxZ), Effect.SMOKE, 0);
         }
-        // 4 edges along Z axis
+        // 4 edges parallel to Z axis
         for (double z = minZ; z <= maxZ; z += step) {
-            world.playEffect(new Location(world, minX, minY, z), Effect.CRIT, 0);
-            world.playEffect(new Location(world, maxX, minY, z), Effect.CRIT, 0);
-            world.playEffect(new Location(world, minX, maxY, z), Effect.CRIT, 0);
-            world.playEffect(new Location(world, maxX, maxY, z), Effect.CRIT, 0);
+            world.playEffect(new Location(world, minX, minY, z), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, maxX, minY, z), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, minX, maxY, z), Effect.SMOKE, 0);
+            world.playEffect(new Location(world, maxX, maxY, z), Effect.SMOKE, 0);
         }
     }
 }

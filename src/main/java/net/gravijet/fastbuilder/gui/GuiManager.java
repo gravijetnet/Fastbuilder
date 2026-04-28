@@ -1080,8 +1080,8 @@ public class GuiManager implements Listener {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "x";
-        return String.format("%.1fx", mult);
+        if (mult == Math.floor(mult)) return (int) mult + "xx";
+        return String.format("%.1fxx", mult);
     }
 
     /** Total number of booster items the player owns across all types. */
@@ -1415,6 +1415,7 @@ public class GuiManager implements Listener {
                 for (String line : loreTemplate) {
                     lore.add(line.replace("%price%", price == 0 ? "Free" : String.valueOf(price)));
                 }
+                if (!owned) lore.add(ColorUtil.translate("&cNot purchased"));
                 if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
                 // Do not add enchant glow to CHEST (Item Drop) — it renders as a broken texture in 1.8.8

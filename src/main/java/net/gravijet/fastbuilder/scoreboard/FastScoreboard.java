@@ -58,7 +58,8 @@ public class FastScoreboard {
     }
 
     private final FastBuilder plugin;
-    private int updateTaskId = -1;
+    private int updateTaskId     = -1;
+    private int tickTaskId       = -1;
     private final boolean papiAvailable;
 
     /** Per-player: the scoreboard object. */
@@ -320,6 +321,7 @@ public class FastScoreboard {
 
     private void startUpdateTask() {
         long interval = plugin.getConfigManager().getScoreboardUpdateInterval();
+        // Standard placeholders (coins, PB, top-N, PAPI) — update at configured interval (default 1 s)
         updateTaskId = new BukkitRunnable() {
             @Override
             public void run() {
@@ -331,6 +333,65 @@ public class FastScoreboard {
                 }
             }
         }.runTaskTimer(plugin, interval, interval).getTaskId();
+
+        // Timer (%current_time%) and block counter (%blocks%) — update every tick
+        tickTaskId = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (plugin.getGameplayManager() == null) return;
+                List<String> configLines = plugin.getConfigManager().getScoreboardLines();
+                // Only run if at least one line uses a fast-changing placeholder
+                boolean hasTimerLine = false;
+                for (String l : configLines) {
+                    if (l.contains("%current_time%") || l.contains("%blocks%")) {
+                        hasTimerLine = true;
+                        break;
+                    }
+                }
+                if (!hasTimerLine) return;
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (!boards.containsKey(player.getUniqueId())) continue;
+                    RunSession session = plugin.getGameplayManager().getSession(player.getUniqueId());
+                    if (session == null || !session.isRunning()) continue;
+                    updateTickLines(player, configLines, session);
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L).getTaskId();
+    }
+
+    /**
+     * Update only the scoreboard lines that contain {@code %current_time%} or {@code %blocks%}.
+     * Called every tick so the timer and block counter stay accurate.
+     */
+    private void updateTickLines(Player player, List<String> configLines, RunSession session) {
+        Scoreboard board = boards.get(player.getUniqueId());
+        if (board == null) return;
+
+        String currentTime = TimeUtil.formatTime(session.getElapsed());
+        String blocks      = String.valueOf(session.getPlacedBlocks().size());
+
+        String[] prev = lastLines.get(player.getUniqueId());
+        if (prev == null) return;
+
+        int lineCount = Math.min(configLines.size(), MAX_LINES);
+        for (int i = 0; i < lineCount && i < prev.length; i++) {
+            String raw = configLines.get(i);
+            if (!raw.contains("%current_time%") && !raw.contains("%blocks%")) continue;
+
+            String rendered = raw
+                    .replace("%current_time%", currentTime)
+                    .replace("%blocks%",       blocks);
+            // Resolve other placeholders already handled by the 1-s task via cached prev values.
+            // For tick lines we only refresh the time/blocks portion; other %ph% tokens stay
+            // frozen between slow updates (acceptable for a fast-moving timer display).
+            rendered = ColorUtil.translate(rendered);
+
+            if (rendered.equals(prev[i])) continue;
+            prev[i] = rendered;
+
+            Team team = getTeam(board, player, i);
+            if (team != null) setTeamLine(team, rendered);
+        }
     }
 
     /** Called on {@code /fb reload} — restarts the update task with a potentially new interval. */
@@ -343,6 +404,10 @@ public class FastScoreboard {
         if (updateTaskId != -1) {
             Bukkit.getScheduler().cancelTask(updateTaskId);
             updateTaskId = -1;
+        }
+        if (tickTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(tickTaskId);
+            tickTaskId = -1;
         }
     }
 }
