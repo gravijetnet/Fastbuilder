@@ -386,17 +386,17 @@ public class SetupSession {
     }
 
     /**
-     * Base custom length = block distance from the easternmost block of the Start-Island
-     * to the westernmost block of the End-Island (east edge → west edge, in +X direction).
+     * Base custom length = block gap from the westernmost block of the Start-Island
+     * to the easternmost block of the End-Island (start west edge → end east edge, in -X direction).
      *
-     * A value of 1 means the end island starts directly adjacent (touching) the start island.
+     * A value of 0 means the islands are directly touching. Positive when end island is west (-X).
      */
     public int getBaseCustomLength() {
         Location islandMin = getIslandMin();
-        Location endMin = getEndIslandMin();
-        if (islandMin == null || endMin == null) return 0;
-        int startEastX = islandMin.getBlockX() + getIslandWidth() - 1; // easternmost block of start island
-        return endMin.getBlockX() - startEastX;
+        Location endMax = getEndIslandMax();
+        if (islandMin == null || endMax == null) return 0;
+        // Gap = start island west edge - end island east edge - 1
+        return islandMin.getBlockX() - endMax.getBlockX() - 1;
     }
 
     /**

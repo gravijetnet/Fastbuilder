@@ -350,7 +350,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     session.advanceToName();
                     player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved! Infinite mode enabled."));
                     player.sendMessage(ColorUtil.translate("&7No finish zone required for infinite maps."));
-                    player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map:"));
+                    player.sendMessage(ColorUtil.translate("&c&lFinal Step: &fName your map using &c/map setup finish <name>&f."));
                     sendClickableFinish(player);
 
                 } else if (isCLMode) {
@@ -374,7 +374,7 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     session.advanceToEndIsland();
                     player.sendMessage(ColorUtil.translate(prefix + "&aHologram location saved!"));
                     player.sendMessage(ColorUtil.translate("&e&lStep 5 (Custom Length): &fSelect your &bEnd Island &7region."));
-                    player.sendMessage(ColorUtil.translate("&7  Build the End Island somewhere to the &c+X &7side of the Start Island."));
+                    player.sendMessage(ColorUtil.translate("&7  Build the End Island somewhere to the &c-X &7(west) side of the Start Island."));
                     player.sendMessage(ColorUtil.translate("&7  &c&lLeft-click &fthe blaze rod to set &bEnd Pos 1 &7(one corner)."));
                     player.sendMessage(ColorUtil.translate("&7  &c&lRight-click &fthe blaze rod to set &bEnd Pos 2 &7(opposite corner)."));
                     sendClickableContinue(player);
@@ -409,13 +409,13 @@ public class MapCommand implements CommandExecutor, TabCompleter {
                     return;
                 }
                 int baseLen = session.getBaseCustomLength();
-                if (baseLen <= 0) {
-                    msg(player, "&cEnd Island must be placed to the &c+X &cside of the Start Island spawn. Base distance is " + baseLen + " — check placement.");
+                if (baseLen < 0) {
+                    msg(player, "&cEnd Island must be placed to the &c-X &7(west) side of the Start Island. Base distance is " + baseLen + " — check placement.");
                     return;
                 }
                 session.finalizeEndIsland();
                 player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island saved! Base distance: &f" + baseLen + " &ablocks."));
-                player.sendMessage(ColorUtil.translate("&e&lFinal Step: &fName your map:"));
+                player.sendMessage(ColorUtil.translate("&c&lFinal Step: &fName your map using &c/map setup finish <name>&f."));
                 sendClickableFinish(player);
                 break;
             }

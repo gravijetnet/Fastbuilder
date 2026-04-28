@@ -2862,9 +2862,9 @@ public class GuiManager implements Listener {
         net.gravijet.fastbuilder.map.MapData map = plugin.getMapManager().getMap(mapName);
         if (map == null) return;
 
-        // Resolve template key from the clicked slot index (items are placed 0-based by template list order)
+        // Resolve template key from the clicked slot index (items are placed 0-based by mode template list order)
         int clickedSlot = event.getSlot();
-        List<String> templates = map.getAllTemplates();
+        List<String> templates = map.getTemplatesForMode();
         if (clickedSlot < 0 || clickedSlot >= templates.size()) return;
         String templateKey = templates.get(clickedSlot);
 
@@ -2918,34 +2918,24 @@ public class GuiManager implements Listener {
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
         if (designSession != null) {
             int islandIdx = designSession.getIslandIndex();
-            final org.bukkit.Location islandMin = map.getIslandMin(islandIdx);
-            final org.bukkit.Location islandMax = map.getIslandMax(islandIdx);
-            final String finalTemplateKey = templateKey;
-            final net.gravijet.fastbuilder.map.MapData finalMap = map;
-
-            // Clear all placed blocks immediately
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
-
-            // Clear the island area and paste the new template
-            plugin.getFawePaster().clearRegion(
-                    map.getWorld(),
-                    islandMin.getBlockX(), islandMin.getBlockY(), islandMin.getBlockZ(),
-                    islandMax.getBlockX(), islandMax.getBlockY(), islandMax.getBlockZ(),
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            plugin.getFawePaster().pasteTemplate(
-                                    finalMap.getWorld(),
-                                    finalTemplateKey,
-                                    islandMin.getBlockX(), islandMin.getBlockY(), islandMin.getBlockZ(),
-                                    null
-                            );
-                        }
-                    }
-            );
-
-            // Reset the session so the run starts fresh
             designSession.reset();
+
+            if (templateKey.equals(map.getTemplateFile())) {
+                // Reverting to default: re-paste default template and clear overrides
+                pData.clearActiveFinishZone(map.getName());
+                plugin.getGameplayManager().revertIslandDesign(map, islandIdx);
+                player.teleport(map.getIslandSpawn(islandIdx));
+                if (plugin.getNpcManager() != null) {
+                    plugin.getNpcManager().despawnNpc(player.getUniqueId());
+                    plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(islandIdx));
+                }
+                if (plugin.getHologramManager() != null)
+                    plugin.getHologramManager().updateHologram(map.getName(), islandIdx, player);
+            } else {
+                // Non-default design: full apply pipeline (paste, teleport, NPC, hologram, finish zone)
+                plugin.getGameplayManager().applyPlayerDesign(player, map, islandIdx);
+            }
             if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         }
 
