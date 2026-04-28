@@ -230,32 +230,46 @@ public class FawePaster {
                 plugin.getLogger().severe("Cannot paste islands: template '" + templateName + "' not found.");
                 return;
             }
-
-            // Combine all island block offsets into one list so placeBlocksBatched
-            // can handle the whole set without stacking runTaskTimer schedulers.
-            final List<BlockEntry> allBlocks = new ArrayList<>(entries.size() * (endIndex - startIndex));
-            for (int i = startIndex; i < endIndex; i++) {
-                int offZ = i * zStep;
-                int offX = i * diagonalStepX;
-                for (BlockEntry e : entries) {
-                    allBlocks.add(new BlockEntry(
-                            (short)(e.relX + offX),
-                            e.relY,
-                            (short)(e.relZ + offZ),
-                            e.blockId,
-                            e.data));
-                }
-            }
-
+            // Queue one island at a time to avoid building a giant block list that causes OOM
+            // on large scales (e.g. 1000 islands × 10k blocks each = 10M+ entries in memory).
             Bukkit.getScheduler().runTask(plugin, () ->
-                placeBlocksBatched(world, allBlocks, originX, originY, originZ, () -> {
-                    activeGenerations.decrementAndGet();
-                    plugin.getLogger().info("Pasted " + (endIndex - startIndex)
-                            + " island(s) for template '" + templateName + "'.");
-                    if (onComplete != null) onComplete.run();
-                })
+                pasteIslandQueue(world, entries, originX, originY, originZ,
+                        zStep, diagonalStepX, startIndex, endIndex,
+                        startIndex, endIndex - startIndex, onComplete)
             );
         });
+    }
+
+    private void pasteIslandQueue(World world, List<BlockEntry> entries,
+                                   int originX, int originY, int originZ,
+                                   int zStep, int diagonalStepX,
+                                   int currentIndex, int endIndex,
+                                   int firstIndex, int totalCount,
+                                   Runnable onComplete) {
+        if (currentIndex >= endIndex) {
+            activeGenerations.decrementAndGet();
+            plugin.getLogger().info("Pasted " + totalCount + " island(s) for the queued template.");
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        int offX = currentIndex * diagonalStepX;
+        int offZ = currentIndex * zStep;
+        List<BlockEntry> islandBlocks = new ArrayList<>(entries.size());
+        for (BlockEntry e : entries) {
+            islandBlocks.add(new BlockEntry(
+                    (short)(e.relX + offX),
+                    e.relY,
+                    (short)(e.relZ + offZ),
+                    e.blockId,
+                    e.data));
+        }
+        placeBlocksBatched(world, islandBlocks, originX, originY, originZ, () ->
+            Bukkit.getScheduler().runTaskLater(plugin, () ->
+                pasteIslandQueue(world, entries, originX, originY, originZ,
+                        zStep, diagonalStepX, currentIndex + 1, endIndex,
+                        firstIndex, totalCount, onComplete),
+                2L)
+        );
     }
 
     /**

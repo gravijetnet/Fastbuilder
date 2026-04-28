@@ -118,16 +118,18 @@ public class GameplayListener implements Listener {
         int step = map.getActualZStep();
         if (step <= 0) return;
 
-        // Player must be within the island's X range
-        int bx = to.getBlockX();
-        if (bx < map.getOriginX() || bx > map.getOriginX() + map.getIslandWidth() - 1) return;
-
         int bz = to.getBlockZ();
         int relZ = bz - map.getOriginZ();
         if (relZ < 0) return;
 
-        int candidateIndex = relZ / step;
         int currentIndex = session.getIslandIndex();
+
+        // Player must be within the current island's X range (account for diagonal offset)
+        int bx = to.getBlockX();
+        int currentMinX = map.getOriginX() + currentIndex * map.getDiagonalStepX();
+        if (bx < currentMinX || bx > currentMinX + map.getIslandWidth() - 1) return;
+
+        int candidateIndex = relZ / step;
         if (candidateIndex == currentIndex) return;
 
         // Only trigger if the player has actually left their current island's Z bounds.
@@ -232,7 +234,8 @@ public class GameplayListener implements Listener {
             // Y adjustment from the Custom Length sub-menu
             int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-            int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
+            // End island is placed to the -X (west) side of the start island
+            int endX = map.getOriginX() - map.getEndIslandWidth() - customLength;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
             int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
                     + map.getEndIslandZOffset();

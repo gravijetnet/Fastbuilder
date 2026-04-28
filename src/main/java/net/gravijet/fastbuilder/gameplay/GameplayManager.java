@@ -787,7 +787,10 @@ public class GameplayManager {
             pData.clearActiveFinishZone(map.getName());
             return;
         }
-        if (!map.getAllTemplates().contains(selectedDesign)) return;
+        // Check all template lists (alternative, custom-length, and infinite)
+        if (!map.getAlternativeTemplates().contains(selectedDesign)
+                && !map.getCustomLengthTemplates().contains(selectedDesign)
+                && !map.getInfiniteTemplates().contains(selectedDesign)) return;
 
         org.bukkit.Location min = map.getIslandMin(islandIndex);
         org.bukkit.Location max = map.getIslandMax(islandIndex);
@@ -806,10 +809,11 @@ public class GameplayManager {
         net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
                 map.getDesignProfile(selectedDesign);
         if (profile != null) {
-            // Teleport player to the design-specific spawn position
+            // Teleport player to the design-specific spawn position (account for diagonal X offset)
+            long diagX = (long) islandIndex * map.getDiagonalStepX();
             org.bukkit.Location profileSpawn = new org.bukkit.Location(
                     map.getWorld(),
-                    map.getOriginX() + profile.spawnOffsetX,
+                    map.getOriginX() + diagX + profile.spawnOffsetX,
                     map.getOriginY() + profile.spawnOffsetY,
                     map.getOriginZ() + (long) islandIndex * map.getActualZStep() + profile.spawnOffsetZ,
                     profile.spawnYaw, profile.spawnPitch
@@ -827,7 +831,6 @@ public class GameplayManager {
 
             // Respawn NPC at the design-profile NPC position if one is recorded
             if (profile.hasNpcPosition() && plugin.getNpcManager() != null) {
-                long diagX = (long) islandIndex * map.getDiagonalStepX();
                 long slotZ = map.getOriginZ() + (long) islandIndex * map.getActualZStep();
                 org.bukkit.Location npcLoc = new org.bukkit.Location(
                         map.getWorld(),
@@ -875,9 +878,10 @@ public class GameplayManager {
                 net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
                         map.getDesignProfile(design);
                 if (profile != null) {
+                    long diagX = (long) islandIndex * map.getDiagonalStepX();
                     return new org.bukkit.Location(
                             map.getWorld(),
-                            map.getOriginX() + profile.spawnOffsetX,
+                            map.getOriginX() + diagX + profile.spawnOffsetX,
                             map.getOriginY() + profile.spawnOffsetY,
                             map.getOriginZ() + (long) islandIndex * map.getActualZStep()
                                     + profile.spawnOffsetZ,
@@ -929,8 +933,8 @@ public class GameplayManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        // endX = east edge of start island + gap to west edge of end island
-        int endX = map.getOriginX() + map.getIslandWidth() - 1 + customLength;
+        // End island is placed to the -X (west) side of the start island
+        int endX = map.getOriginX() - map.getEndIslandWidth() - customLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
