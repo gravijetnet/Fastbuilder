@@ -39,6 +39,9 @@ public class SetupSession {
     private boolean diagonalMode = false;
     private int diagonalStepX = 0;
 
+    // When set, this session is editing an existing map (not creating a new one)
+    private String editingMap = null;
+
     // Map origin (where the admin was teleported)
     private Location setupOrigin;
 
@@ -308,6 +311,9 @@ public class SetupSession {
     public boolean isInfinite() { return infinite; }
     public void setInfinite(boolean infinite) { this.infinite = infinite; }
 
+    public String getEditingMap() { return editingMap; }
+    public void setEditingMap(String mapName) { this.editingMap = mapName; }
+
     public boolean isSpawnFacingEast() {
         if (spawnPoint == null) return false;
         float y = spawnPoint.getYaw();
@@ -386,17 +392,18 @@ public class SetupSession {
     }
 
     /**
-     * Base custom length = block gap from the westernmost block of the Start-Island
-     * to the easternmost block of the End-Island (start west edge → end east edge, in -X direction).
+     * Base custom length = block gap from the east edge of the Start-Island
+     * to the west edge of the End-Island (in +X direction).
      *
-     * A value of 0 means the islands are directly touching. Positive when end island is west (-X).
+     * End island must be placed to the +X (east) side of the start island.
+     * A value of 0 means the islands are directly touching. Positive = gap.
      */
     public int getBaseCustomLength() {
-        Location islandMin = getIslandMin();
-        Location endMax = getEndIslandMax();
-        if (islandMin == null || endMax == null) return 0;
-        // Gap = start island west edge - end island east edge - 1
-        return islandMin.getBlockX() - endMax.getBlockX() - 1;
+        Location islandMax = getIslandMax();
+        Location endMin = getEndIslandMin();
+        if (islandMax == null || endMin == null) return 0;
+        // Gap = end island west edge - start island east edge - 1
+        return endMin.getBlockX() - islandMax.getBlockX() - 1;
     }
 
     /**

@@ -53,8 +53,20 @@ public class NpcManager implements Listener {
         despawnNpc(player.getUniqueId());
 
         Location adjusted = npcLocation.clone();
-        // If the block at the stored location is solid the NPC would spawn inside it.
-        // Move up by one block so it always stands on top of the surface.
+        // Find the highest solid block at this X/Z and stand the NPC 1 block above it.
+        // Walk downward from the stored Y to handle cases where the location was saved
+        // slightly above or below the actual surface.
+        int searchY = adjusted.getBlockY();
+        org.bukkit.World npcWorld = adjusted.getWorld();
+        // Search up to 5 blocks below for a solid surface
+        for (int dy = 0; dy <= 5; dy++) {
+            org.bukkit.block.Block below = npcWorld.getBlockAt(adjusted.getBlockX(), searchY - dy, adjusted.getBlockZ());
+            if (below.getType().isSolid()) {
+                adjusted.setY(searchY - dy + 1);
+                break;
+            }
+        }
+        // If the block AT the location is solid, step up so the NPC isn't inside it
         if (adjusted.getBlock().getType().isSolid()) {
             adjusted.setY(adjusted.getBlockY() + 1);
         }

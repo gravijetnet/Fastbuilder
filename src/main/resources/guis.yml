@@ -1016,65 +1016,65 @@ block-selector-slots:
         - "&ePrice: %price%"
         - "%block_status%"
     21:
-      name: "Cobblestone Wall"
-      material: COBBLE_WALL:0
-      price: 100
+      name: "Command Block"
+      material: COMMAND:0
+      price: 50000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     22:
-      name: "Mossy Cobblestone Wall"
-      material: COBBLE_WALL:1
-      price: 200
+      name: "Chain Command Block"
+      material: COMMAND_CHAIN:0
+      price: 50000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     23:
-      name: "Oak Fence"
-      material: FENCE:0
-      price: 100
+      name: "Repeating Command Block"
+      material: COMMAND_REPEATING:0
+      price: 50000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     24:
-      name: "Nether Brick Fence"
-      material: NETHER_FENCE:0
-      price: 400
+      name: "Structure Block"
+      material: STRUCTURE_BLOCK:0
+      price: 100000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     25:
-      name: "Spruce Fence"
-      material: SPRUCE_FENCE:0
-      price: 100
+      name: "Barrier"
+      material: BARRIER:0
+      price: 100000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     26:
-      name: "Birch Fence"
-      material: BIRCH_FENCE:0
-      price: 100
+      name: "Bedrock"
+      material: BEDROCK:0
+      price: 75000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     27:
-      name: "Jungle Fence"
-      material: JUNGLE_FENCE:0
-      price: 100
+      name: "End Portal Frame"
+      material: ENDER_PORTAL_FRAME:0
+      price: 75000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     28:
-      name: "Acacia Fence"
-      material: ACACIA_FENCE:0
-      price: 100
+      name: "Dragon Egg"
+      material: DRAGON_EGG:0
+      price: 200000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"
     29:
-      name: "Dark Oak Fence"
-      material: DARK_OAK_FENCE:0
-      price: 100
+      name: "Mob Spawner"
+      material: MOB_SPAWNER:0
+      price: 150000
       lore:
         - "&ePrice: %price%"
         - "%block_status%"

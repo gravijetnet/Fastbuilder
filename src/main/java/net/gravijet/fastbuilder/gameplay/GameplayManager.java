@@ -119,6 +119,14 @@ public class GameplayManager {
      * This task checks the player's sub-block Y every tick so death is detected
      * within 50 ms of crossing the threshold.
      */
+    // Players currently mid-island-hop — suppress death check during the switch frame
+    private final Set<UUID> hoppingPlayers = Collections.synchronizedSet(new HashSet<>());
+
+    /** Mark a player as currently hopping (suppress death check). */
+    public void markIslandHopping(UUID uuid) { hoppingPlayers.add(uuid); }
+    /** Unmark after the hop completes. */
+    public void unmarkIslandHopping(UUID uuid) { hoppingPlayers.remove(uuid); }
+
     private void startDeathCheckTask() {
         deathCheckTaskId = new BukkitRunnable() {
             @Override
@@ -127,11 +135,13 @@ public class GameplayManager {
                     RunSession sess = activeSessions.get(uuid);
                     if (sess == null || sess.isResetting()) continue;
                     if (buildModePlayers.contains(uuid)) continue;
+                    if (hoppingPlayers.contains(uuid)) continue;
                     Player pl = Bukkit.getPlayer(uuid);
                     if (pl == null || !pl.isOnline()) continue;
                     MapData map = plugin.getMapManager().getMap(sess.getMapName());
                     if (map == null || !map.hasDeathY()) continue;
-                    if (pl.getLocation().getY() < map.getDeathY()) {
+                    // Detect at deathY+1.8 so the player is reset before visually falling below deathY
+                    if (pl.getLocation().getY() < map.getDeathY() + 1.8) {
                         onFall(pl);
                     }
                 }
@@ -565,12 +575,12 @@ public class GameplayManager {
                 }
             }
 
-            // Award consolation coins on failed runs if configured — shown as title, not chat
-            if (plugin.getConfigManager().isCoinsOnFailed()) {
+            // Award consolation coins on failed runs if configured — only when ≥10 blocks placed
+            if (plugin.getConfigManager().isCoinsOnFailed() && session.getPlacedBlocks().size() > 10) {
                 int failCoins = plugin.getCoinManager().awardFailedRunCoins(player);
                 if (failCoins > 0) {
                     player.sendTitle(
-                        ColorUtil.translate("&c&lFailed"),
+                        ColorUtil.translate(""),
                         ColorUtil.translate("&7+" + failCoins + " coin" + (failCoins != 1 ? "s" : ""))
                     );
                 }
@@ -1728,8 +1738,8 @@ public class GameplayManager {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "xx";
-        return String.format("%.1fxx", mult);
+        if (mult == Math.floor(mult)) return (int) mult + "x";
+        return String.format("%.1fx", mult);
     }
 
     public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }

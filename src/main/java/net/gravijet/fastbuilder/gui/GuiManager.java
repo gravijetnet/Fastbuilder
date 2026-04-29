@@ -146,6 +146,7 @@ public class GuiManager implements Listener {
             ItemStack item;
             int displayNumber = i + 1;
 
+            boolean mapScaling = plugin.getMapManager().isMapScaling(map.getName());
             if (island.isOccupied()) {
                 item = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                 SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
@@ -155,6 +156,13 @@ public class GuiManager implements Listener {
                 lore.add(ColorUtil.translate("&cOccupied"));
                 skullMeta.setLore(lore);
                 item.setItemMeta(skullMeta);
+            } else if (mapScaling) {
+                // Map is scaling — island might not be fully pasted yet
+                item = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
+                        .name("&c#" + displayNumber + " &7— Not ready")
+                        .lore("&7This island is still being prepared.",
+                              "&7Please try again in a moment.")
+                        .build();
             } else {
                 item = new ItemBuilder(Material.SKULL_ITEM, (byte) 3)
                         .name("&a#" + displayNumber)
@@ -1111,13 +1119,18 @@ public class GuiManager implements Listener {
         int size = Math.max(9, Math.min(54, ((rawSize + 8) / 9) * 9));
         Inventory inv = Bukkit.createInventory(null, size, title);
 
+        PlayerData shopPData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+
         if (plugin.getConfigManager().isShopCategoryVisible(player, "blocks")) {
+            int ownedBlocks = shopPData != null ? shopPData.getPurchasedBlockCount() : 0;
+            String blocksStatus = player.hasPermission("fastbuilder.blocks.*")
+                    ? "&aAll unlocked" : (ownedBlocks > 0 ? "&a" + ownedBlocks + " unlocked" : "&7None unlocked");
             inv.setItem(guis.getInt("shop.blocks-slot", 9),
                     buildShopCategoryItem(guis, "shop.items.blocks", "SANDSTONE:0", "&eBlocks",
-                            new String[]{"&7Click to browse building blocks", "", "&aClick to browse"}));
+                            new String[]{"&7Click to browse building blocks", blocksStatus, "", "&aClick to browse"}));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "boosters")) {
-            PlayerData bData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            PlayerData bData = shopPData;
             boolean hasBooster = bData != null && bData.getBoosterExpiry() > System.currentTimeMillis();
             boolean hasOwned   = bData != null && bData.hasAnyBoosters();
             String boosterName = hasBooster ? "&6Boosters &a(Active)" : "&6Boosters";
@@ -1135,19 +1148,28 @@ public class GuiManager implements Listener {
                             boosterName, boosterLore));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "pickaxes")) {
+            boolean ocpUnlocked = player.hasPermission("fastbuilder.cosmetic.oneclickpick")
+                    || (shopPData != null && shopPData.hasOneClickPick());
+            String pickaxeStatus = ocpUnlocked ? "&aOne-Click Pick unlocked" : "&7One-Click Pick locked";
             inv.setItem(guis.getInt("shop.pickaxes-slot", 11),
                     buildShopCategoryItem(guis, "shop.items.pickaxes", "DIAMOND_PICKAXE:0", "&bPickaxe Shop",
-                            new String[]{"&7Click to browse pickaxes and tools", "", "&aClick to browse"}));
+                            new String[]{"&7Click to browse pickaxes and tools", pickaxeStatus, "", "&aClick to browse"}));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "animations")) {
+            int ownedAnims = shopPData != null ? shopPData.getPurchasedAnimationCount() : 0;
+            String animStatus = player.hasPermission("fastbuilder.cosmetic.animations.*")
+                    ? "&aAll unlocked" : (ownedAnims > 0 ? "&a" + ownedAnims + " unlocked" : "&7None unlocked");
             inv.setItem(guis.getInt("shop.animations-slot", 15),
                     buildShopCategoryItem(guis, "shop.items.animations", "FIREWORK:0", "&dReset Animations",
-                            new String[]{"&7Click to browse reset animations", "", "&aClick to browse"}));
+                            new String[]{"&7Click to browse reset animations", animStatus, "", "&aClick to browse"}));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "sounds")) {
+            int ownedSounds = shopPData != null ? shopPData.getPurchasedSoundCount() : 0;
+            String soundStatus = player.hasPermission("fastbuilder.cosmetic.sounds.*")
+                    ? "&aAll unlocked" : (ownedSounds > 0 ? "&a" + ownedSounds + " unlocked" : "&7None unlocked");
             inv.setItem(guis.getInt("shop.death-sounds-slot", 17),
                     buildShopCategoryItem(guis, "shop.items.sounds", "NOTE_BLOCK:0", "&6Death Sounds",
-                            new String[]{"&7Click to browse death sounds", "", "&aClick to browse"}));
+                            new String[]{"&7Click to browse death sounds", soundStatus, "", "&aClick to browse"}));
         }
 
         // Island Designs — always shown (EMERALD_BLOCK in both states, configurable).
@@ -1993,10 +2015,10 @@ public class GuiManager implements Listener {
         }
         if (plugin.getMapManager().isMapScaling(map.getName())) {
             String raw = plugin.getConfigManager().getMessage("island-scaling");
-            if (raw != null && !raw.isEmpty()) {
-                raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-                player.sendMessage(ColorUtil.translate(raw));
-            }
+            if (raw == null || raw.isEmpty())
+                raw = "%prefix%&cThis island is still being prepared. Please try again in a moment.";
+            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
+            player.sendMessage(ColorUtil.translate(raw));
             player.closeInventory();
             return;
         }
@@ -2962,12 +2984,14 @@ public class GuiManager implements Listener {
         String upper = materialString.toUpperCase().split(":")[0];
         switch (upper) {
             case "COBBLESTONE_WALL":
+            case "COBBLE_WALL":
             case "FENCE":
             case "SPRUCE_FENCE":
             case "BIRCH_FENCE":
             case "JUNGLE_FENCE":
             case "DARK_OAK_FENCE":
             case "ACACIA_FENCE":
+            case "NETHER_FENCE":
             case "NETHER_BRICK_FENCE":
             case "FENCE_GATE":
             case "SPRUCE_FENCE_GATE":
@@ -2975,7 +2999,7 @@ public class GuiManager implements Listener {
             case "JUNGLE_FENCE_GATE":
             case "DARK_OAK_FENCE_GATE":
             case "ACACIA_FENCE_GATE":
-            // Thin glass panes (visually broken/physics-aware blocks)
+            // Thin glass panes and iron bars
             case "THIN_GLASS":
             case "STAINED_GLASS_PANE":
             case "IRON_FENCE":
