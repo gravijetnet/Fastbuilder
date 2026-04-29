@@ -616,11 +616,18 @@ public class ReplaySession {
 
     /**
      * Returns true when {@code loc} is further than {@link #REPLAY_BOUNDARY_MARGIN} blocks
-     * outside the replay schematic AABB.  Called every move-event by ProtectionListener.
+     * outside the replay boundary.
+     * For infinite/custom-length replays the X boundary expands to cover every placed block,
+     * so the viewer can follow the run all the way to its end.
      */
     public boolean isOutsideReplayBounds(Location loc) {
+        // Compute dynamic east boundary from furthest placed block (for infinite/CL replays)
+        int dynamicMaxX = replayMaxX;
+        for (Location placed : placedBlocks) {
+            if (placed.getBlockX() > dynamicMaxX) dynamicMaxX = placed.getBlockX();
+        }
         return loc.getX() < replayMinX - REPLAY_BOUNDARY_MARGIN
-            || loc.getX() > replayMaxX + REPLAY_BOUNDARY_MARGIN
+            || loc.getX() > dynamicMaxX + REPLAY_BOUNDARY_MARGIN
             || loc.getY() < replayMinY - REPLAY_BOUNDARY_MARGIN
             || loc.getY() > replayMaxY + REPLAY_BOUNDARY_MARGIN
             || loc.getZ() < replayMinZ - REPLAY_BOUNDARY_MARGIN

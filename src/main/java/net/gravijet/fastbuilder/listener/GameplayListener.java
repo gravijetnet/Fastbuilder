@@ -169,15 +169,26 @@ public class GameplayListener implements Listener {
             return;
         }
 
-        // Perform the island switch
+        // Perform the island switch — teleport immediately so the player never falls
         islandHopCooldown.add(uuid);
+        // Block death-check task during the switch frame so onFall cannot fire mid-hop
+        gm.markIslandHopping(uuid);
+        // Pre-teleport to target spawn before switchIsland clears the old session
+        player.teleport(map.getIslandSpawn(candidateIndex));
         gm.switchIsland(player, map, session, candidateIndex);
-        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> islandHopCooldown.remove(uuid), 40L);
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            islandHopCooldown.remove(uuid);
+            gm.unmarkIslandHopping(uuid);
+        }, 40L);
     }
 
     private void teleportBack(Player player, MapData map, int islandIndex, java.util.UUID uuid) {
         islandHopCooldown.add(uuid);
-        player.teleport(map.getIslandSpawn(islandIndex));
+        GameplayManager gm = plugin.getGameplayManager();
+        Location spawn = (gm != null)
+                ? gm.getEffectiveSpawn(uuid, map, islandIndex)
+                : map.getIslandSpawn(islandIndex);
+        player.teleport(spawn);
         org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> islandHopCooldown.remove(uuid), 20L);
     }
 

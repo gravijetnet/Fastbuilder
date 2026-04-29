@@ -226,8 +226,8 @@ public class MapManager {
         data.setDistance(3);
         data.setScale(1);
         data.setEnabled(false);
-        // Default deathY: 3 blocks below the map's grid origin Y
-        data.setDeathY(gridOrigin.getBlockY() - 3);
+        // Default deathY: 2 blocks below the map's grid origin Y (spawn level)
+        data.setDeathY(gridOrigin.getBlockY() - 2);
         data.setTemplateFile(name.toLowerCase());
 
         maps.put(name.toLowerCase(), data);

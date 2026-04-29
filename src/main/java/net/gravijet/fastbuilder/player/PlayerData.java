@@ -288,6 +288,30 @@ public class PlayerData {
         return purchasedBlocks;
     }
 
+    public int getPurchasedBlockCount() {
+        int count = 0;
+        for (String s : purchasedBlocks) {
+            if (!s.startsWith("anim:") && !s.startsWith("sound:")) count++;
+        }
+        return count;
+    }
+
+    public int getPurchasedAnimationCount() {
+        int count = 0;
+        for (String s : purchasedBlocks) {
+            if (s.startsWith("anim:")) count++;
+        }
+        return count;
+    }
+
+    public int getPurchasedSoundCount() {
+        int count = 0;
+        for (String s : purchasedBlocks) {
+            if (s.startsWith("sound:")) count++;
+        }
+        return count;
+    }
+
     // --- Favorites ---
 
     public boolean isFavoriteReplay(String fileName) {

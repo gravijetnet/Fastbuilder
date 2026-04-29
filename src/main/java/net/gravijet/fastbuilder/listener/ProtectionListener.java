@@ -328,8 +328,8 @@ public class ProtectionListener implements Listener {
         boolean inVoid;
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
-            int absoluteDeathY = mapForVoid.getDeathY();
-            inVoid = to.getY() < absoluteDeathY;
+            // Detect at deathY+1.8 so the player is reset before visually falling below deathY
+            inVoid = to.getY() < mapForVoid.getDeathY() + 1.8;
         } else {
             inVoid = to.getBlockY() < bounds[1] - maxDist;
         }
