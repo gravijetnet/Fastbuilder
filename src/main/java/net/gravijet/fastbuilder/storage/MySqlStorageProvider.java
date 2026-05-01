@@ -185,84 +185,13 @@ public class MySqlStorageProvider implements StorageProvider {
                             }
                         } catch (SQLException ignored) {}
                         in_use[i] = true;
-                        return new PooledConnection(pool[i], i);
+                        return new PooledConnection(pool[i], i, in_use, pool);
                     }
                 }
             }
             try { Thread.sleep(50); } catch (InterruptedException ignored) {}
         }
         throw new SQLException("MySQL connection pool exhausted (timeout after " + POOL_TIMEOUT + " ms)");
-    }
-
-    private class PooledConnection implements Connection {
-        private final Connection delegate;
-        private final int        poolIndex;
-
-        PooledConnection(Connection delegate, int poolIndex) {
-            this.delegate  = delegate;
-            this.poolIndex = poolIndex;
-        }
-
-        @Override
-        public void close() {
-            synchronized (pool) {
-                in_use[poolIndex] = false;
-            }
-        }
-
-        @Override public PreparedStatement prepareStatement(String s) throws SQLException { return delegate.prepareStatement(s); }
-        @Override public Statement createStatement() throws SQLException { return delegate.createStatement(); }
-        @Override public void setAutoCommit(boolean b) throws SQLException { delegate.setAutoCommit(b); }
-        @Override public boolean getAutoCommit() throws SQLException { return delegate.getAutoCommit(); }
-        @Override public void commit() throws SQLException { delegate.commit(); }
-        @Override public void rollback() throws SQLException { delegate.rollback(); }
-        @Override public boolean isClosed() throws SQLException { return delegate.isClosed(); }
-        @Override public boolean isValid(int timeout) throws SQLException { return delegate.isValid(timeout); }
-        @Override public java.sql.DatabaseMetaData getMetaData() throws SQLException { return delegate.getMetaData(); }
-        @Override public <T> T unwrap(Class<T> c) throws SQLException { return delegate.unwrap(c); }
-        @Override public boolean isWrapperFor(Class<?> c) throws SQLException { return delegate.isWrapperFor(c); }
-        @Override public PreparedStatement prepareStatement(String s, int a, int b) throws SQLException { return delegate.prepareStatement(s, a, b); }
-        @Override public PreparedStatement prepareStatement(String s, int a, int b, int c) throws SQLException { return delegate.prepareStatement(s, a, b, c); }
-        @Override public PreparedStatement prepareStatement(String s, int[] c) throws SQLException { return delegate.prepareStatement(s, c); }
-        @Override public PreparedStatement prepareStatement(String s, String[] c) throws SQLException { return delegate.prepareStatement(s, c); }
-        @Override public PreparedStatement prepareStatement(String s, int c) throws SQLException { return delegate.prepareStatement(s, c); }
-        @Override public java.sql.CallableStatement prepareCall(String s) throws SQLException { return delegate.prepareCall(s); }
-        @Override public java.sql.CallableStatement prepareCall(String s, int a, int b) throws SQLException { return delegate.prepareCall(s, a, b); }
-        @Override public java.sql.CallableStatement prepareCall(String s, int a, int b, int c) throws SQLException { return delegate.prepareCall(s, a, b, c); }
-        @Override public String nativeSQL(String s) throws SQLException { return delegate.nativeSQL(s); }
-        @Override public void setReadOnly(boolean b) throws SQLException { delegate.setReadOnly(b); }
-        @Override public boolean isReadOnly() throws SQLException { return delegate.isReadOnly(); }
-        @Override public void setCatalog(String s) throws SQLException { delegate.setCatalog(s); }
-        @Override public String getCatalog() throws SQLException { return delegate.getCatalog(); }
-        @Override public void setTransactionIsolation(int l) throws SQLException { delegate.setTransactionIsolation(l); }
-        @Override public int getTransactionIsolation() throws SQLException { return delegate.getTransactionIsolation(); }
-        @Override public java.sql.SQLWarning getWarnings() throws SQLException { return delegate.getWarnings(); }
-        @Override public void clearWarnings() throws SQLException { delegate.clearWarnings(); }
-        @Override public Statement createStatement(int a, int b) throws SQLException { return delegate.createStatement(a, b); }
-        @Override public Statement createStatement(int a, int b, int c) throws SQLException { return delegate.createStatement(a, b, c); }
-        @Override public java.util.Map<String, Class<?>> getTypeMap() throws SQLException { return delegate.getTypeMap(); }
-        @Override public void setTypeMap(java.util.Map<String, Class<?>> m) throws SQLException { delegate.setTypeMap(m); }
-        @Override public void setHoldability(int h) throws SQLException { delegate.setHoldability(h); }
-        @Override public int getHoldability() throws SQLException { return delegate.getHoldability(); }
-        @Override public java.sql.Savepoint setSavepoint() throws SQLException { return delegate.setSavepoint(); }
-        @Override public java.sql.Savepoint setSavepoint(String s) throws SQLException { return delegate.setSavepoint(s); }
-        @Override public void rollback(java.sql.Savepoint sp) throws SQLException { delegate.rollback(sp); }
-        @Override public void releaseSavepoint(java.sql.Savepoint sp) throws SQLException { delegate.releaseSavepoint(sp); }
-        @Override public java.sql.Clob createClob() throws SQLException { return delegate.createClob(); }
-        @Override public java.sql.Blob createBlob() throws SQLException { return delegate.createBlob(); }
-        @Override public java.sql.NClob createNClob() throws SQLException { return delegate.createNClob(); }
-        @Override public java.sql.SQLXML createSQLXML() throws SQLException { return delegate.createSQLXML(); }
-        @Override public void setClientInfo(String k, String v) throws java.sql.SQLClientInfoException { delegate.setClientInfo(k, v); }
-        @Override public void setClientInfo(java.util.Properties p) throws java.sql.SQLClientInfoException { delegate.setClientInfo(p); }
-        @Override public String getClientInfo(String k) throws SQLException { return delegate.getClientInfo(k); }
-        @Override public java.util.Properties getClientInfo() throws SQLException { return delegate.getClientInfo(); }
-        @Override public java.sql.Array createArrayOf(String t, Object[] e) throws SQLException { return delegate.createArrayOf(t, e); }
-        @Override public java.sql.Struct createStruct(String t, Object[] a) throws SQLException { return delegate.createStruct(t, a); }
-        @Override public void setSchema(String s) throws SQLException { delegate.setSchema(s); }
-        @Override public String getSchema() throws SQLException { return delegate.getSchema(); }
-        @Override public void abort(java.util.concurrent.Executor e) throws SQLException { delegate.abort(e); }
-        @Override public void setNetworkTimeout(java.util.concurrent.Executor e, int ms) throws SQLException { delegate.setNetworkTimeout(e, ms); }
-        @Override public int getNetworkTimeout() throws SQLException { return delegate.getNetworkTimeout(); }
     }
 
     @Override

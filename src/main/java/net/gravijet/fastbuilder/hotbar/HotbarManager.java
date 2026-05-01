@@ -304,7 +304,7 @@ public class HotbarManager implements Listener {
     private void handleReplayOpen(Player player) {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null || data.getLastMap() == null) return;
-        plugin.getGuiManager().openReplaySelector(player, data.getLastMap(), false);
+        plugin.getGuiManager().openReplayGui(player, data.getLastMap(), false);
     }
 
     private void handleIslandSelector(Player player) {
