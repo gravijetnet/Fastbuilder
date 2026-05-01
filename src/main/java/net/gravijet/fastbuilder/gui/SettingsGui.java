@@ -112,11 +112,17 @@ public class SettingsGui {
 
         inv.setItem(11, new ItemBuilder(Material.STICK)
                 .name("&eX &7— Distance")
-                .lore("&7Click to adjust distance")
+                .lore("&7Left-click: &f+1 block further",
+                      "&7Shift+Left: &f+10 blocks further",
+                      "&7Right-click: &f-1 block closer",
+                      "&7Shift+Right: &f-10 blocks closer")
                 .build());
         inv.setItem(13, new ItemBuilder(Material.BLAZE_ROD)
                 .name("&eY &7— Height Offset")
-                .lore("&7Click to adjust height")
+                .lore("&7Left-click: &f+1 block higher",
+                      "&7Shift+Left: &f+10 blocks higher",
+                      "&7Right-click: &f-1 block lower",
+                      "&7Shift+Right: &f-10 blocks lower")
                 .build());
         inv.setItem(15, new ItemBuilder(Material.BEDROCK)
                 .name("&cReset to Default")
@@ -298,10 +304,10 @@ public class SettingsGui {
         }
 
         int delta;
-        if (click == ClickType.LEFT) delta = 10;
-        else if (click == ClickType.SHIFT_LEFT) delta = 1;
-        else if (click == ClickType.RIGHT) delta = -10;
-        else if (click == ClickType.SHIFT_RIGHT) delta = -1;
+        if (click == ClickType.LEFT) delta = 1;
+        else if (click == ClickType.SHIFT_LEFT) delta = 10;
+        else if (click == ClickType.RIGHT) delta = -1;
+        else if (click == ClickType.SHIFT_RIGHT) delta = -10;
         else return;
 
         if (slot == 11) {

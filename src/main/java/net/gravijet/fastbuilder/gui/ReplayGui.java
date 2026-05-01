@@ -45,6 +45,23 @@ public class ReplayGui {
 
         List<ReplayData> allReplays = plugin.getReplayManager().getPlayerReplays(player.getUniqueId(), mapName);
 
+        // Filter replays to match the player's current mode (custom length vs normal)
+        net.gravijet.fastbuilder.gameplay.RunSession currentSession = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        boolean playerInCustomLength = false;
+        if (currentSession != null) {
+            net.gravijet.fastbuilder.map.MapData curMap = plugin.getMapManager().getMap(currentSession.getMapName());
+            if (curMap != null && curMap.hasCustomLength()) {
+                net.gravijet.fastbuilder.player.PlayerData pd =
+                        plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                playerInCustomLength = pd != null && pd.isCustomLengthEnabled(currentSession.getMapName());
+            }
+        }
+        final boolean inCL = playerInCustomLength;
+        allReplays = allReplays.stream()
+                .filter(r -> inCL ? r.getCustomLength() > 0 : r.getCustomLength() == 0)
+                .collect(java.util.stream.Collectors.toList());
+
         List<ReplayData> replays;
         if (showFavorites) {
             PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
@@ -133,6 +150,8 @@ public class ReplayGui {
             loreList.add(ColorUtil.translate(status));
             loreList.add(ColorUtil.translate("&7Time: &f" + time));
             loreList.add(ColorUtil.translate("&7Map: &f" + replay.getMapName()));
+            if (replay.getCustomLength() > 0)
+                loreList.add(ColorUtil.translate("&7Distance: &f" + replay.getCustomLength() + " blocks"));
             if (!pbLine.isEmpty()) loreList.add(ColorUtil.translate(pbLine));
             loreList.add("");
             loreList.add(ColorUtil.translate("&eLeft-click to watch"));

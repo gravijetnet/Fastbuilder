@@ -311,6 +311,11 @@ class MapSetupHandler {
         map.setTemplateFile(name.toLowerCase());
         if (session.isInfinite()) map.setInfinite(true);
 
+        // Default deathY = 2 blocks below the spawn point (the island floor level)
+        if (session.getSpawnPoint() != null && !map.hasDeathY()) {
+            map.setDeathY((int) Math.floor(session.getSpawnPoint().getY()) - 2);
+        }
+
         if (!session.isInfinite() && plugin.getFawePaster() != null) {
             int physLen = computePhysicalIslandLength(name.toLowerCase());
             if (physLen > 0) map.setPhysicalIslandLength(physLen);
@@ -364,9 +369,15 @@ class MapSetupHandler {
 
         mm.removeSetupSession(player.getUniqueId());
 
+        player.setGameMode(GameMode.CREATIVE);
+        player.setAllowFlight(true);
+        player.getInventory().clear();
+
         String raw = plugin.getConfigManager().getAdminMessage("setup-complete");
         raw = raw.replace("%map%", name).replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
+                + "&7You remain in creative — use &c/fb leavemap &7or &c/fb join <map> &7to continue."));
 
         msg.sendPostCreationHints(player, name);
     }
@@ -378,12 +389,10 @@ class MapSetupHandler {
             return;
         }
         mm.removeSetupSession(player.getUniqueId());
-        player.setGameMode(GameMode.SURVIVAL);
-        player.setAllowFlight(false);
-        player.setFlying(false);
+        player.setGameMode(GameMode.CREATIVE);
+        player.setAllowFlight(true);
         player.getInventory().clear();
-        msg.msg(player, prefix + "&cSetup cancelled.");
-        mm.relocatePlayer(player, "");
+        msg.msg(player, prefix + "&cSetup cancelled. You remain in creative — use /fb leavemap or /fb join <map> to continue.");
     }
 
     void handleEdit(Player player, String[] args, MapManager mm) {

@@ -115,12 +115,14 @@ public class ProtectionListener implements Listener {
         if (!playerPlaced) return;
 
         // Instantly break the block: cancel the damage event (no crack animation),
-        // play the break effect, then set the block to its original state.
+        // play the break effect, restore the original block, and return the placed block to inventory.
         event.setCancelled(true);
 
         org.bukkit.block.Block block = event.getBlock();
+        int brokenTypeId = block.getTypeId();
+        byte brokenData  = block.getData();
         try {
-            block.getWorld().playEffect(blockLoc, org.bukkit.Effect.STEP_SOUND, block.getTypeId());
+            block.getWorld().playEffect(blockLoc, org.bukkit.Effect.STEP_SOUND, brokenTypeId);
         } catch (Exception ignored) {}
 
         String key = blockLoc.getBlockX() + "," + blockLoc.getBlockY() + "," + blockLoc.getBlockZ();
@@ -130,6 +132,16 @@ public class ProtectionListener implements Listener {
         } else {
             block.setType(org.bukkit.Material.AIR);
         }
+
+        // Return the broken block to the player's inventory immediately
+        @SuppressWarnings("deprecation")
+        org.bukkit.material.MaterialData md = new org.bukkit.material.MaterialData(brokenTypeId, brokenData);
+        org.bukkit.Material mat = md.getItemType();
+        if (mat != null && mat != org.bukkit.Material.AIR) {
+            org.bukkit.inventory.ItemStack ret = new org.bukkit.inventory.ItemStack(mat, 1, (short) 0, brokenData);
+            player.getInventory().addItem(ret);
+        }
+
         // Remove from session tracking so it doesn't get cleared again on reset
         session.getPlacedBlocks().removeIf(loc ->
                 loc.getBlockX() == blockLoc.getBlockX()
