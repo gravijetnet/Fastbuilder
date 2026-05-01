@@ -6,15 +6,10 @@ import net.gravijet.fastbuilder.player.PlayerData;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import net.gravijet.fastbuilder.util.TimeUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.Color;
-import org.bukkit.FireworkEffect;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
@@ -24,7 +19,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,18 +35,14 @@ public class GameplayManager {
 
     private int actionbarTaskId = -1;
 
-    // Legacy end-platform: simple row of glass panes (used when map.hasEndIsland() == false)
-    private final Map<UUID, List<Location>> endPlatforms = new HashMap<>();
-    private final Map<UUID, Map<String, int[]>> endPlatformOrigStates = new HashMap<>();
-
-    // New end-island system: stores the placed region for each player {x, y, z, w, h, l}
-    private final Map<UUID, int[]> endIslandRegions = new HashMap<>();
+    private final BlockAnimator blockAnimator;
+    private final EndPlatformManager endPlatformManager;
+    private final FinishCelebration finishCelebration;
 
     private final java.util.Set<UUID> finishCooldown = new java.util.HashSet<>();
     private final java.util.Set<UUID> buildModePlayers = new java.util.HashSet<>();
 
     // Islands currently being reset — key format: "mapName:islandIndex"
-    // Blocks placements on these islands are rejected until reset finishes.
     private final Set<String> resettingIslands = Collections.synchronizedSet(new HashSet<>());
 
     // -------------------------------------------------------------------------
@@ -92,9 +82,6 @@ public class GameplayManager {
         DEATH_SOUNDS.put("Chicken",        "CHICKEN_IDLE");   // chicken cluck        ~0.3s
     }
 
-    // Entity UUIDs of FallingBlocks spawned by animations — used to cancel their landing
-    private final java.util.Set<UUID> animationEntities = new java.util.HashSet<>();
-
     // Global session bests: per-player best time this session (unique per player)
     private final java.util.LinkedHashMap<String, Long> globalSessionBests = new java.util.LinkedHashMap<>();
     // Kept for backward compat
@@ -109,6 +96,9 @@ public class GameplayManager {
 
     public GameplayManager(FastBuilder plugin) {
         this.plugin = plugin;
+        this.blockAnimator = new BlockAnimator(plugin);
+        this.endPlatformManager = new EndPlatformManager(plugin, activeSessions);
+        this.finishCelebration = new FinishCelebration(plugin);
         startActionbarTask();
         startDeathCheckTask();
     }
@@ -451,7 +441,7 @@ public class GameplayManager {
         }
 
         // Massive celebration — full visual fireworks only on a new PB
-        launchCelebration(player, player.getLocation(), isNewPB);
+        finishCelebration.launch(player, player.getLocation(), isNewPB);
 
         plugin.getScoreboardManager().updateScoreboard(player);
 
@@ -466,68 +456,6 @@ public class GameplayManager {
                 if (player.isOnline()) finalizeReset(player);
             }
         }.runTaskLater(plugin, 40L);
-    }
-
-    /**
-     * Launch a finish celebration.
-     * On a new PB: spawn full firework entities visible to the whole server.
-     * On a normal finish: play firework sounds only for the finishing player.
-     */
-    private void launchCelebration(final Player player, final Location location, final boolean isPB) {
-        final Random rand = new Random();
-
-        for (int wave = 0; wave < 8; wave++) {
-            final int delay = wave * 7; // ~0.35s between waves
-            Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
-                @Override
-                public void run() {
-                    if (isPB) {
-                        // Full entity-based fireworks — server-wide visual + audio
-                        spawnFirework(location, rand);
-                        Location off1 = location.clone().add(
-                                (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
-                        Location off2 = location.clone().add(
-                                (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);
-                        spawnFirework(off1, rand);
-                        spawnFirework(off2, rand);
-                    } else {
-                        // Sound-only for the finishing player (no visual entity)
-                        if (!player.isOnline()) return;
-                        try {
-                            player.playSound(location,
-                                    org.bukkit.Sound.valueOf("FIREWORK_LAUNCH"), 1.0f, 1.0f);
-                            player.playSound(location,
-                                    org.bukkit.Sound.valueOf("FIREWORK_BLAST"), 1.0f, 1.0f);
-                        } catch (IllegalArgumentException ignored) {}
-                    }
-                }
-            }, delay);
-        }
-    }
-
-    private void spawnFirework(Location location, Random rand) {
-        try {
-            Firework fw = location.getWorld().spawn(location, Firework.class);
-            FireworkMeta meta = fw.getFireworkMeta();
-            Color[] colors = {Color.RED, Color.ORANGE, Color.YELLOW, Color.GREEN, Color.AQUA, Color.BLUE, Color.PURPLE, Color.WHITE};
-            Color primary = colors[rand.nextInt(colors.length)];
-            Color fade = colors[rand.nextInt(colors.length)];
-            FireworkEffect.Type[] types = {
-                FireworkEffect.Type.BALL_LARGE,
-                FireworkEffect.Type.BALL,
-                FireworkEffect.Type.STAR,
-                FireworkEffect.Type.BURST
-            };
-            meta.addEffect(FireworkEffect.builder()
-                    .withColor(primary, Color.WHITE)
-                    .withFade(fade)
-                    .with(types[rand.nextInt(types.length)])
-                    .flicker(true)
-                    .trail(true)
-                    .build());
-            meta.setPower(1 + rand.nextInt(2));
-            fw.setFireworkMeta(meta);
-        } catch (Exception ignored) {}
     }
 
     /**
@@ -639,7 +567,7 @@ public class GameplayManager {
         Map<String, int[]> origStatesCopy = new HashMap<>(session.getOriginalBlockStates());
         boolean practice = session.isPracticeMode();
 
-        clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
+        blockAnimator.clearBlocksWithAnimation(player, blocksCopy, practiceBlocksCopy, origStatesCopy, practice, animation);
     }
 
     /**
@@ -967,167 +895,19 @@ public class GameplayManager {
      * </ul>
      */
     public void placeEndPlatform(Player player, MapData map, RunSession session, int customLength) {
-        UUID uuid = player.getUniqueId();
-        clearEndPlatform(uuid);
-
-        if (customLength <= 0 || !map.hasCustomLength()) return;
-
-        // Clamp to effective bounds
-        customLength = Math.max(map.getEffectiveMinCustomLength(),
-                Math.min(map.getEffectiveMaxCustomLength(), customLength));
-
-        if (map.hasEndIsland()) {
-            placeEndIslandTemplate(uuid, map, session.getIslandIndex(), customLength);
-        } else {
-            placeEndPlatformLegacy(uuid, map, session, customLength);
-        }
+        endPlatformManager.placeEndPlatform(player, map, session, customLength);
     }
 
-    /** New system: paste the end-island template at the computed position. */
-    private void placeEndIslandTemplate(UUID uuid, MapData map, int islandIndex, int customLength) {
-        org.bukkit.World world = map.getWorld();
-        if (world == null) return;
-
-        // Apply per-player Y offset (set via the Custom Length sub-menu)
-        net.gravijet.fastbuilder.player.PlayerData pData =
-                plugin.getPlayerManager().getCachedData(uuid);
-        int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
-
-        // End island is placed to the +X (east) side of the start island
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength;
-        int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
-        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
-
-        // Record the region so we can clear it later
-        endIslandRegions.put(uuid, new int[]{
-            endX, endY, endZ,
-            map.getEndIslandWidth(), map.getEndIslandHeight(), map.getEndIslandLength()
-        });
-
-        // Clear the target area first, then paste the template into it.
-        // Also force-load all chunks between start and end island so spectators and
-        // late-joining players can see the destination regardless of view distance.
-        int clearMaxX = endX + map.getEndIslandWidth()  - 1;
-        int clearMaxY = endY + map.getEndIslandHeight() - 1;
-        int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
-        forceLoadChunkCorridor(world,
-                map.getOriginX(), endY, map.getOriginZ() + islandIndex * map.getActualZStep(),
-                clearMaxX, clearMaxY, clearMaxZ);
-        plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
-            plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
-        );
-    }
-
-    /** Legacy system: a thin row of glass-pane blocks. */
-    @SuppressWarnings("deprecation")
-    private void placeEndPlatformLegacy(UUID uuid, MapData map, RunSession session, int customLength) {
-        int platformX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
-        int platformY = map.getOriginY() + map.getFinishMinY();
-        int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getActualZStep();
-        int minZ = islandBaseZ + map.getFinishMinZ();
-        int maxZ = islandBaseZ + map.getFinishMaxZ();
-
-        int configDepth = plugin.getConfigManager().getEndPlatformDepth();
-        if (configDepth > 0 && (maxZ - minZ + 1) > configDepth) {
-            int zCenter = (minZ + maxZ) / 2;
-            minZ = zCenter - configDepth / 2;
-            maxZ = minZ + configDepth - 1;
-        }
-
-        String matStr = plugin.getConfigManager().getEndPlatformMaterial();
-        Material mat;
-        byte matData = 0;
-        try {
-            if (matStr.contains(":")) {
-                String[] parts = matStr.split(":");
-                mat = Material.getMaterial(parts[0].toUpperCase());
-                matData = (byte) Integer.parseInt(parts[1]);
-            } else {
-                mat = Material.getMaterial(matStr.toUpperCase());
-            }
-            if (mat == null || mat == Material.AIR) throw new IllegalArgumentException("bad material");
-        } catch (Exception e) {
-            mat = Material.STAINED_GLASS_PANE;
-            matData = 5;
-        }
-
-        org.bukkit.World world = map.getWorld();
-        if (world == null) return;
-
-        List<Location> platform = new ArrayList<>();
-        Map<String, int[]> origStates = new HashMap<>();
-        for (int z = minZ; z <= maxZ; z++) {
-            Location loc = new Location(world, platformX, platformY, z);
-            org.bukkit.block.Block block = loc.getBlock();
-            String key = platformX + "," + platformY + "," + z;
-            origStates.put(key, new int[]{block.getTypeId(), block.getData()});
-            block.setTypeIdAndData(mat.getId(), matData, false);
-            platform.add(loc);
-        }
-        endPlatforms.put(uuid, platform);
-        endPlatformOrigStates.put(uuid, origStates);
-    }
-
-    /**
-     * Remove the end-island / end-platform for a player.
-     * Handles both the new end-island template system and the legacy glass-pane platform.
-     */
     public void clearEndPlatform(UUID uuid) {
-        // New end-island template system
-        int[] region = endIslandRegions.remove(uuid);
-        if (region != null) {
-            // Find the map for this player to get the world
-            RunSession sess = activeSessions.get(uuid);
-            if (sess != null) {
-                net.gravijet.fastbuilder.map.MapData m =
-                        plugin.getMapManager().getMap(sess.getMapName());
-                if (m != null && m.getWorld() != null) {
-                    plugin.getFawePaster().clearRegion(
-                            m.getWorld(),
-                            region[0], region[1], region[2],
-                            region[0] + region[3] - 1,
-                            region[1] + region[4] - 1,
-                            region[2] + region[5] - 1,
-                            null);
-                }
-            }
-        }
-
-        // Legacy end-platform (glass pane rows)
-        @SuppressWarnings("deprecation")
-        List<Location> platform = endPlatforms.remove(uuid);
-        Map<String, int[]> origStates = endPlatformOrigStates.remove(uuid);
-        if (platform != null) {
-            for (Location loc : platform) {
-                String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                int[] orig = origStates != null ? origStates.get(key) : null;
-                org.bukkit.block.Block block = loc.getBlock();
-                if (orig != null && orig[0] != 0) {
-                    //noinspection deprecation
-                    block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                } else {
-                    block.setType(Material.AIR);
-                }
-            }
-        }
+        endPlatformManager.clearEndPlatform(uuid);
     }
 
-    /** Remove all active end platforms/islands (called on plugin disable). */
     public void clearAllEndPlatforms() {
-        for (UUID uuid : new ArrayList<>(endPlatforms.keySet())) {
-            clearEndPlatform(uuid);
-        }
-        for (UUID uuid : new ArrayList<>(endIslandRegions.keySet())) {
-            clearEndPlatform(uuid);
-        }
+        endPlatformManager.clearAllEndPlatforms();
     }
 
-    /**
-     * Returns the current end-island position for a player, or null if none.
-     * Returns {endX, endY, endZ, endWidth, endHeight, endLength}.
-     */
     public int[] getEndIslandRegion(UUID uuid) {
-        return endIslandRegions.get(uuid);
+        return endPlatformManager.getEndIslandRegion(uuid);
     }
 
     /**
@@ -1164,405 +944,12 @@ public class GameplayManager {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private void clearBlocksWithAnimation(final Player player, List<Location> blocks,
-                                           List<Location> practiceBlocks,
-                                           Map<String, int[]> origStates,
-                                           boolean isPracticeMode, String animation) {
-        // Read animation speed from config (default: 3 blocks/tick, every 1 tick)
-        final int batchSize  = plugin.getConfigManager().getAnimationBlocksPerTick();
-        final long tickDelay = plugin.getConfigManager().getAnimationTickInterval();
-
-        if ("FALL_DOWN".equalsIgnoreCase(animation) || "SLIDE_DOWN".equalsIgnoreCase(animation)) {
-            // Sequential top-to-bottom falling blocks
-            List<Location> toClear = new ArrayList<>();
-            for (Location loc : blocks) {
-                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-                toClear.add(loc);
-            }
-            toClear.sort((a, b) -> b.getBlockY() - a.getBlockY());
-            final int[] idx = {0};
-            new org.bukkit.scheduler.BukkitRunnable() {
-                @Override
-                public void run() {
-                    for (int i = 0; i < batchSize && idx[0] < toClear.size(); i++, idx[0]++) {
-                        Location loc = toClear.get(idx[0]);
-                        Block block = loc.getBlock();
-                        if (block != null && block.getType() != Material.AIR) {
-                            int typeId = block.getTypeId();
-                            byte data = block.getData();
-                            spawnAnimationFallingBlock(loc, typeId, data,
-                                    new org.bukkit.util.Vector(
-                                            0.0,
-                                            -0.1 - Math.random() * 0.25,
-                                            0.0), null);
-                            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                            int[] orig = origStates.get(key);
-                            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                            else block.setType(Material.AIR);
-                        }
-                    }
-                    if (idx[0] >= toClear.size()) this.cancel();
-                }
-            }.runTaskTimer(plugin, 0L, tickDelay);
-        } else if ("EXPLODE".equalsIgnoreCase(animation)) {
-            for (Location loc : blocks) {
-                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-                Block block = loc.getBlock();
-                if (block != null && block.getType() != Material.AIR) {
-                    int typeId = block.getTypeId();
-                    byte data = block.getData();
-                    double vx = (Math.random() - 0.5) * 1.0;
-                    double vy = 0.3 + Math.random() * 0.6;
-                    double vz = (Math.random() - 0.5) * 1.0;
-                    spawnAnimationFallingBlock(loc, typeId, data,
-                            new org.bukkit.util.Vector(vx, vy, vz), player.getUniqueId());
-                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                    int[] orig = origStates.get(key);
-                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                    else block.setType(Material.AIR);
-                }
-            }
-        } else if ("ITEM_DROP".equalsIgnoreCase(animation)) {
-            clearBlocksItemDrop(blocks, practiceBlocks, origStates, isPracticeMode);
-        } else if ("ICE_MELT".equalsIgnoreCase(animation)) {
-            clearBlocksIceMelt(blocks, practiceBlocks, origStates, isPracticeMode);
-        } else if ("CREATIVE_NPC".equalsIgnoreCase(animation)) {
-            clearBlocksCreativeNpcWithPlayer(player, blocks, practiceBlocks, origStates, isPracticeMode);
-        } else {
-            // NONE: flash all blocks as BARRIER for one tick, then restore originals.
-            // The barrier flash gives clear visual feedback that the run was reset.
-            List<Location> toClear = new ArrayList<>();
-            for (Location loc : blocks) {
-                if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-                toClear.add(loc);
-            }
-            for (Location loc : toClear) {
-                Block block = loc.getBlock();
-                if (block != null && block.getType() != Material.AIR) {
-                    block.setType(Material.BARRIER);
-                }
-            }
-            new org.bukkit.scheduler.BukkitRunnable() {
-                @Override
-                @SuppressWarnings("deprecation")
-                public void run() {
-                    for (Location loc : toClear) {
-                        Block block = loc.getBlock();
-                        if (block != null) {
-                            String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                            int[] orig = origStates.get(key);
-                            if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                            else block.setType(Material.AIR);
-                        }
-                    }
-                }
-            }.runTaskLater(plugin, 1L);
-        }
-    }
-
-    /**
-     * ITEM_DROP animation: blocks drop one-by-one as item entities with no enchantments.
-     */
-    @SuppressWarnings("deprecation")
-    private void clearBlocksItemDrop(List<Location> blocks, List<Location> practiceBlocks,
-                                      Map<String, int[]> origStates, boolean isPracticeMode) {
-        List<Location> toClear = new ArrayList<>();
-        for (Location loc : blocks) {
-            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-            Block block = loc.getBlock();
-            if (block == null || block.getType() == Material.AIR) continue;
-            toClear.add(loc);
-        }
-
-        final int dropBatch = plugin.getConfigManager().getAnimationBlocksPerTick();
-        final long dropInterval = plugin.getConfigManager().getAnimationTickInterval();
-        final int[] idx = {0};
-        new BukkitRunnable() {
-            @Override
-            @SuppressWarnings("deprecation")
-            public void run() {
-                for (int i = 0; i < dropBatch && idx[0] < toClear.size(); i++, idx[0]++) {
-                    Location loc = toClear.get(idx[0]);
-                    Block block = loc.getBlock();
-                    if (block == null || block.getType() == Material.AIR) continue;
-
-                    Material mat = block.getType();
-                    // Skip materials that don't have valid item representations (avoids purple-black missing texture).
-                    // mat.isItem() does not exist in 1.8.8; instead try creating an ItemStack and catch the exception.
-                    boolean hasItem;
-                    try {
-                        new org.bukkit.inventory.ItemStack(mat, 1);
-                        hasItem = mat != Material.AIR && mat.getId() < 256;
-                    } catch (Exception ex) {
-                        hasItem = false;
-                    }
-                    if (!hasItem) {
-                        // Restore block directly without dropping item
-                        String skipKey = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                        int[] skipOrig = origStates.get(skipKey);
-                        if (skipOrig != null && skipOrig[0] != 0) block.setTypeIdAndData(skipOrig[0], (byte) skipOrig[1], false);
-                        else block.setType(Material.AIR);
-                        continue;
-                    }
-                    short durability = block.getData();
-                    Location center = loc.clone().add(0.5, 0.5, 0.5);
-                    try {
-                        // Create a plain item stack with NO enchantments (no Unbreaking glow)
-                        org.bukkit.inventory.ItemStack stack = new org.bukkit.inventory.ItemStack(mat, 1, durability);
-                        org.bukkit.entity.Item item = loc.getWorld().dropItem(center, stack);
-                        item.setPickupDelay(32767); // prevent pickup
-                        item.setVelocity(new org.bukkit.util.Vector(
-                                (Math.random() - 0.5) * 0.25,
-                                0.15 + Math.random() * 0.25,
-                                (Math.random() - 0.5) * 0.25));
-                        final org.bukkit.entity.Item ref = item;
-                        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!ref.isDead()) ref.remove(); }, 40L);
-                    } catch (Exception ignored) {}
-
-                    // Restore underlying block
-                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                    int[] orig = origStates.get(key);
-                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                    else block.setType(Material.AIR);
-                }
-                if (idx[0] >= toClear.size()) this.cancel();
-            }
-        }.runTaskTimer(plugin, 0L, dropInterval);
-    }
-
-    /**
-     * ICE_MELT animation: blocks turn to ice one-by-one, each "melting" away with a FIZZ sound.
-     */
-    @SuppressWarnings("deprecation")
-    private void clearBlocksIceMelt(List<Location> blocks, List<Location> practiceBlocks,
-                                     Map<String, int[]> origStates, boolean isPracticeMode) {
-        List<Location> toClear = new ArrayList<>();
-        for (Location loc : blocks) {
-            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-            Block block = loc.getBlock();
-            if (block == null || block.getType() == Material.AIR) continue;
-            toClear.add(loc);
-        }
-        if (toClear.isEmpty()) return;
-
-        final int[] idx = {0};
-        new BukkitRunnable() {
-            @Override
-            @SuppressWarnings("deprecation")
-            public void run() {
-                int batch = 3;
-                for (int i = 0; i < batch && idx[0] < toClear.size(); i++, idx[0]++) {
-                    Location loc = toClear.get(idx[0]);
-                    Block block = loc.getBlock();
-                    if (block == null || block.getType() == Material.AIR) continue;
-
-                    // Turn block to ice
-                    block.setTypeIdAndData(79, (byte) 0, false);
-
-                    // Play ice-melting sound at this location
-                    try {
-                        loc.getWorld().playSound(loc, org.bukkit.Sound.FIZZ, 0.4f, 1.8f);
-                    } catch (Exception ignored) {}
-
-                    // Schedule melt (remove ice) after 3 ticks
-                    final Location frozenLoc = loc.clone();
-                    final int[] origArr = origStates.get(loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ());
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                        Block b = frozenLoc.getBlock();
-                        if (b == null) return;
-                        if (origArr != null && origArr[0] != 0) b.setTypeIdAndData(origArr[0], (byte) origArr[1], false);
-                        else b.setType(Material.AIR);
-                    }, 3L);
-                }
-                if (idx[0] >= toClear.size()) this.cancel();
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
-    }
-
-    /**
-     * CREATIVE_NPC animation: a Citizens NPC in creative-mode skin rapidly "mines" all blocks away.
-     * The NPC teleports to each block and removes it instantly — very fast (~10 blocks/tick).
-     */
-    @SuppressWarnings("deprecation")
-    private void clearBlocksCreativeNpc(List<Location> blocks, List<Location> practiceBlocks,
-                                         Map<String, int[]> origStates, boolean isPracticeMode) {
-        clearBlocksCreativeNpcWithPlayer(null, blocks, practiceBlocks, origStates, isPracticeMode);
-    }
-
-    @SuppressWarnings("deprecation")
-    private void clearBlocksCreativeNpcWithPlayer(Player owner, List<Location> blocks, List<Location> practiceBlocks,
-                                         Map<String, int[]> origStates, boolean isPracticeMode) {
-        List<Location> toClear = new ArrayList<>();
-        for (Location loc : blocks) {
-            if (isPracticeMode && practiceBlocks.contains(loc)) continue;
-            Block block = loc.getBlock();
-            if (block == null || block.getType() == Material.AIR) continue;
-            toClear.add(loc);
-        }
-        if (toClear.isEmpty()) return;
-
-        // Spawn NPC at the first block location, mirroring the player's skin and name.
-        net.citizensnpcs.api.npc.NPC[] npcRef = new net.citizensnpcs.api.npc.NPC[1];
-        try {
-            net.citizensnpcs.api.npc.NPCRegistry reg = net.citizensnpcs.api.CitizensAPI.getNPCRegistry();
-            String npcName = owner != null ? owner.getName() : "Builder";
-            net.citizensnpcs.api.npc.NPC npc = reg.createNPC(
-                    org.bukkit.entity.EntityType.PLAYER, npcName);
-            if (owner != null) {
-                npc.data().set("player-skin-uuid", owner.getUniqueId().toString());
-                npc.data().set("player-skin-name", owner.getName());
-            }
-            Location spawnLoc = toClear.get(0).clone().add(0.5, 0, 0.5);
-            npc.spawn(spawnLoc);
-            npcRef[0] = npc;
-
-            // Zero-tick tablist removal: send REMOVE_PLAYER immediately in the same tick
-            // so the NPC never flashes in the tab list for any viewer.
-            if (npc.isSpawned() && npc.getEntity() instanceof org.bukkit.entity.Player) {
-                try {
-                    org.bukkit.entity.Player npcEntity = (org.bukkit.entity.Player) npc.getEntity();
-                    String ver = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-                    Object nmsPlayer = npcEntity.getClass().getMethod("getHandle").invoke(npcEntity);
-                    Class<?> pktClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo");
-                    Class<?> enumClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
-                    Class<?> entityPlayerClass = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
-                    Object removeAction = java.lang.reflect.Array.get(enumClass.getMethod("values").invoke(null), 4); // REMOVE_PLAYER = index 4
-                    Object entityPlayerArr = java.lang.reflect.Array.newInstance(entityPlayerClass, 1);
-                    java.lang.reflect.Array.set(entityPlayerArr, 0, nmsPlayer);
-                    Object removePacket = pktClass.getDeclaredConstructors()[0].newInstance(removeAction, entityPlayerArr);
-                    for (org.bukkit.entity.Player viewer : spawnLoc.getWorld().getPlayers()) {
-                        Object handle = viewer.getClass().getMethod("getHandle").invoke(viewer);
-                        Object conn = handle.getClass().getField("playerConnection").get(handle);
-                        Class<?> packetIface = Class.forName("net.minecraft.server." + ver + ".Packet");
-                        conn.getClass().getMethod("sendPacket", packetIface).invoke(conn, removePacket);
-                    }
-                } catch (Exception ignored) {}
-            }
-        } catch (NoClassDefFoundError | Exception ignored) {}
-
-        // Slower pace for more visible NPC animation (3 blocks/tick, every 2 ticks = visible swing)
-        final int BLOCKS_PER_TICK = 3;
-        final long TICK_INTERVAL = 2L;
-        final int[] idx = {0};
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < BLOCKS_PER_TICK && idx[0] < toClear.size(); i++, idx[0]++) {
-                    Location loc = toClear.get(idx[0]);
-                    Block block = loc.getBlock();
-                    if (block == null || block.getType() == Material.AIR) continue;
-                    // Teleport NPC to block so it appears to be mining it
-                    if (npcRef[0] != null && npcRef[0].isSpawned()) {
-                        try {
-                            org.bukkit.entity.Entity e = npcRef[0].getEntity();
-                            e.teleport(loc.clone().add(0.5, 0, 0.5));
-                            // Arm swing animation — swingMainHand() is 1.9+; broadcast NMS packet for 1.8.8
-                            try {
-                                Object nmsEntity = e.getClass().getMethod("getHandle").invoke(e);
-                                Object packet = Class.forName(nmsEntity.getClass().getPackage().getName() + ".PacketPlayOutAnimation")
-                                        .getConstructor(nmsEntity.getClass(), int.class).newInstance(nmsEntity, 0);
-                                for (org.bukkit.entity.Player viewer : e.getWorld().getPlayers()) {
-                                    Object conn = viewer.getClass().getMethod("getHandle").invoke(viewer);
-                                    Object playerConn = conn.getClass().getField("playerConnection").get(conn);
-                                    playerConn.getClass().getMethod("sendPacket", Class.forName(
-                                            nmsEntity.getClass().getPackage().getName() + ".Packet")).invoke(playerConn, packet);
-                                }
-                            } catch (Exception ignored) {}
-                        } catch (Exception ignored) {}
-                    }
-                    // Block-breaking step sound and dig effect
-                    try {
-                        loc.getWorld().playEffect(loc, org.bukkit.Effect.STEP_SOUND, block.getTypeId());
-                        loc.getWorld().playSound(loc, org.bukkit.Sound.DIG_STONE, 0.5f, 1.0f + (float)(Math.random() * 0.4f));
-                    } catch (Exception ignored) {}
-                    // Remove block
-                    String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-                    int[] orig = origStates.get(key);
-                    if (orig != null && orig[0] != 0) block.setTypeIdAndData(orig[0], (byte) orig[1], false);
-                    else block.setType(Material.AIR);
-                }
-                if (idx[0] >= toClear.size()) {
-                    if (npcRef[0] != null) {
-                        try { npcRef[0].destroy(); } catch (Exception ignored) {}
-                    }
-                    this.cancel();
-                }
-            }
-        }.runTaskTimer(plugin, 0L, TICK_INTERVAL);
-    }
-
-    @SuppressWarnings("deprecation")
-    private void spawnAnimationFallingBlock(Location loc, int typeId, byte data,
-                                             org.bukkit.util.Vector velocity, UUID ownerUuid) {
-        try {
-            if (typeId == 0) return;
-            Material mat = Material.getMaterial(typeId);
-            if (mat == null || mat == Material.AIR) return;
-
-            // Spawn 1 block above the placed block's position so the entity has room to fall
-            // even for blocks placed directly on the map surface (ground-level blocks).
-            Location spawnLoc = loc.clone().add(0.5, 1.0, 0.5);
-            org.bukkit.entity.FallingBlock fb = loc.getWorld().spawnFallingBlock(spawnLoc, mat, data);
-            fb.setDropItem(false);
-            fb.setVelocity(velocity);
-
-            // Track this entity so the EntityChangeBlockEvent handler can cancel + remove it on impact
-            animationEntities.add(fb.getUniqueId());
-
-            // Prevent the falling block from placing when it lands (NMS 1.8.8 dontSetBlock field)
-            try {
-                Object handle = fb.getClass().getMethod("getHandle").invoke(fb);
-                java.lang.reflect.Field f = handle.getClass().getDeclaredField("dontSetBlock");
-                f.setAccessible(true);
-                f.set(handle, true);
-            } catch (Exception ignored) {}
-
-            final org.bukkit.entity.FallingBlock fbRef = fb;
-            final UUID fbEntityId = fb.getUniqueId();
-
-            // EXPLODE only: proximity cleanup — remove entity if any non-owner player is nearby
-            if (ownerUuid != null) {
-                final int[] checksLeft = {12};
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (fbRef.isDead() || checksLeft[0] <= 0) {
-                            this.cancel();
-                            return;
-                        }
-                        checksLeft[0]--;
-                        Location fbLoc = fbRef.getLocation();
-                        for (org.bukkit.entity.Player nearby : fbLoc.getWorld().getPlayers()) {
-                            if (nearby.getUniqueId().equals(ownerUuid)) continue;
-                            Location pLoc = nearby.getLocation();
-                            if (Math.abs(pLoc.getX() - fbLoc.getX()) <= 2.5
-                                    && Math.abs(pLoc.getY() - fbLoc.getY()) <= 4.0
-                                    && Math.abs(pLoc.getZ() - fbLoc.getZ()) <= 2.5) {
-                                animationEntities.remove(fbEntityId);
-                                fbRef.remove();
-                                this.cancel();
-                                return;
-                            }
-                        }
-                    }
-                }.runTaskTimer(plugin, 5L, 5L);
-            }
-
-            // Schedule removal after 3 seconds to clean up if still alive in the world
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                animationEntities.remove(fbEntityId);
-                if (!fbRef.isDead()) fbRef.remove();
-            }, 60L);
-        } catch (Exception ignored) {}
-    }
-
     public boolean isAnimationEntity(UUID entityId) {
-        return animationEntities.contains(entityId);
+        return blockAnimator.isAnimationEntity(entityId);
     }
 
     public void removeAnimationEntity(UUID entityId) {
-        animationEntities.remove(entityId);
+        blockAnimator.removeAnimationEntity(entityId);
     }
 
     /**
@@ -1696,45 +1083,6 @@ public class GameplayManager {
     private Class<?> getNMSClass(String name) throws ClassNotFoundException {
         String version = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
         return Class.forName("net.minecraft.server." + version + "." + name);
-    }
-
-    /**
-     * Force-loads every chunk in the rectangular corridor between two block coordinates,
-     * batched across ticks so large distances (1700+ blocks ≈ 200+ chunks) don't cause
-     * a server freeze.  Chunk loading is done on the main thread in batches of 10 per tick.
-     */
-    private void forceLoadChunkCorridor(org.bukkit.World world,
-                                         int fromX, int fromY, int fromZ,
-                                         int toX,   int toY,   int toZ) {
-        int minCX = Math.min(fromX, toX) >> 4;
-        int maxCX = Math.max(fromX, toX) >> 4;
-        int minCZ = Math.min(fromZ, toZ) >> 4;
-        int maxCZ = Math.max(fromZ, toZ) >> 4;
-
-        List<int[]> chunks = new ArrayList<>();
-        for (int cx = minCX; cx <= maxCX; cx++) {
-            for (int cz = minCZ; cz <= maxCZ; cz++) {
-                if (!world.isChunkLoaded(cx, cz)) {
-                    chunks.add(new int[]{cx, cz});
-                }
-            }
-        }
-        if (chunks.isEmpty()) return;
-
-        final int batchSize = 10;
-        final int[] idx = {0};
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < batchSize && idx[0] < chunks.size(); i++, idx[0]++) {
-                    int[] c = chunks.get(idx[0]);
-                    if (!world.isChunkLoaded(c[0], c[1])) {
-                        world.loadChunk(c[0], c[1], true);
-                    }
-                }
-                if (idx[0] >= chunks.size()) this.cancel();
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     private static String formatMult(double mult) {

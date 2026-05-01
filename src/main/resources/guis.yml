@@ -96,11 +96,7 @@ settings-gui-slots:
     material: STICK:0
     gui: "custom_length"
     lore:
-      - "&7Distance: %custom_length_value% &7blocks"
-      - "&7Range: &e%custom_length_min% &7- &e%custom_length_max% &7blocks"
-      - ""
-      - "&aLeft-Click &8(-1)  &6Shift-Left &8(-10)"
-      - "&cRight-Click &8(+1)  &4Shift-Right &8(+10)"
+      - "&7Click to configure the distance and height."
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
