@@ -258,25 +258,41 @@ public class FastScoreboard {
             blocks = lastBlocks >= 0 ? String.valueOf(lastBlocks) : "0";
         }
 
-        // Session top-10
-        List<String[]> topList = (plugin.getGameplayManager() != null)
+        // Detect custom-length mode for this player
+        boolean inCustomLength = false;
+        int activeCustomLength = 0;
+        if (session != null && data != null) {
+            net.gravijet.fastbuilder.map.MapData clMap =
+                    plugin.getMapManager().getMap(session.getMapName());
+            if (clMap != null && clMap.hasCustomLength() && data.isCustomLengthEnabled(session.getMapName())) {
+                inCustomLength = true;
+                activeCustomLength = data.getCustomLength(session.getMapName());
+                if (activeCustomLength <= 0) activeCustomLength = clMap.getBaseCustomLength();
+            }
+        }
+
+        // Session top-10 (suppressed for custom length mode)
+        List<String[]> topList = (!inCustomLength && plugin.getGameplayManager() != null)
                 ? plugin.getGameplayManager().getGlobalSessionTop(10)
                 : Collections.<String[]>emptyList();
+
+        String customLengthDistance = inCustomLength ? String.valueOf(activeCustomLength) : "---";
 
         // --- Build all lines ---
         List<String> result = new ArrayList<>(configLines.size());
         for (String raw : configLines) {
             String line = raw
-                    .replace("%pb%",           pb)
-                    .replace("%current_time%", currentTime)
-                    .replace("%coins%",        coins)
-                    .replace("%blocks%",       blocks);
+                    .replace("%pb%",                   inCustomLength ? TimeUtil.EMPTY : pb)
+                    .replace("%current_time%",          currentTime)
+                    .replace("%coins%",                coins)
+                    .replace("%blocks%",               blocks)
+                    .replace("%custom_length_distance%", customLengthDistance);
 
-            // top_name_N / top_time_N (N = 1..10)
+            // top_name_N / top_time_N (N = 1..10)  — cleared in custom length mode
             for (int n = 1; n <= 10; n++) {
                 String namePh = "%top_name_" + n + "%";
                 String timePh = "%top_time_" + n + "%";
-                if (topList.size() >= n) {
+                if (!inCustomLength && topList.size() >= n) {
                     String[] entry = topList.get(n - 1);
                     // Return raw values — let the config control colours
                     line = line.replace(namePh, entry[0]);

@@ -34,17 +34,66 @@ class EndPlatformManager {
 
     void placeEndPlatform(org.bukkit.entity.Player player, MapData map, RunSession session, int customLength) {
         UUID uuid = player.getUniqueId();
-        clearEndPlatform(uuid);
 
-        if (customLength <= 0 || !map.hasCustomLength()) return;
+        if (customLength <= 0 || !map.hasCustomLength()) {
+            clearEndPlatform(uuid);
+            return;
+        }
 
         customLength = Math.max(map.getEffectiveMinCustomLength(),
                 Math.min(map.getEffectiveMaxCustomLength(), customLength));
 
         if (map.hasEndIsland()) {
-            placeEndIslandTemplate(uuid, map, session.getIslandIndex(), customLength);
+            placeEndIslandTemplateAfterClear(uuid, map, session.getIslandIndex(), customLength);
         } else {
+            clearEndPlatform(uuid);
             placeEndPlatformLegacy(uuid, map, session, customLength);
+        }
+    }
+
+    // Clears the old end island region first (async), then pastes the new position in its callback.
+    private void placeEndIslandTemplateAfterClear(UUID uuid, MapData map, int islandIndex, int customLength) {
+        org.bukkit.World world = map.getWorld();
+        if (world == null) return;
+
+        int[] oldRegion = endIslandRegions.remove(uuid);
+
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
+
+        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 1;
+        int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
+        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+
+        endIslandRegions.put(uuid, new int[]{
+            endX, endY, endZ,
+            map.getEndIslandWidth(), map.getEndIslandHeight(), map.getEndIslandLength()
+        });
+
+        int clearMaxX = endX + map.getEndIslandWidth()  - 1;
+        int clearMaxY = endY + map.getEndIslandHeight() - 1;
+        int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
+
+        Runnable pasteNew = () -> {
+            forceLoadChunkCorridor(world,
+                    map.getOriginX(), endY, map.getOriginZ() + islandIndex * map.getActualZStep(),
+                    clearMaxX, clearMaxY, clearMaxZ);
+            plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
+                plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
+            );
+        };
+
+        if (oldRegion != null) {
+            // Clear the old island region first, then place the new one
+            plugin.getFawePaster().clearRegion(world,
+                    oldRegion[0], oldRegion[1], oldRegion[2],
+                    oldRegion[0] + oldRegion[3] - 1,
+                    oldRegion[1] + oldRegion[4] - 1,
+                    oldRegion[2] + oldRegion[5] - 1,
+                    pasteNew);
+        } else {
+            pasteNew.run();
         }
     }
 
@@ -56,7 +105,7 @@ class EndPlatformManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength;
+        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 1;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 

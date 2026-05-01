@@ -247,8 +247,8 @@ public class GameplayListener implements Listener {
             // Y adjustment from the Custom Length sub-menu
             int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-            // End island is placed to the +X (east) side of the start island
-            int endX = map.getOriginX() + map.getIslandWidth() + customLength;
+            // End island is placed to the +X (east) side of the start island (1 block offset applied)
+            int endX = map.getOriginX() + map.getIslandWidth() + customLength - 1;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
             int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
                     + map.getEndIslandZOffset();

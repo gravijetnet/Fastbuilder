@@ -159,10 +159,13 @@ public class ReplaySession {
                         placeInitialBlocks(map.getWorld());
 
                         if (map.hasEndIsland() && map.getEndIslandTemplateFile() != null) {
-                            int len = map.getBaseCustomLength() > 0
-                                    ? map.getBaseCustomLength()
-                                    : map.getEffectiveMinCustomLength();
-                            int endX = replayAreaXFinal + map.getIslandWidth() - 1 + len;
+                            int replayCustomLen = replayData.getCustomLength();
+                            int len = replayCustomLen > 0
+                                    ? replayCustomLen
+                                    : (map.getBaseCustomLength() > 0
+                                        ? map.getBaseCustomLength()
+                                        : map.getEffectiveMinCustomLength());
+                            int endX = replayAreaXFinal + map.getIslandWidth() + len - 1;
                             int endY = REPLAY_AREA_Y + map.getEndIslandYOffset();
                             int endZ = replayAreaZ + map.getEndIslandZOffset();
                             forceLoadChunksInLine(map.getWorld(),

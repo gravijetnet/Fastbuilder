@@ -22,23 +22,33 @@ public class ReplayData {
     // Blocks that were already placed on the island when recording started
     // (e.g. practice blocks, admin build-mode blocks)
     private final List<ReplayFrame.BlockPlacement> initialBlocks;
+    // Custom length (blocks) active during this run. 0 = normal mode (no custom length).
+    private final int customLength;
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, new ArrayList<>());
+                frames, new ArrayList<>(), 0);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames,
                       List<ReplayFrame.BlockPlacement> initialBlocks) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, initialBlocks);
+                frames, initialBlocks, 0);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
                       int islandIndex, long timestamp, boolean successful, long runTimeMillis,
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks) {
+        this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
+                runTimeMillis, frames, initialBlocks, 0);
+    }
+
+    public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
+                      int islandIndex, long timestamp, boolean successful, long runTimeMillis,
+                      List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
+                      int customLength) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
@@ -49,6 +59,7 @@ public class ReplayData {
         this.runTimeMillis = runTimeMillis;
         this.frames = frames;
         this.initialBlocks = initialBlocks != null ? initialBlocks : new ArrayList<>();
+        this.customLength = customLength;
     }
 
     public UUID getPlayerUuid() { return playerUuid; }
@@ -61,6 +72,7 @@ public class ReplayData {
     public long getRunTimeMillis() { return runTimeMillis; }
     public List<ReplayFrame> getFrames() { return frames; }
     public List<ReplayFrame.BlockPlacement> getInitialBlocks() { return initialBlocks; }
+    public int getCustomLength() { return customLength; }
     public int getTotalTicks() { return frames.isEmpty() ? 0 : frames.get(frames.size() - 1).getTick(); }
 
     /**

@@ -37,10 +37,10 @@ import java.util.List;
 public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER_SUBS = Arrays.asList(
-            "join", "leave", "reset"
+            "join", "leave", "leavemap", "reset"
     );
     private static final List<String> ALL_SUBS = Arrays.asList(
-            "join", "leave", "reset", "reload", "dump"
+            "join", "leave", "leavemap", "reset", "reload", "dump"
     );
 
     private final FastBuilder plugin;
@@ -77,6 +77,9 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 break;
             case "leave":
                 handleLeave(player);
+                break;
+            case "leavemap":
+                handleLeaveMap(player);
                 break;
             case "reset":
                 handleReset(player, mm);
@@ -295,6 +298,54 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         if (!action.equals("KICK") && !action.equals("BUNGEE")) {
             msg(player, plugin.getConfigManager().getPrefix() + "&fYou left the game.");
         }
+    }
+
+    // --- /fb leavemap ---
+    // Leaves the current map/island and enters a permanent build mode without server disconnect.
+
+    private void handleLeaveMap(Player player) {
+        if (!player.hasPermission("fastbuilder.command.fb.leave")) {
+            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            return;
+        }
+
+        if (plugin.getReplayManager() != null) {
+            if (plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+                plugin.getReplayManager().stopPlayback(player.getUniqueId());
+            }
+            plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+        }
+
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            net.gravijet.fastbuilder.player.PlayerData leaveData =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (leaveData != null && leaveData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData leaveMap =
+                        plugin.getMapManager().getMap(leaveData.getLastMap());
+                if (leaveMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(leaveMap, leaveData.getLastIsland());
+                }
+                leaveData.clearCustomLengths();
+            }
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().enterBuildMode(player.getUniqueId());
+        }
+
+        if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        if (plugin.getHologramManager() != null) {
+            net.gravijet.fastbuilder.player.PlayerData d =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (d != null && d.getLastMap() != null)
+                plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
+        }
+        if (plugin.getCpsListener() != null) plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        plugin.getMapManager().freeAllIslands(player.getUniqueId());
+
+        player.setGameMode(org.bukkit.GameMode.CREATIVE);
+        msg(player, plugin.getConfigManager().getPrefix() + "&fYou left your island. Build mode active.");
     }
 
     // --- /fb reset ---

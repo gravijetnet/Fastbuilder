@@ -168,8 +168,8 @@ public class ShopGui {
         for (int i = 0; i < maxSlots; i++) inv.setItem(i, filler);
 
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        String purchasedStatus   = guis.getString("block-status.purchased",     "&aYou already own this!");
-        String notPurchasedStatus = guis.getString("block-status.not-purchased", "&cYou don't own this yet!");
+        String purchasedStatus   = guis.getString("pickaxe-status.purchased",     "&aYou already own this pickaxe!");
+        String notPurchasedStatus = guis.getString("pickaxe-status.not-purchased", "&cYou don't own this pickaxe yet!");
 
         for (String slotKey : pageSection.getKeys(false)) {
             try {
@@ -372,7 +372,9 @@ public class ShopGui {
                 String mat = slotsSection.getString(slotKey + ".material", "STAINED_GLASS_PANE:0");
                 String animId = slotsSection.getString(slotKey + ".animation", "NONE");
                 int price = slotsSection.getInt(slotKey + ".price", 0);
-                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("anim:" + animId));
+                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("anim:" + animId))
+                        || player.hasPermission("fastbuilder.cosmetic.animations.*")
+                        || player.hasPermission("fastbuilder.animation." + animId.toLowerCase());
                 boolean selected = animId.equalsIgnoreCase(currentAnim);
                 boolean isNoneOption = animId.equalsIgnoreCase("NONE");
                 if (isNoneOption) mat = "BEDROCK:0";
@@ -473,7 +475,9 @@ public class ShopGui {
                 String mat = soundsSection.getString(slotKey + ".material", "NOTE_BLOCK:0");
                 String soundId = soundsSection.getString(slotKey + ".sound", "NONE");
                 int price = soundsSection.getInt(slotKey + ".price", 0);
-                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("sound:" + soundId));
+                boolean owned = price == 0 || (data != null && data.hasPurchasedBlock("sound:" + soundId))
+                        || player.hasPermission("fastbuilder.cosmetic.sounds.*")
+                        || player.hasPermission("fastbuilder.sound." + soundId.toLowerCase());
                 boolean selected = soundId.equalsIgnoreCase(currentSound);
                 boolean isNoneOption = soundId.equalsIgnoreCase("NONE");
                 if (isNoneOption) mat = "BEDROCK:0";

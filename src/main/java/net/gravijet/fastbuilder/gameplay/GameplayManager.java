@@ -503,8 +503,8 @@ public class GameplayManager {
                 }
             }
 
-            // Award consolation coins on failed runs if configured — only when ≥10 blocks placed
-            if (plugin.getConfigManager().isCoinsOnFailed() && session.getPlacedBlocks().size() > 10) {
+            // Award consolation coins on failed runs if configured — only when ≥12 blocks placed
+            if (plugin.getConfigManager().isCoinsOnFailed() && session.getPlacedBlocks().size() >= 12) {
                 int failCoins = plugin.getCoinManager().awardFailedRunCoins(player);
                 if (failCoins > 0) {
                     player.sendTitle(
@@ -676,7 +676,13 @@ public class GameplayManager {
         clearAllPlacedBlocks(uuid);
         clearEndPlatform(uuid);
 
-        // Reset session custom-length (X and Y) so the new island starts at default
+        // Save the player's custom-length preference before clearing (will be re-applied on new island)
+        int savedCustomLength = 0;
+        int savedCustomLengthY = 0;
+        if (data != null && map.hasCustomLength()) {
+            savedCustomLength = data.getCustomLength(map.getName());
+            savedCustomLengthY = data.getCustomLengthY(map.getName());
+        }
         if (data != null) {
             data.setCustomLength(map.getName(), 0);
             data.setCustomLengthY(map.getName(), 0);
@@ -688,9 +694,9 @@ public class GameplayManager {
         if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(uuid);
         if (plugin.getHologramManager() != null) plugin.getHologramManager().removeHologram(map.getName(), oldIsland);
 
-        // Free old island, remove old session
+        // Free old island, remove old session (do NOT clear global session bests — island switch preserves them)
         plugin.getMapManager().freeIsland(map.getName(), uuid);
-        removeSession(uuid);
+        activeSessions.remove(uuid);
         unmarkIslandResetting(map.getName(), oldIsland);
 
         // Assign new island
@@ -713,10 +719,17 @@ public class GameplayManager {
         if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(targetIsland));
         if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(map.getName(), targetIsland, player);
 
-        // Restore end island at base distance on the new island slot
+        // Restore end island at the player's preferred distance on the new island slot
         if (map.hasCustomLength()) {
-            int len = map.hasEndIsland() ? map.getBaseCustomLength() : map.getMinCustomLength();
-            if (len > 0) placeEndPlatform(player, map, newSession, len);
+            if (data != null && savedCustomLength > 0) {
+                // Re-apply the player's saved preference
+                data.setCustomLength(map.getName(), savedCustomLength);
+                data.setCustomLengthY(map.getName(), savedCustomLengthY);
+                placeEndPlatform(player, map, newSession, savedCustomLength);
+            } else {
+                int len = map.hasEndIsland() ? map.getBaseCustomLength() : map.getMinCustomLength();
+                if (len > 0) placeEndPlatform(player, map, newSession, len);
+            }
         }
 
         // Apply the player's selected design on the new island

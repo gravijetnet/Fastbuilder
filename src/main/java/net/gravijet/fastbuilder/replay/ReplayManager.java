@@ -41,7 +41,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 5; // v5 adds playerDisplayTag (rank prefix + name)
+    private static final int VERSION = 6; // v6 adds customLength
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -121,7 +121,21 @@ public class ReplayManager {
 
         RunSession run = plugin.getGameplayManager().getSession(playerUuid);
         long runTime = run != null ? run.getElapsed() : 0;
-        ReplayData data = recorder.build(successful, runTime);
+
+        // Capture the active custom length for this run (0 = normal mode)
+        int customLength = 0;
+        net.gravijet.fastbuilder.player.PlayerData pDataCL =
+                plugin.getPlayerManager().getCachedData(playerUuid);
+        if (pDataCL != null && run != null) {
+            net.gravijet.fastbuilder.map.MapData mapCL =
+                    plugin.getMapManager().getMap(run.getMapName());
+            if (mapCL != null && mapCL.hasCustomLength()) {
+                customLength = pDataCL.getCustomLength(run.getMapName());
+                if (customLength <= 0) customLength = mapCL.getBaseCustomLength();
+            }
+        }
+
+        ReplayData data = recorder.build(successful, runTime, customLength);
 
         // Gather permission-based limit and favorites on the main thread before going async
         int limit = getReplayLimit(playerUuid);
@@ -309,6 +323,7 @@ public class ReplayManager {
             out.writeLong(data.getTimestamp());
             out.writeBoolean(data.isSuccessful());
             out.writeLong(data.getRunTimeMillis());
+            out.writeInt(data.getCustomLength()); // v6
 
             // Initial blocks (v2)
             out.writeInt(data.getInitialBlocks().size());
@@ -372,7 +387,7 @@ public class ReplayManager {
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 
             int version = in.readInt();
-            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version); // currently supports v1–v5
+            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version); // currently supports v1–v6
 
 
             UUID uuid        = UUID.fromString(in.readUTF());
@@ -383,6 +398,7 @@ public class ReplayManager {
             long timestamp   = in.readLong();
             boolean success  = in.readBoolean();
             long runTime     = in.readLong();
+            int customLength = version >= 6 ? in.readInt() : 0; // v6
 
             // Read initial blocks (v2 only; v1 files have none)
             List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
@@ -444,7 +460,7 @@ public class ReplayManager {
                         sneaking, sprinting, swingArm, handItemId, handItemData, placement));
             }
 
-            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks);
+            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks, customLength);
         }
     }
 
