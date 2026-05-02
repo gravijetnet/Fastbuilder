@@ -28,9 +28,9 @@ public class BoosterType {
         this.potionData      = potionData;
     }
 
-    /** Format multiplier as "1.5xx", "2xx", etc. */
+    /** Format multiplier as "1.5x", "2x", etc. */
     public String formatMultiplier() {
-        if (multiplier == Math.floor(multiplier)) return (int) multiplier + "xx";
-        return String.format("%.1fxx", multiplier);
+        if (multiplier == Math.floor(multiplier)) return (int) multiplier + "x";
+        return String.format("%.1fx", multiplier);
     }
 }

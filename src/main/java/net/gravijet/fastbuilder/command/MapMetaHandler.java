@@ -338,9 +338,11 @@ class MapMetaHandler {
             mm.saveMap(map);
             msg.msg(player, plugin.getConfigManager().getPrefix() + "&aFall death height removed for map &c" + map.getName() + "&a.");
         } else {
-            map.setDeathY(yLevel);
+            int stored = yLevel - 2;
+            map.setDeathY(stored);
             mm.saveMap(map);
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&aFall death height set to Y=&c" + yLevel + " &afor map &c" + map.getName() + "&a.");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&aFall death height set to Y=&c" + stored
+                    + " &7(input " + yLevel + " − 2) &afor map &c" + map.getName() + "&a.");
         }
     }
 

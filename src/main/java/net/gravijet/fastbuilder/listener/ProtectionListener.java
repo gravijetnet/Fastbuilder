@@ -216,9 +216,65 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Custom-length click control: left-click on end island = closer, right-click = further
+        if (plugin.getGameplayManager() != null
+                && (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
+                    || event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK)) {
+            if (handleCustomLengthClick(player, event)) return;
+        }
+
         if (!isOnOwnIsland(player, event.getClickedBlock().getLocation())) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * If the player clicks on a block inside their end-island region, adjust the custom length.
+     * Left-click = closer (-1 / -10 with shift), right-click = further (+1 / +10 with shift).
+     * Returns true if the click was consumed (event should not continue to other handlers).
+     */
+    private boolean handleCustomLengthClick(Player player, PlayerInteractEvent event) {
+        net.gravijet.fastbuilder.gameplay.RunSession session =
+                plugin.getGameplayManager().getSession(player.getUniqueId());
+        if (session == null) return false;
+
+        MapData map = plugin.getMapManager().getMap(session.getMapName());
+        if (map == null || !map.hasEndIsland()) return false;
+
+        int[] region = plugin.getGameplayManager().getEndIslandRegion(player.getUniqueId());
+        if (region == null) return false;
+
+        org.bukkit.block.Block clicked = event.getClickedBlock();
+        int bx = clicked.getX(), by = clicked.getY(), bz = clicked.getZ();
+        if (bx < region[0] || bx > region[0] + region[3] - 1) return false;
+        if (by < region[1] || by > region[1] + region[4] - 1) return false;
+        if (bz < region[2] || bz > region[2] + region[5] - 1) return false;
+
+        if (!player.hasPermission("fastbuilder.feature.custom_length")) return false;
+
+        event.setCancelled(true);
+
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData == null) return true;
+
+        boolean isLeft  = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK;
+        boolean isShift = player.isSneaking();
+        int step = isShift ? 10 : 1;
+        // Left-click = 1 Block näher (customLength verringern), right-click = weiter (erhöhen)
+        int delta = isLeft ? -step : step;
+
+        int current = pData.getCustomLength(map.getName());
+        if (current <= 0) current = map.getBaseCustomLength() > 0
+                ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+
+        int newVal = Math.max(map.getEffectiveMinCustomLength(),
+                Math.min(map.getEffectiveMaxCustomLength(), current + delta));
+        if (newVal == current) return true;
+
+        pData.setCustomLength(map.getName(), newVal);
+        plugin.getGameplayManager().placeEndPlatform(player, map, session, newVal);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.HIGH)

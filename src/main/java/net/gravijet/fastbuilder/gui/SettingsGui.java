@@ -110,12 +110,22 @@ public class SettingsGui {
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
         for (int i = 0; i < menuSize; i++) inv.setItem(i, filler);
 
+        PlayerData pDataCl = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        int curDist = 0;
+        if (pDataCl != null) {
+            curDist = pDataCl.getCustomLength(map.getName());
+            if (curDist <= 0) curDist = map.getBaseCustomLength() > 0
+                    ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+        }
+        String curDistStr = curDist > 0 ? "&f" + curDist + " blocks" : "&8---";
         inv.setItem(11, new ItemBuilder(Material.STICK)
-                .name("&eX &7— Distance")
-                .lore("&7Left-click: &f+1 block further",
-                      "&7Shift+Left: &f+10 blocks further",
-                      "&7Right-click: &f-1 block closer",
-                      "&7Shift+Right: &f-10 blocks closer")
+                .name("&eX &7— Distance &8(" + curDistStr + "&8)")
+                .lore("&7Left-click: &f-1 block closer",
+                      "&7Shift+Left: &f-10 blocks closer",
+                      "&7Right-click: &f+1 block further",
+                      "&7Shift+Right: &f+10 blocks further",
+                      "",
+                      "&7You can also click the end island directly:")
                 .build());
         inv.setItem(13, new ItemBuilder(Material.BLAZE_ROD)
                 .name("&eY &7— Height Offset")
@@ -303,11 +313,12 @@ public class SettingsGui {
             return;
         }
 
+        // Left = closer (negative delta), right = further (positive delta)
         int delta;
-        if (click == ClickType.LEFT) delta = 1;
-        else if (click == ClickType.SHIFT_LEFT) delta = 10;
-        else if (click == ClickType.RIGHT) delta = -1;
-        else if (click == ClickType.SHIFT_RIGHT) delta = -10;
+        if (click == ClickType.LEFT) delta = -1;
+        else if (click == ClickType.SHIFT_LEFT) delta = -10;
+        else if (click == ClickType.RIGHT) delta = 1;
+        else if (click == ClickType.SHIFT_RIGHT) delta = 10;
         else return;
 
         if (slot == 11) {
@@ -319,7 +330,7 @@ public class SettingsGui {
             if (newVal == current) {
                 String limitMsg = delta > 0
                         ? "&cCan't go further &7(max: &f" + map.getEffectiveMaxCustomLength() + " blocks&7)."
-                        : "&cCan't go shorter &7(min: &f" + map.getEffectiveMinCustomLength() + " blocks&7).";
+                        : "&cCan't go closer &7(min: &f" + map.getEffectiveMinCustomLength() + " blocks&7).";
                 player.sendMessage(ColorUtil.translate(prefix + limitMsg));
             } else {
                 pData.setCustomLength(run.getMapName(), newVal);

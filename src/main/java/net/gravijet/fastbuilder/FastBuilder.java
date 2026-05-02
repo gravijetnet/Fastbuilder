@@ -119,6 +119,7 @@ public class FastBuilder extends JavaPlugin {
         getCommand("leaderboard").setTabCompleter(lbCmd);
 
         // Register listeners
+        Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new SetupListener(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
         Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
