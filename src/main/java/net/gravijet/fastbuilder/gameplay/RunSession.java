@@ -140,6 +140,12 @@ public class RunSession {
 
     public List<Long> getSessionBests() { return sessionBests; }
 
+    /** Restore the timer state from a previous session (used on island switch to avoid resetting the clock). */
+    public void resumeTimerFrom(long startTime, boolean running) {
+        this.startTime = startTime;
+        this.running = running;
+    }
+
     public UUID getPlayerUuid() { return playerUuid; }
     public String getMapName() { return mapName; }
     public int getIslandIndex() { return islandIndex; }

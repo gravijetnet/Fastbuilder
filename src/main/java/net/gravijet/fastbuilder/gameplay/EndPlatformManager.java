@@ -62,7 +62,7 @@ class EndPlatformManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 1;
+        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
@@ -105,7 +105,7 @@ class EndPlatformManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 1;
+        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
@@ -201,6 +201,34 @@ class EndPlatformManager {
                 else block.setType(Material.AIR);
             }
         }
+    }
+
+    /**
+     * Restores the end island on a specific island slot to the map's base/default distance.
+     * Called after a player leaves or switches away from a slot so the slot looks correct for the next occupant.
+     */
+    void restoreDefaultEndPlatform(MapData map, int islandIndex) {
+        if (!map.hasEndIsland()) return;
+        org.bukkit.World world = map.getWorld();
+        if (world == null) return;
+
+        int defaultLength = map.getBaseCustomLength() > 0
+                ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
+        if (defaultLength <= 0) return;
+
+        int endX = map.getOriginX() + map.getIslandWidth() + defaultLength - 2;
+        int endY = map.getOriginY() + map.getEndIslandYOffset();
+        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+
+        int clearMaxX = endX + map.getEndIslandWidth()  - 1;
+        int clearMaxY = endY + map.getEndIslandHeight() - 1;
+        int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
+
+        forceLoadChunkCorridor(world, map.getOriginX(), endY,
+                map.getOriginZ() + islandIndex * map.getActualZStep(), clearMaxX, clearMaxY, clearMaxZ);
+        plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ,
+                () -> plugin.getFawePaster().pasteTemplate(
+                        world, map.getEndIslandTemplateFile(), endX, endY, endZ, null));
     }
 
     void clearAllEndPlatforms() {

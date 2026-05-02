@@ -273,6 +273,8 @@ public class FastScoreboard {
         // Detect custom-length mode for this player
         boolean inCustomLength = false;
         int activeCustomLength = 0;
+        String customBest = TimeUtil.EMPTY;
+        String customSessionBest = TimeUtil.EMPTY;
         if (session != null && data != null) {
             net.gravijet.fastbuilder.map.MapData clMap =
                     plugin.getMapManager().getMap(session.getMapName());
@@ -280,6 +282,12 @@ public class FastScoreboard {
                 inCustomLength = true;
                 activeCustomLength = data.getCustomLength(session.getMapName());
                 if (activeCustomLength <= 0) activeCustomLength = clMap.getBaseCustomLength();
+                if (activeCustomLength > 0) {
+                    long cb = data.getCustomLengthBest(session.getMapName(), activeCustomLength);
+                    customBest = cb > 0 ? TimeUtil.formatTime(cb) : TimeUtil.EMPTY;
+                    long csb = data.getCustomLengthSessionBest(session.getMapName(), activeCustomLength);
+                    customSessionBest = csb > 0 ? TimeUtil.formatTime(csb) : TimeUtil.EMPTY;
+                }
             }
         }
 
@@ -303,7 +311,9 @@ public class FastScoreboard {
                     .replace("%current_time%",          currentTime)
                     .replace("%coins%",                coins)
                     .replace("%blocks%",               blocks)
-                    .replace("%custom_length_distance%", customLengthDistance);
+                    .replace("%custom_length_distance%", customLengthDistance)
+                    .replace("%custom_best%",           customBest)
+                    .replace("%custom_session_best%",   customSessionBest);
 
             // top_name_N / top_time_N (N = 1..10)  — cleared in custom length mode
             for (int n = 1; n <= 10; n++) {

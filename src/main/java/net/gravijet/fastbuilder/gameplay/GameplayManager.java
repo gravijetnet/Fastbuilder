@@ -420,9 +420,16 @@ public class GameplayManager {
             if (statsMap != null && statsMap.isInfinite()) {
                 noteSuffix = "&7Infinite mode";
             } else if (playerCustomLengthActive) {
-                // Display exact block distance bridged for custom length runs
-                int blocksBridged = session.getPlacedBlocks().size();
-                noteSuffix = "&7Custom length &8- &f" + blocksBridged + " blocks";
+                // Record custom-length bests (per distance, not globally ranked)
+                int activeDist = data.getCustomLength(session.getMapName());
+                if (activeDist <= 0) activeDist = statsMap != null && statsMap.getBaseCustomLength() > 0
+                        ? statsMap.getBaseCustomLength() : 0;
+                if (activeDist > 0) {
+                    data.updateCustomLengthBest(session.getMapName(), activeDist, time);
+                    data.updateCustomLengthSessionBest(session.getMapName(), activeDist, time);
+                    plugin.getPlayerManager().savePlayerData(player.getUniqueId());
+                }
+                noteSuffix = "&7Custom &8(" + activeDist + " blocks)";
             } else {
                 noteSuffix = "";
             }
@@ -677,6 +684,8 @@ public class GameplayManager {
         // Preserve state that survives the island switch
         List<Long> carriedBests = new ArrayList<>(session.getSessionBests());
         boolean carriedPractice = session.isPracticeMode();
+        long carriedStartTime = session.getStartTime();
+        boolean carriedRunning = session.isRunning();
 
         net.gravijet.fastbuilder.player.PlayerData data = plugin.getPlayerManager().getCachedData(uuid);
 
@@ -686,6 +695,10 @@ public class GameplayManager {
         // Clear placed blocks and end island on old island (instant, no animation)
         clearAllPlacedBlocks(uuid);
         clearEndPlatform(uuid);
+        // Restore the end island on the old slot to base distance so it looks correct for the next player
+        if (map.hasEndIsland()) {
+            restoreDefaultEndPlatform(map, oldIsland);
+        }
 
         // Save the player's custom-length preference before clearing (will be re-applied on new island)
         int savedCustomLength = 0;
@@ -718,10 +731,11 @@ public class GameplayManager {
         player.teleport(getEffectiveSpawn(uuid, map, targetIsland));
         player.setGameMode(org.bukkit.GameMode.SURVIVAL);
 
-        // Create new session and carry over session bests + practice mode
+        // Create new session and carry over session bests, practice mode, and timer state
         RunSession newSession = createSession(uuid, map.getName(), targetIsland);
         for (Long best : carriedBests) newSession.addSessionBest(best);
         newSession.setPracticeMode(carriedPractice);
+        if (carriedStartTime > 0) newSession.resumeTimerFrom(carriedStartTime, carriedRunning);
 
         // Give hotbar items
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
@@ -924,6 +938,10 @@ public class GameplayManager {
 
     public void clearEndPlatform(UUID uuid) {
         endPlatformManager.clearEndPlatform(uuid);
+    }
+
+    public void restoreDefaultEndPlatform(MapData map, int islandIndex) {
+        endPlatformManager.restoreDefaultEndPlatform(map, islandIndex);
     }
 
     public void clearAllEndPlatforms() {

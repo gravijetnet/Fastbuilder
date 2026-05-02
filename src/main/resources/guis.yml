@@ -61,6 +61,11 @@ block-status:
   purchased: "&aYou already own this block!"
   not-purchased: "&cYou don't own this block yet!"
 
+# Pickaxe/tool status messages
+pickaxe-status:
+  purchased: "&aYou already own this pickaxe!"
+  not-purchased: "&cYou don't own this pickaxe yet!"
+
 # Settings GUI slot layout (3×9 = 27 slots, items centered in second row)
 # Available GUIs: infinite_blocks, reset_stats, practice_mode, custom_length
 # Placeholders: %practice_mode_enabled%, %infinite_blocks_status%, %infinite_blocks_unlocked%, %price%, %custom_length%

@@ -66,6 +66,12 @@ public class PlayerData {
     // Per-map custom length toggle (session-only, NOT persisted to disk).
     private final Map<String, Boolean> customLengthToggles = new HashMap<>();
 
+    // Per-map all-time best times keyed by distance: mapName -> (distance -> bestTimeMs). Persisted.
+    private final Map<String, Map<Integer, Long>> customLengthAllTimeBests = new HashMap<>();
+
+    // Per-map session best times keyed by distance: mapName -> (distance -> bestTimeMs). Session-only.
+    private final Map<String, Map<Integer, Long>> customLengthSessionBests = new HashMap<>();
+
     // Per-map best infinite-mode distance (blocks placed before dying). Persisted to disk.
     private final Map<String, Integer> infiniteDistances = new HashMap<>();
 
@@ -160,6 +166,17 @@ public class PlayerData {
         }
 
         config.set("experience", experience);
+
+        // Custom-length all-time bests: mapName -> { "distance" -> timeMs }
+        config.set("custom-length-bests", null);
+        for (Map.Entry<String, Map<Integer, Long>> mapEntry : customLengthAllTimeBests.entrySet()) {
+            for (Map.Entry<Integer, Long> distEntry : mapEntry.getValue().entrySet()) {
+                if (distEntry.getValue() > 0) {
+                    config.set("custom-length-bests." + mapEntry.getKey() + "." + distEntry.getKey(),
+                            distEntry.getValue());
+                }
+            }
+        }
     }
 
     public void loadFrom(FileConfiguration config) {
@@ -258,6 +275,25 @@ public class PlayerData {
         }
 
         experience = config.getInt("experience", 0);
+
+        customLengthAllTimeBests.clear();
+        if (config.isConfigurationSection("custom-length-bests")) {
+            for (String mapKey : config.getConfigurationSection("custom-length-bests").getKeys(false)) {
+                org.bukkit.configuration.ConfigurationSection distSec =
+                        config.getConfigurationSection("custom-length-bests." + mapKey);
+                if (distSec == null) continue;
+                Map<Integer, Long> distMap = new HashMap<>();
+                for (String distKey : distSec.getKeys(false)) {
+                    try {
+                        int dist = Integer.parseInt(distKey);
+                        long t = config.getLong("custom-length-bests." + mapKey + "." + distKey, 0);
+                        if (t > 0) distMap.put(dist, t);
+                    } catch (NumberFormatException ignored) {}
+                }
+                if (!distMap.isEmpty()) customLengthAllTimeBests.put(mapKey, distMap);
+            }
+        }
+        customLengthSessionBests.clear();
     }
 
     // --- Stats helpers ---
@@ -478,6 +514,7 @@ public class PlayerData {
         customLengthToggles.clear();
         customLengthYOffsets.clear();
         activeFinishZoneOverrides.clear();
+        customLengthSessionBests.clear();
     }
 
     /**
@@ -548,6 +585,54 @@ public class PlayerData {
     public int getCustomLengthY(String mapName) {
         Integer val = customLengthYOffsets.get(mapName.toLowerCase());
         return val != null ? val : 0;
+    }
+
+    /**
+     * Returns the all-time best time for the given map and distance, or -1 if none.
+     */
+    public long getCustomLengthBest(String mapName, int distance) {
+        Map<Integer, Long> distMap = customLengthAllTimeBests.get(mapName.toLowerCase());
+        if (distMap == null) return -1;
+        Long t = distMap.get(distance);
+        return t != null ? t : -1;
+    }
+
+    /**
+     * Updates the all-time best for the given map+distance. Returns true if a new best was set.
+     */
+    public boolean updateCustomLengthBest(String mapName, int distance, long timeMs) {
+        String key = mapName.toLowerCase();
+        Map<Integer, Long> distMap = customLengthAllTimeBests.computeIfAbsent(key, k -> new HashMap<>());
+        Long existing = distMap.get(distance);
+        if (existing == null || timeMs < existing) {
+            distMap.put(distance, timeMs);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns the session best time for the given map and distance, or -1 if none.
+     */
+    public long getCustomLengthSessionBest(String mapName, int distance) {
+        Map<Integer, Long> distMap = customLengthSessionBests.get(mapName.toLowerCase());
+        if (distMap == null) return -1;
+        Long t = distMap.get(distance);
+        return t != null ? t : -1;
+    }
+
+    /**
+     * Updates the session best for the given map+distance. Returns true if a new best was set.
+     */
+    public boolean updateCustomLengthSessionBest(String mapName, int distance, long timeMs) {
+        String key = mapName.toLowerCase();
+        Map<Integer, Long> distMap = customLengthSessionBests.computeIfAbsent(key, k -> new HashMap<>());
+        Long existing = distMap.get(distance);
+        if (existing == null || timeMs < existing) {
+            distMap.put(distance, timeMs);
+            return true;
+        }
+        return false;
     }
 
     /** Sets the per-player end-island Y offset for the given map. Pass 0 to reset. */

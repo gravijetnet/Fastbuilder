@@ -334,6 +334,7 @@ public class ShopGui {
                 data.purchaseBlock("cosmetic:one_click_pick");
                 data.setOneClickPick(true);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
+                if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick &apurchased and enabled! &7(&f" + price + " coins&7)"));
             } else {
                 player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
@@ -341,6 +342,7 @@ public class ShopGui {
         } else {
             data.setOneClickPick(!data.hasOneClickPick());
             plugin.getPlayerManager().savePlayerData(player.getUniqueId());
+            if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
             player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick " + (data.hasOneClickPick() ? "&aenabled" : "&cdisabled") + "&f."));
         }
         int ocpPage = plugin.getConfigManager().getGuisConfig().getInt("one-click-pick.page", 1);
@@ -422,6 +424,7 @@ public class ShopGui {
         if (data == null) return;
 
         boolean owned = price == 0 || data.hasPurchasedBlock("anim:" + animId)
+                || player.hasPermission("fastbuilder.cosmetic.animations.*")
                 || player.hasPermission("fastbuilder.animation." + animId.toLowerCase());
         if (!owned) {
             if (data.getCoins() >= price) {
@@ -526,6 +529,7 @@ public class ShopGui {
 
         String prefix = plugin.getConfigManager().getPrefix();
         boolean owned = price == 0 || data.hasPurchasedBlock("sound:" + soundId)
+                || player.hasPermission("fastbuilder.cosmetic.sounds.*")
                 || player.hasPermission("fastbuilder.sound." + soundId.toLowerCase());
         if (!owned) {
             if (data.getCoins() >= price) {
