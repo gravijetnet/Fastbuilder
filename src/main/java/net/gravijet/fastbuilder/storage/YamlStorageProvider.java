@@ -168,7 +168,7 @@ public class YamlStorageProvider implements StorageProvider {
     }
 
     @Override
-    public synchronized java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+    public synchronized java.util.List<java.util.Map.Entry<String, long[]>> getTopInfiniteDistancesForMap(
             String mapName, int limit) {
 
         // Values: long[] { distance, time } — distance desc, time asc on tie
@@ -219,11 +219,7 @@ public class YamlStorageProvider implements StorageProvider {
             if (cmp != 0) return cmp;
             return Long.compare(a.getValue()[1], b.getValue()[1]); // time asc
         });
-        List<java.util.Map.Entry<String, Integer>> result = new ArrayList<>();
-        for (java.util.Map.Entry<String, long[]> e : sorted.subList(0, Math.min(limit, sorted.size()))) {
-            result.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), (int) e.getValue()[0]));
-        }
-        return result;
+        return new ArrayList<>(sorted.subList(0, Math.min(limit, sorted.size())));
     }
 
     @Override

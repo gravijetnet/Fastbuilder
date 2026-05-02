@@ -87,7 +87,7 @@ public interface StorageProvider {
      * @param limit   maximum number of entries to return
      * @return ordered list of (name, blocksPlaced) entries, never null
      */
-    java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(String mapName, int limit);
+    java.util.List<java.util.Map.Entry<String, long[]>> getTopInfiniteDistancesForMap(String mapName, int limit);
 
     /**
      * Cleanly shut down the backend (flush pending writes, close connections).

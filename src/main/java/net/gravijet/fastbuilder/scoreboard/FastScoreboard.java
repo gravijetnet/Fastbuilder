@@ -228,12 +228,24 @@ public class FastScoreboard {
         // IMPORTANT: Do NOT add hardcoded colour codes to placeholder values.
         // The config lines supply their own colour prefix (e.g. "&c%pb%"), so
         // injecting §f here would override whatever colour the admin chose.
+        boolean isInfiniteMap = false;
+        if (session != null) {
+            net.gravijet.fastbuilder.map.MapData pbMap =
+                    plugin.getMapManager().getMap(session.getMapName());
+            isInfiniteMap = pbMap != null && pbMap.isInfinite();
+        }
+
         String pb;
         if (data != null && session != null) {
-            PlayerData.MapStats stats = data.getStats(session.getMapName());
-            pb = (stats != null && stats.hasBestTime())
-                    ? TimeUtil.formatTime(stats.bestTime)
-                    : TimeUtil.EMPTY;
+            if (isInfiniteMap) {
+                int dist = data.getInfiniteDistance(session.getMapName());
+                pb = dist > 0 ? dist + " blocks" : TimeUtil.EMPTY;
+            } else {
+                PlayerData.MapStats stats = data.getStats(session.getMapName());
+                pb = (stats != null && stats.hasBestTime())
+                        ? TimeUtil.formatTime(stats.bestTime)
+                        : TimeUtil.EMPTY;
+            }
         } else {
             pb = TimeUtil.EMPTY;
         }
@@ -271,10 +283,15 @@ public class FastScoreboard {
             }
         }
 
-        // Session top-10 (suppressed for custom length mode)
-        List<String[]> topList = (!inCustomLength && plugin.getGameplayManager() != null)
-                ? plugin.getGameplayManager().getGlobalSessionTop(10)
-                : Collections.<String[]>emptyList();
+        // Session top-10 (suppressed for custom length mode; use infinite top for infinite maps)
+        List<String[]> topList;
+        if (inCustomLength || plugin.getGameplayManager() == null) {
+            topList = Collections.<String[]>emptyList();
+        } else if (isInfiniteMap) {
+            topList = plugin.getGameplayManager().getInfiniteSessionTop(10);
+        } else {
+            topList = plugin.getGameplayManager().getGlobalSessionTop(10);
+        }
 
         String customLengthDistance = inCustomLength ? String.valueOf(activeCustomLength) : "---";
 
@@ -294,9 +311,13 @@ public class FastScoreboard {
                 String timePh = "%top_time_" + n + "%";
                 if (!inCustomLength && topList.size() >= n) {
                     String[] entry = topList.get(n - 1);
-                    // Return raw values — let the config control colours
                     line = line.replace(namePh, entry[0]);
-                    line = line.replace(timePh, TimeUtil.formatTime(Long.parseLong(entry[1])));
+                    if (isInfiniteMap) {
+                        // entry[1] = distance (blocks), entry[2] = timeMs
+                        line = line.replace(timePh, entry[1] + " blocks");
+                    } else {
+                        line = line.replace(timePh, TimeUtil.formatTime(Long.parseLong(entry[1])));
+                    }
                 } else {
                     // Empty entry: if this line references either placeholder, replace the
                     // ENTIRE line with a single "-,---" so no colon ever appears.

@@ -151,7 +151,10 @@ class MapSetupHandler {
                         float yaw = spawnPt.getYaw();
                         float normalized = ((yaw % 360) + 360) % 360;
                         boolean facingEast = Math.abs(normalized - 270f) <= 15f;
-                        if (!facingEast) {
+                        // Diagonal maps may also face South (yaw ≈ 0°/360°)
+                        boolean facingSouth = session.isDiagonalMode()
+                                && (normalized <= 15f || normalized >= 345f);
+                        if (!facingEast && !facingSouth) {
                             msg.msgAdmin(player, "setup-spawn-not-east");
                             return;
                         }
@@ -458,8 +461,16 @@ class MapSetupHandler {
         rod.setItemMeta(meta);
         player.getInventory().setItem(0, rod);
 
+        // Paste the existing map template into the setup area so the admin can see and modify it
+        if (map.getTemplateFile() != null && !map.getTemplateFile().isEmpty()) {
+            plugin.getFawePaster().pasteTemplate(
+                    player.getWorld(), map.getTemplateFile(),
+                    -1000, 20, -1000, null);
+        }
+
         String prefix = plugin.getConfigManager().getPrefix();
         player.sendMessage(ColorUtil.translate(prefix + "&fEditing map &c" + mapName + "&f."));
+        player.sendMessage(ColorUtil.translate("&7The existing schematic has been loaded into the setup area."));
         player.sendMessage(ColorUtil.translate("&7Use the same steps as /map setup to redefine areas."));
         player.sendMessage(ColorUtil.translate("&7When done: &c/map edit " + mapName + " finish"));
         player.sendMessage(ColorUtil.translate("&7To discard: &c/map edit " + mapName + " cancel"));
