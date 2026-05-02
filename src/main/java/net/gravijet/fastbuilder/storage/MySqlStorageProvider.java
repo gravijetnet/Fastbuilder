@@ -532,13 +532,13 @@ public class MySqlStorageProvider implements StorageProvider {
     }
 
     @Override
-    public java.util.List<java.util.Map.Entry<String, Integer>> getTopInfiniteDistancesForMap(
+    public java.util.List<java.util.Map.Entry<String, long[]>> getTopInfiniteDistancesForMap(
             String mapName, int limit) {
 
-        List<java.util.Map.Entry<String, Integer>> results = new ArrayList<java.util.Map.Entry<String, Integer>>();
+        List<java.util.Map.Entry<String, long[]>> results = new ArrayList<java.util.Map.Entry<String, long[]>>();
         try (Connection c = borrowConnection();
              PreparedStatement ps = c.prepareStatement(
-                     "SELECT pd.name, pid.distance " +
+                     "SELECT pd.name, pid.distance, pid.time " +
                      "FROM player_infinite_distances pid " +
                      "JOIN player_data pd ON pid.uuid = pd.uuid " +
                      "WHERE pid.map_name = ? AND pid.distance > 0 " +
@@ -548,7 +548,8 @@ public class MySqlStorageProvider implements StorageProvider {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     results.add(new java.util.AbstractMap.SimpleEntry<>(
-                            rs.getString("name"), rs.getInt("distance")));
+                            rs.getString("name"),
+                            new long[]{rs.getLong("distance"), rs.getLong("time")}));
                 }
             }
         } catch (SQLException e) {

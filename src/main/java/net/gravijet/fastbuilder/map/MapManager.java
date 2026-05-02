@@ -175,6 +175,23 @@ public class MapManager {
         if (mapFile.exists() && !mapFile.delete()) {
             plugin.getLogger().warning("Could not delete map file: " + mapFile.getName());
         }
+
+        // Clear all pasted island schematics from the world
+        if (map.getWorld() != null && map.getScale() > 0) {
+            if (map.isDiagonal()) {
+                plugin.getFawePaster().clearIslandsDiagonal(
+                        map.getWorld(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        map.getActualZStep(), map.getDiagonalStepX(), 0, map.getScale(), null);
+            } else {
+                plugin.getFawePaster().clearIslands(
+                        map.getWorld(),
+                        map.getOriginX(), map.getOriginY(), map.getOriginZ(),
+                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        map.getActualZStep(), 0, map.getScale(), null);
+            }
+        }
     }
 
     /**

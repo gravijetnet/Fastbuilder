@@ -75,6 +75,14 @@ public class ReplayData {
     public int getCustomLength() { return customLength; }
     public int getTotalTicks() { return frames.isEmpty() ? 0 : frames.get(frames.size() - 1).getTick(); }
 
+    public int getBlocksPlaced() {
+        int count = 0;
+        for (ReplayFrame frame : frames) {
+            if (frame.hasBlockPlacement()) count++;
+        }
+        return count;
+    }
+
     /**
      * Generate a unique filename for this replay.
      */

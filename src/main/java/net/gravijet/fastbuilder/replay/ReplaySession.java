@@ -78,6 +78,7 @@ public class ReplaySession {
     private int replayMinX, replayMaxX;
     private int replayMinY, replayMaxY;
     private int replayMinZ, replayMaxZ;
+    private int precomputedMaxX;
 
     private float savedExp   = 0f;
     private int   savedLevel = 0;
@@ -121,6 +122,22 @@ public class ReplaySession {
         replayMaxY = REPLAY_AREA_Y + map.getIslandHeight();
         replayMinZ = replayAreaZ;
         replayMaxZ = replayAreaZ + map.getIslandLength();
+
+        // For infinite maps, precompute the full bridge extent so the viewer boundary
+        // is correct from the start (not just as blocks are placed during playback)
+        precomputedMaxX = replayMaxX;
+        if (map.isInfinite()) {
+            for (ReplayFrame frame : replayData.getFrames()) {
+                if (frame.hasBlockPlacement()) {
+                    int bx = frame.getBlockPlacement().getBlockX() + offsetX;
+                    if (bx > precomputedMaxX) precomputedMaxX = bx;
+                }
+            }
+            for (ReplayFrame.BlockPlacement bp : replayData.getInitialBlocks()) {
+                int bx = bp.getBlockX() + offsetX;
+                if (bx > precomputedMaxX) precomputedMaxX = bx;
+            }
+        }
 
         npcController = new ReplayNpcController(plugin, replayData, offsetX, offsetY, offsetZ);
 
@@ -547,7 +564,7 @@ public class ReplaySession {
     public boolean isInNpcCamera()           { return inNpcCamera; }
 
     public boolean isOutsideReplayBounds(Location loc) {
-        int dynamicMaxX = replayMaxX;
+        int dynamicMaxX = precomputedMaxX;
         for (Location placed : placedBlocks) {
             if (placed.getBlockX() > dynamicMaxX) dynamicMaxX = placed.getBlockX();
         }

@@ -308,11 +308,11 @@ public class SetupListener implements Listener {
     private void spawnPointParticle(Location loc) {
         World world = loc.getWorld();
         if (world == null) return;
-        world.playEffect(loc.clone().add(0.5, 0.5, 0.5), Effect.SMOKE, 0);
+        spawnBlueParticle(world, loc.clone().add(0.5, 0.5, 0.5));
     }
 
     /**
-     * Renders the 12 edges of the selection cuboid as a dense blue (SMOKE) line.
+     * Renders the 12 edges of the selection cuboid as dense blue lines.
      * Step size 0.25 produces a continuous, non-moving outline.
      */
     private void spawnCuboidParticles(Location p1, Location p2) {
@@ -331,24 +331,40 @@ public class SetupListener implements Listener {
 
         // 4 edges parallel to X axis
         for (double x = minX; x <= maxX; x += step) {
-            world.playEffect(new Location(world, x, minY, minZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, x, maxY, minZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, x, minY, maxZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, x, maxY, maxZ), Effect.SMOKE, 0);
+            spawnBlueParticle(world, new Location(world, x, minY, minZ));
+            spawnBlueParticle(world, new Location(world, x, maxY, minZ));
+            spawnBlueParticle(world, new Location(world, x, minY, maxZ));
+            spawnBlueParticle(world, new Location(world, x, maxY, maxZ));
         }
         // 4 edges parallel to Y axis
         for (double y = minY; y <= maxY; y += step) {
-            world.playEffect(new Location(world, minX, y, minZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, maxX, y, minZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, minX, y, maxZ), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, maxX, y, maxZ), Effect.SMOKE, 0);
+            spawnBlueParticle(world, new Location(world, minX, y, minZ));
+            spawnBlueParticle(world, new Location(world, maxX, y, minZ));
+            spawnBlueParticle(world, new Location(world, minX, y, maxZ));
+            spawnBlueParticle(world, new Location(world, maxX, y, maxZ));
         }
         // 4 edges parallel to Z axis
         for (double z = minZ; z <= maxZ; z += step) {
-            world.playEffect(new Location(world, minX, minY, z), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, maxX, minY, z), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, minX, maxY, z), Effect.SMOKE, 0);
-            world.playEffect(new Location(world, maxX, maxY, z), Effect.SMOKE, 0);
+            spawnBlueParticle(world, new Location(world, minX, minY, z));
+            spawnBlueParticle(world, new Location(world, maxX, minY, z));
+            spawnBlueParticle(world, new Location(world, minX, maxY, z));
+            spawnBlueParticle(world, new Location(world, maxX, maxY, z));
+        }
+    }
+
+    /**
+     * Spawns a single blue dense particle at the given location.
+     * Uses COLOURED_DUST via Spigot API (count=0, offsetZ=1 → pure blue).
+     * Falls back to SMOKE if the particle type is unavailable.
+     */
+    private void spawnBlueParticle(World world, Location loc) {
+        try {
+            Effect coloured = Effect.valueOf("COLOURED_DUST");
+            // count=0 with offsetX/Y/Z as RGB (0-1) gives a single colored particle
+            // offsetX=0, offsetY=0, offsetZ=1 → blue (R=0, G=0, B=255)
+            world.spigot().playEffect(loc, coloured, 0, 0, 0f, 0f, 1f, 1f, 0, 64);
+        } catch (Exception e) {
+            world.playEffect(loc, Effect.SMOKE, 0);
         }
     }
 }

@@ -162,7 +162,7 @@ public class StatsGui {
             boolean infinite = lbMap != null && lbMap.isInfinite();
 
             if (infinite) {
-                List<Map.Entry<String, Integer>> topInf =
+                List<Map.Entry<String, long[]>> topInf =
                         plugin.getPlayerManager().getTopInfiniteDistancesForMap(mapName, 10);
 
                 Bukkit.getScheduler().runTask(plugin, () -> {
@@ -174,7 +174,7 @@ public class StatsGui {
 
                     int[] entrySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21};
                     for (int i = 0; i < Math.min(topInf.size(), entrySlots.length); i++) {
-                        Map.Entry<String, Integer> entry = topInf.get(i);
+                        Map.Entry<String, long[]> entry = topInf.get(i);
                         int pos = i + 1;
                         String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
                         ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
@@ -182,7 +182,10 @@ public class StatsGui {
                         meta.setOwner(entry.getKey());
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();
-                        lore.add(ColorUtil.translate("&7Distance: &f" + entry.getValue() + " blocks"));
+                        lore.add(ColorUtil.translate("&7Distance: &f" + entry.getValue()[0] + " blocks"));
+                        long t = entry.getValue()[1];
+                        if (t > 0 && t < Long.MAX_VALUE)
+                            lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(t)));
                         meta.setLore(lore);
                         skull.setItemMeta(meta);
                         inv.setItem(entrySlots[i], skull);

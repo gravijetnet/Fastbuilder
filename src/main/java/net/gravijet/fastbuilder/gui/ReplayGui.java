@@ -146,12 +146,22 @@ public class ReplayGui {
             String favLine = isFav ? "&6Favorited &e(Right-click to remove)" : "&7Right-click to favorite";
             String pbLine  = isPb  ? "&6&lPersonal Best" : "";
 
+            net.gravijet.fastbuilder.map.MapData replayMap =
+                    plugin.getMapManager().getMap(replay.getMapName());
+            boolean isInfiniteReplay = replayMap != null && replayMap.isInfinite();
+
             java.util.List<String> loreList = new java.util.ArrayList<>();
             loreList.add(ColorUtil.translate(status));
-            loreList.add(ColorUtil.translate("&7Time: &f" + time));
+            if (isInfiniteReplay) {
+                loreList.add(ColorUtil.translate("&7Distance: &f" + replay.getBlocksPlaced() + " blocks"));
+                if (replay.getRunTimeMillis() > 0)
+                    loreList.add(ColorUtil.translate("&7Time: &f" + time));
+            } else {
+                loreList.add(ColorUtil.translate("&7Time: &f" + time));
+                if (replay.getCustomLength() > 0)
+                    loreList.add(ColorUtil.translate("&7Distance: &f" + replay.getCustomLength() + " blocks"));
+            }
             loreList.add(ColorUtil.translate("&7Map: &f" + replay.getMapName()));
-            if (replay.getCustomLength() > 0)
-                loreList.add(ColorUtil.translate("&7Distance: &f" + replay.getCustomLength() + " blocks"));
             if (!pbLine.isEmpty()) loreList.add(ColorUtil.translate(pbLine));
             loreList.add("");
             loreList.add(ColorUtil.translate("&eLeft-click to watch"));

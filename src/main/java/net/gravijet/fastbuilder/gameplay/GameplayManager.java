@@ -88,6 +88,9 @@ public class GameplayManager {
     private long globalSessionBestTime = -1;
     private String globalSessionBestPlayer = null;
 
+    // Infinite session bests: per-player best {distance, timeMs} this session
+    private final java.util.LinkedHashMap<String, long[]> infiniteSessionBests = new java.util.LinkedHashMap<>();
+
     // Last finished run data — shown on scoreboard/actionbar until the next run starts
     private final Map<UUID, Long>    lastFinishTimes  = new HashMap<>();
     private final Map<UUID, Integer> lastFinishBlocks = new HashMap<>();
@@ -499,7 +502,15 @@ public class GameplayManager {
                 if (infData != null) {
                     int blockCount = session.getPlacedBlocks().size();
                     long elapsed = session.getElapsed();
-                    if (blockCount > 0) infData.updateInfiniteDistance(session.getMapName(), blockCount, elapsed);
+                    if (blockCount > 0) {
+                        infData.updateInfiniteDistance(session.getMapName(), blockCount, elapsed);
+                        // Update infinite session bests (highest distance, then lowest time on tie)
+                        long[] cur = infiniteSessionBests.get(player.getName());
+                        if (cur == null || blockCount > cur[0]
+                                || (blockCount == cur[0] && elapsed < cur[1])) {
+                            infiniteSessionBests.put(player.getName(), new long[]{blockCount, elapsed});
+                        }
+                    }
                 }
             }
 
@@ -1129,8 +1140,30 @@ public class GameplayManager {
         return getGlobalSessionTop(3);
     }
 
+    /**
+     * Returns the top N unique-player infinite session bests as [playerName, distance, timeMs] triples,
+     * sorted by distance descending, then time ascending on tie.
+     */
+    public List<String[]> getInfiniteSessionTop(int n) {
+        List<Map.Entry<String, long[]>> sorted = new ArrayList<>(infiniteSessionBests.entrySet());
+        sorted.sort((a, b) -> {
+            int cmp = Long.compare(b.getValue()[0], a.getValue()[0]); // distance desc
+            if (cmp != 0) return cmp;
+            return Long.compare(a.getValue()[1], b.getValue()[1]); // time asc
+        });
+        List<String[]> result = new ArrayList<>();
+        for (int i = 0; i < Math.min(n, sorted.size()); i++) {
+            Map.Entry<String, long[]> entry = sorted.get(i);
+            result.add(new String[]{entry.getKey(),
+                    String.valueOf(entry.getValue()[0]),
+                    String.valueOf(entry.getValue()[1])});
+        }
+        return result;
+    }
+
     public void removeGlobalSessionBest(String playerName) {
         globalSessionBests.remove(playerName);
+        infiniteSessionBests.remove(playerName);
         if (playerName.equals(globalSessionBestPlayer)) {
             globalSessionBestTime = -1;
             globalSessionBestPlayer = null;
@@ -1151,6 +1184,7 @@ public class GameplayManager {
         finishCooldown.clear();
         buildModePlayers.clear();
         globalSessionBests.clear();
+        infiniteSessionBests.clear();
     }
 
     public Map<UUID, RunSession> getActiveSessions() { return activeSessions; }
