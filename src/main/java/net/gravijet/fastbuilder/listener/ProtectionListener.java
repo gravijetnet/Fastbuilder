@@ -1,4 +1,4 @@
-package net.gravijet.fastbuilder.listener;
+﻿package net.gravijet.fastbuilder.listener;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.RunSession;
@@ -373,6 +373,9 @@ public class ProtectionListener implements Listener {
                                     // Empty adjacent target → auto-switch session
                                     switchingPlayers.add(player.getUniqueId());
                                     java.util.UUID switchUuid = player.getUniqueId();
+                                    // Pre-teleport to target spawn so the player never falls mid-switch
+                                    player.teleport(plugin.getGameplayManager().getEffectiveSpawn(
+                                            switchUuid, map, targetIsland));
                                     plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
                                     Bukkit.getScheduler().runTaskLater(plugin,
                                             () -> switchingPlayers.remove(switchUuid), 20L);

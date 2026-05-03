@@ -234,11 +234,30 @@ public class IslandSelectorGui {
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
         }
-        if (plugin.getNpcManager() != null) {
+
+        // Spawn NPC only if the selected design doesn't have a custom NPC position
+        // (applyPlayerDesign already spawned it at the design position when applicable)
+        boolean designHasNpc = false;
+        boolean designHasHolo = false;
+        if (data != null) {
+            String design = data.getSelectedDesign(map.getName());
+            if (design != null && !design.equals(map.getTemplateFile())) {
+                net.gravijet.fastbuilder.map.MapData.DesignProfile prof = map.getDesignProfile(design);
+                if (prof != null) {
+                    if (prof.hasNpcPosition()) designHasNpc = true;
+                    if (prof.hasHologramPosition()) designHasHolo = true;
+                }
+            }
+        }
+        if (plugin.getNpcManager() != null && !designHasNpc) {
             plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(islandIndex));
         }
         if (plugin.getHologramManager() != null) {
-            plugin.getHologramManager().updateHologram(map.getName(), islandIndex, player);
+            org.bukkit.Location holoLoc = plugin.getGameplayManager() != null
+                    ? plugin.getGameplayManager().getEffectiveHologramLocation(
+                            player.getUniqueId(), map, islandIndex)
+                    : map.getIslandHologramLocation(islandIndex);
+            plugin.getHologramManager().updateHologramAt(map.getName(), islandIndex, player, holoLoc);
         }
 
         String raw = plugin.getConfigManager().getMessage("island-joined");

@@ -174,7 +174,7 @@ public class GameplayListener implements Listener {
         // Block death-check task during the switch frame so onFall cannot fire mid-hop
         gm.markIslandHopping(uuid);
         // Pre-teleport to target spawn before switchIsland clears the old session
-        player.teleport(map.getIslandSpawn(candidateIndex));
+        player.teleport(gm.getEffectiveSpawn(uuid, map, candidateIndex));
         gm.switchIsland(player, map, session, candidateIndex);
         org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
             islandHopCooldown.remove(uuid);

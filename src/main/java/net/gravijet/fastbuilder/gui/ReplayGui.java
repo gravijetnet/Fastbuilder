@@ -1,4 +1,4 @@
-package net.gravijet.fastbuilder.gui;
+﻿package net.gravijet.fastbuilder.gui;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.player.PlayerData;
@@ -45,16 +45,19 @@ public class ReplayGui {
 
         List<ReplayData> allReplays = plugin.getReplayManager().getPlayerReplays(player.getUniqueId(), mapName);
 
-        // Filter replays to match the player's current mode (custom length vs normal)
+        // Filter replays to match the player's current mode (custom length vs normal).
+        // Fall back to data.getLastMap() when no active session exists (e.g. during replay playback).
         net.gravijet.fastbuilder.gameplay.RunSession currentSession = plugin.getGameplayManager() != null
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
+        net.gravijet.fastbuilder.player.PlayerData pdFilter =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        String effectiveMapForFilter = currentSession != null ? currentSession.getMapName()
+                : (pdFilter != null ? pdFilter.getLastMap() : null);
         boolean playerInCustomLength = false;
-        if (currentSession != null) {
-            net.gravijet.fastbuilder.map.MapData curMap = plugin.getMapManager().getMap(currentSession.getMapName());
+        if (effectiveMapForFilter != null) {
+            net.gravijet.fastbuilder.map.MapData curMap = plugin.getMapManager().getMap(effectiveMapForFilter);
             if (curMap != null && curMap.hasCustomLength()) {
-                net.gravijet.fastbuilder.player.PlayerData pd =
-                        plugin.getPlayerManager().getCachedData(player.getUniqueId());
-                playerInCustomLength = pd != null && pd.isCustomLengthEnabled(currentSession.getMapName());
+                playerInCustomLength = pdFilter != null && pdFilter.isCustomLengthEnabled(effectiveMapForFilter);
             }
         }
         final boolean inCL = playerInCustomLength;
@@ -66,17 +69,13 @@ public class ReplayGui {
         if (showFavorites) {
             PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             Set<String> favs = pData != null ? pData.getFavoriteReplays() : Collections.emptySet();
-            long pbTime = Long.MAX_VALUE;
-            for (ReplayData rd : allReplays) {
-                if (rd.isSuccessful() && rd.getRunTimeMillis() > 0 && rd.getRunTimeMillis() < pbTime) {
-                    pbTime = rd.getRunTimeMillis();
-                }
-            }
-            final long finalPb = pbTime;
+            net.gravijet.fastbuilder.map.MapData favMap = plugin.getMapManager().getMap(mapName);
+            boolean favInfinite = favMap != null && favMap.isInfinite();
+            ReplayData pbReplay = findPbReplay(allReplays, favInfinite);
             replays = new ArrayList<>();
             for (ReplayData rd : allReplays) {
                 boolean isFav = favs.contains(rd.getFileName());
-                boolean isPb  = rd.isSuccessful() && rd.getRunTimeMillis() == finalPb;
+                boolean isPb  = rd == pbReplay;
                 if (isFav || isPb) replays.add(rd);
             }
         } else {
@@ -102,12 +101,9 @@ public class ReplayGui {
 
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         Set<String> favorites = pData != null ? pData.getFavoriteReplays() : Collections.<String>emptySet();
-        long pbTime = Long.MAX_VALUE;
-        for (ReplayData rd : replays) {
-            if (rd.isSuccessful() && rd.getRunTimeMillis() > 0 && rd.getRunTimeMillis() < pbTime) {
-                pbTime = rd.getRunTimeMillis();
-            }
-        }
+        net.gravijet.fastbuilder.map.MapData pageMap = plugin.getMapManager().getMap(mapName);
+        boolean pageInfinite = pageMap != null && pageMap.isInfinite();
+        ReplayData pbReplayEntry = findPbReplay(replays, pageInfinite);
 
         ItemStack border = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
         for (int i = 0; i < 9; i++) inv.setItem(i, border);
@@ -133,8 +129,7 @@ public class ReplayGui {
             int slot = contentSlots[i - startIndex];
 
             boolean isFav = favorites.contains(replay.getFileName());
-            boolean isPb  = replay.isSuccessful() && replay.getRunTimeMillis() > 0
-                            && replay.getRunTimeMillis() == pbTime;
+            boolean isPb  = replay == pbReplayEntry;
 
             Material icon;
             if (isPb) icon = Material.NETHER_STAR;
@@ -193,6 +188,30 @@ public class ReplayGui {
         replayPages.put(player.getUniqueId(), page);
         displayedReplays.put(player.getUniqueId(), replays);
         player.openInventory(inv);
+    }
+
+    private ReplayData findPbReplay(List<ReplayData> replays, boolean infinite) {
+        ReplayData best = null;
+        int bestBlocks = -1;
+        long bestTime = Long.MAX_VALUE;
+        for (ReplayData rd : replays) {
+            if (!rd.isSuccessful()) continue;
+            if (infinite) {
+                int blocks = rd.getBlocksPlaced();
+                if (blocks > bestBlocks || (blocks == bestBlocks && rd.getRunTimeMillis() < bestTime)) {
+                    bestBlocks = blocks;
+                    bestTime = rd.getRunTimeMillis();
+                    best = rd;
+                }
+            } else {
+                if (rd.getRunTimeMillis() <= 0) continue;
+                if (rd.getRunTimeMillis() < bestTime) {
+                    bestTime = rd.getRunTimeMillis();
+                    best = rd;
+                }
+            }
+        }
+        return best;
     }
 
     void handleClick(InventoryClickEvent event) {

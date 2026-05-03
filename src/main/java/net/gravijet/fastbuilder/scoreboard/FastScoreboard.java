@@ -224,24 +224,29 @@ public class FastScoreboard {
         RunSession session  = plugin.getGameplayManager() != null
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
 
+        // When the player is watching a replay, session is null.
+        // Fall back to their last known map so scoreboard values still reflect the correct mode.
+        String effectiveMapName = session != null ? session.getMapName()
+                : (data != null ? data.getLastMap() : null);
+
         // --- Resolve common placeholders once ---
         // IMPORTANT: Do NOT add hardcoded colour codes to placeholder values.
         // The config lines supply their own colour prefix (e.g. "&c%pb%"), so
         // injecting §f here would override whatever colour the admin chose.
         boolean isInfiniteMap = false;
-        if (session != null) {
+        if (effectiveMapName != null) {
             net.gravijet.fastbuilder.map.MapData pbMap =
-                    plugin.getMapManager().getMap(session.getMapName());
+                    plugin.getMapManager().getMap(effectiveMapName);
             isInfiniteMap = pbMap != null && pbMap.isInfinite();
         }
 
         String pb;
-        if (data != null && session != null) {
+        if (data != null && effectiveMapName != null) {
             if (isInfiniteMap) {
-                int dist = data.getInfiniteDistance(session.getMapName());
+                int dist = data.getInfiniteDistance(effectiveMapName);
                 pb = dist > 0 ? dist + " blocks" : TimeUtil.EMPTY;
             } else {
-                PlayerData.MapStats stats = data.getStats(session.getMapName());
+                PlayerData.MapStats stats = data.getStats(effectiveMapName);
                 pb = (stats != null && stats.hasBestTime())
                         ? TimeUtil.formatTime(stats.bestTime)
                         : TimeUtil.EMPTY;
@@ -275,17 +280,17 @@ public class FastScoreboard {
         int activeCustomLength = 0;
         String customBest = TimeUtil.EMPTY;
         String customSessionBest = TimeUtil.EMPTY;
-        if (session != null && data != null) {
+        if (effectiveMapName != null && data != null) {
             net.gravijet.fastbuilder.map.MapData clMap =
-                    plugin.getMapManager().getMap(session.getMapName());
-            if (clMap != null && clMap.hasCustomLength() && data.isCustomLengthEnabled(session.getMapName())) {
+                    plugin.getMapManager().getMap(effectiveMapName);
+            if (clMap != null && clMap.hasCustomLength() && data.isCustomLengthEnabled(effectiveMapName)) {
                 inCustomLength = true;
-                activeCustomLength = data.getCustomLength(session.getMapName());
+                activeCustomLength = data.getCustomLength(effectiveMapName);
                 if (activeCustomLength <= 0) activeCustomLength = clMap.getBaseCustomLength();
                 if (activeCustomLength > 0) {
-                    long cb = data.getCustomLengthBest(session.getMapName(), activeCustomLength);
+                    long cb = data.getCustomLengthBest(effectiveMapName, activeCustomLength);
                     customBest = cb > 0 ? TimeUtil.formatTime(cb) : TimeUtil.EMPTY;
-                    long csb = data.getCustomLengthSessionBest(session.getMapName(), activeCustomLength);
+                    long csb = data.getCustomLengthSessionBest(effectiveMapName, activeCustomLength);
                     customSessionBest = csb > 0 ? TimeUtil.formatTime(csb) : TimeUtil.EMPTY;
                 }
             }
@@ -321,12 +326,17 @@ public class FastScoreboard {
                 String timePh = "%top_time_" + n + "%";
                 if (!inCustomLength && topList.size() >= n) {
                     String[] entry = topList.get(n - 1);
-                    line = line.replace(namePh, entry[0]);
+                    String rankColor = n == 1 ? "§6" : n == 2 ? "§7" : n == 3 ? "§c" : "";
+                    line = line.replace(namePh, rankColor + entry[0]);
+                    // Replace common rank-color PAPI placeholders with the position-based
+                    // color so each top-N line shows its own rank colour instead of the
+                    // viewing player's colour across all three lines.
+                    line = line.replace("%phoenix_player_rank_color%", rankColor);
                     if (isInfiniteMap) {
                         // entry[1] = distance (blocks), entry[2] = timeMs
-                        line = line.replace(timePh, entry[1] + " blocks");
+                        line = line.replace(timePh, rankColor + entry[1] + " blocks");
                     } else {
-                        line = line.replace(timePh, TimeUtil.formatTime(Long.parseLong(entry[1])));
+                        line = line.replace(timePh, rankColor + TimeUtil.formatTime(Long.parseLong(entry[1])));
                     }
                 } else {
                     // Empty entry: if this line references either placeholder, replace the

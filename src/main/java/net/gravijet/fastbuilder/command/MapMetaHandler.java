@@ -528,6 +528,18 @@ class MapMetaHandler {
             profile.islandWidth  = session.getIslandWidth();
             profile.islandHeight = session.getIslandHeight();
             profile.islandLength = session.getIslandLength();
+            if (session.getNpcPoint() != null) {
+                profile.npcOffsetX = session.getNpcOffsetX();
+                profile.npcOffsetY = session.getNpcOffsetY();
+                profile.npcOffsetZ = session.getNpcOffsetZ();
+                profile.npcYaw     = session.getNpcPoint().getYaw();
+                profile.npcPitch   = session.getNpcPoint().getPitch();
+            }
+            if (session.getHologramPoint() != null) {
+                profile.hologramOffsetX = session.getHologramOffsetX();
+                profile.hologramOffsetY = session.getHologramOffsetY();
+                profile.hologramOffsetZ = session.getHologramOffsetZ();
+            }
 
             map.setDesignProfile(templateKey, profile);
             mm.saveMap(map);
