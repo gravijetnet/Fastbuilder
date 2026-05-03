@@ -740,10 +740,6 @@ public class GameplayManager {
         // Give hotbar items
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
 
-        // Spawn NPC and hologram at new island
-        if (plugin.getNpcManager() != null) plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(targetIsland));
-        if (plugin.getHologramManager() != null) plugin.getHologramManager().updateHologram(map.getName(), targetIsland, player);
-
         // Restore end island at the player's preferred distance on the new island slot
         if (map.hasCustomLength()) {
             if (data != null && savedCustomLength > 0) {
@@ -759,6 +755,31 @@ public class GameplayManager {
 
         // Apply the player's selected design on the new island
         applyPlayerDesign(player, map, targetIsland);
+
+        // Spawn NPC at new island — skip default spawn when the design profile
+        // already placed it at a custom position (done inside applyPlayerDesign).
+        boolean switchHasNpc = false;
+        boolean switchHasHolo = false;
+        if (data != null) {
+            String switchDesign = data.getSelectedDesign(map.getName());
+            if (switchDesign != null && !switchDesign.equals(map.getTemplateFile())) {
+                net.gravijet.fastbuilder.map.MapData.DesignProfile switchProf =
+                        map.getDesignProfile(switchDesign);
+                if (switchProf != null) {
+                    if (switchProf.hasNpcPosition()) switchHasNpc = true;
+                    if (switchProf.hasHologramPosition()) switchHasHolo = true;
+                }
+            }
+        }
+        if (plugin.getNpcManager() != null && !switchHasNpc) {
+            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(targetIsland));
+        }
+        if (plugin.getHologramManager() != null) {
+            org.bukkit.Location switchHoloLoc = getEffectiveHologramLocation(
+                    uuid, map, targetIsland);
+            plugin.getHologramManager().updateHologramAt(map.getName(), targetIsland,
+                    player, switchHoloLoc);
+        }
 
         plugin.getScoreboardManager().updateScoreboard(player);
     }
@@ -917,6 +938,35 @@ public class GameplayManager {
             }
         }
         return map.getIslandSpawn(islandIndex);
+    }
+
+    /**
+     * Returns the effective hologram location for the given player on the given island,
+     * accounting for any active design profile hologram override.
+     */
+    public org.bukkit.Location getEffectiveHologramLocation(UUID uuid,
+                                                              net.gravijet.fastbuilder.map.MapData map,
+                                                              int islandIndex) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        if (pData != null) {
+            String design = pData.getSelectedDesign(map.getName());
+            if (design != null && !design.equals(map.getTemplateFile())) {
+                net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
+                        map.getDesignProfile(design);
+                if (profile != null && profile.hasHologramPosition()) {
+                    long diagX = (long) islandIndex * map.getDiagonalStepX();
+                    return new org.bukkit.Location(
+                            map.getWorld(),
+                            map.getOriginX() + diagX + profile.hologramOffsetX,
+                            map.getOriginY() + profile.hologramOffsetY,
+                            map.getOriginZ() + (long) islandIndex * map.getActualZStep()
+                                    + profile.hologramOffsetZ
+                    );
+                }
+            }
+        }
+        return map.getIslandHologramLocation(islandIndex);
     }
 
     // =========================================================================

@@ -258,11 +258,28 @@ public class PlayerListener implements Listener {
         plugin.getScoreboardManager().createScoreboard(player);
 
         if (plugin.getNpcManager() != null) {
-            plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
+            // Skip default NPC spawn when applyPlayerDesign() already placed it at a custom position
+            boolean designHasNpc = false;
+            if (plugin.getGameplayManager() != null) {
+                PlayerData pd = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                if (pd != null) {
+                    String design = pd.getSelectedDesign(map.getName());
+                    if (design != null && !design.equals(map.getTemplateFile())) {
+                        net.gravijet.fastbuilder.map.MapData.DesignProfile prof = map.getDesignProfile(design);
+                        if (prof != null && prof.hasNpcPosition()) designHasNpc = true;
+                    }
+                }
+            }
+            if (!designHasNpc) {
+                plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
+            }
         }
 
         if (plugin.getHologramManager() != null) {
-            plugin.getHologramManager().updateHologram(map.getName(), island, player);
+            org.bukkit.Location holoLoc = plugin.getGameplayManager() != null
+                    ? plugin.getGameplayManager().getEffectiveHologramLocation(player.getUniqueId(), map, island)
+                    : map.getIslandHologramLocation(island);
+            plugin.getHologramManager().updateHologramAt(map.getName(), island, player, holoLoc);
         }
     }
 }

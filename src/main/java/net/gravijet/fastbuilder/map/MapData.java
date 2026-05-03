@@ -130,6 +130,8 @@ public class MapData {
         /** NPC position relative to island min corner (0,0,0 = use map default). */
         public double npcOffsetX, npcOffsetY, npcOffsetZ;
         public float  npcYaw, npcPitch;
+        /** Hologram position relative to island min corner (0,0,0 = use map default). */
+        public double hologramOffsetX, hologramOffsetY, hologramOffsetZ;
 
         public DesignProfile() {}
 
@@ -141,6 +143,11 @@ public class MapData {
         /** Returns true when a custom NPC position is configured for this profile. */
         public boolean hasNpcPosition() {
             return npcOffsetX != 0 || npcOffsetY != 0 || npcOffsetZ != 0;
+        }
+
+        /** Returns true when a custom hologram position is configured for this profile. */
+        public boolean hasHologramPosition() {
+            return hologramOffsetX != 0 || hologramOffsetY != 0 || hologramOffsetZ != 0;
         }
     }
 
@@ -241,6 +248,11 @@ public class MapData {
                 config.set(b + "npc.z",     p.npcOffsetZ);
                 config.set(b + "npc.yaw",   (double) p.npcYaw);
                 config.set(b + "npc.pitch", (double) p.npcPitch);
+            }
+            if (p.hasHologramPosition()) {
+                config.set(b + "hologram.x", p.hologramOffsetX);
+                config.set(b + "hologram.y", p.hologramOffsetY);
+                config.set(b + "hologram.z", p.hologramOffsetZ);
             }
         }
     }
@@ -343,6 +355,9 @@ public class MapData {
                 p.npcOffsetZ    = config.getDouble(b + "npc.z", 0);
                 p.npcYaw        = (float) config.getDouble(b + "npc.yaw", 0);
                 p.npcPitch      = (float) config.getDouble(b + "npc.pitch", 0);
+                p.hologramOffsetX = config.getDouble(b + "hologram.x", 0);
+                p.hologramOffsetY = config.getDouble(b + "hologram.y", 0);
+                p.hologramOffsetZ = config.getDouble(b + "hologram.z", 0);
                 designProfiles.put(key.toLowerCase(), p);
             }
         }

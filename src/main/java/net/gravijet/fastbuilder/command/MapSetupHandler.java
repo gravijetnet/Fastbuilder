@@ -1,4 +1,4 @@
-package net.gravijet.fastbuilder.command;
+﻿package net.gravijet.fastbuilder.command;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.MapData;
@@ -74,6 +74,42 @@ class MapSetupHandler {
     }
 
     private void startSetup(Player player, MapManager mm, boolean infinite, boolean customLength, boolean diagonal) {
+        // Stop any active replay before entering setup
+        if (plugin.getReplayManager() != null) {
+            if (plugin.getReplayManager().isInPlayback(player.getUniqueId())) {
+                plugin.getReplayManager().stopPlayback(player.getUniqueId());
+            }
+            plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
+        }
+        // Clean up any active gameplay session so the deathCheckTask doesn't teleport the player back
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            net.gravijet.fastbuilder.player.PlayerData existingData =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (existingData != null) {
+                if (existingData.getLastMap() != null) {
+                    net.gravijet.fastbuilder.map.MapData existingMap = mm.getMap(existingData.getLastMap());
+                    if (existingMap != null) {
+                        plugin.getGameplayManager().revertIslandDesign(existingMap, existingData.getLastIsland());
+                    }
+                    existingData.clearCustomLengths();
+                }
+                // Clear lastMap/lastIsland so no other codepath teleports the admin back
+                existingData.setLastMap(null);
+                existingData.setLastIsland(-1);
+            }
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        }
+        if (plugin.getNpcManager() != null) plugin.getNpcManager().despawnNpc(player.getUniqueId());
+        if (plugin.getHologramManager() != null) {
+            net.gravijet.fastbuilder.player.PlayerData d =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (d != null && d.getLastMap() != null)
+                plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
+        }
+        mm.freeAllIslands(player.getUniqueId());
+
         mm.removeSetupSession(player.getUniqueId());
 
         Location origin = new Location(player.getWorld(), -1000, 20, -1000, -90f, 0f);
@@ -439,6 +475,26 @@ class MapSetupHandler {
         }
 
         mm.removeSetupSession(player.getUniqueId());
+
+        // Clean up any active gameplay session so the admin isn't teleported back to their island
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            net.gravijet.fastbuilder.player.PlayerData editData =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (editData != null) {
+                if (editData.getLastMap() != null) {
+                    net.gravijet.fastbuilder.map.MapData editMap = mm.getMap(editData.getLastMap());
+                    if (editMap != null) {
+                        plugin.getGameplayManager().revertIslandDesign(editMap, editData.getLastIsland());
+                    }
+                    editData.clearCustomLengths();
+                }
+                editData.setLastMap(null);
+                editData.setLastIsland(-1);
+            }
+            plugin.getGameplayManager().removeSession(player.getUniqueId());
+        }
 
         Location origin = new Location(player.getWorld(), -1000, 20, -1000, -90f, 0f);
         SetupSession session = mm.startSetupSession(player.getUniqueId(), origin);

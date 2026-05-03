@@ -315,11 +315,28 @@ public class HotbarManager implements Listener {
         if (map != null) plugin.getGuiManager().openIslandSelector(player, map);
     }
 
+    @EventHandler
+    public void onPlayerSneak(org.bukkit.event.player.PlayerToggleSneakEvent event) {
+        if (!event.isSneaking()) return;
+        Player player = event.getPlayer();
+        if (plugin.getReplayManager() == null || !plugin.getReplayManager().isInPlayback(player.getUniqueId())) return;
+        ReplaySession session = plugin.getReplayManager().getPlaybackSession(player.getUniqueId());
+        if (session != null && session.isInNpcCamera()) {
+            session.toggleNpcCamera(player);
+        }
+    }
+
     private void handleReplayControls(Player player, PlayerInteractEvent event) {
         event.setCancelled(true);
 
         ReplaySession session = plugin.getReplayManager().getPlaybackSession(player.getUniqueId());
         if (session == null) return;
+
+        // Any click exits the NPC camera mode
+        if (session.isInNpcCamera()) {
+            session.toggleNpcCamera(player);
+            return;
+        }
 
         int slot = player.getInventory().getHeldItemSlot();
         boolean leftClick = event.getAction() == Action.LEFT_CLICK_AIR

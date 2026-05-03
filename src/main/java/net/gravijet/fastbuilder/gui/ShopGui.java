@@ -1,4 +1,4 @@
-package net.gravijet.fastbuilder.gui;
+﻿package net.gravijet.fastbuilder.gui;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.MapData;
@@ -304,6 +304,10 @@ public class ShopGui {
                 data.removeCoins(price);
                 data.purchaseBlock("pickaxe:" + mat);
                 data.setSelectedPickaxe(mat);
+                if (data.hasOneClickPick()) {
+                    data.setOneClickPick(false);
+                }
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 player.sendMessage(ColorUtil.translate(prefix + "&fTool purchased and selected: &c" + name + " &7(&f" + price + " coins&7)"));
@@ -314,6 +318,10 @@ public class ShopGui {
         }
 
         data.setSelectedPickaxe(mat);
+        if (data.hasOneClickPick()) {
+            data.setOneClickPick(false);
+        }
+        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         player.sendMessage(ColorUtil.translate(prefix + "&fSelected tool: &c" + name));

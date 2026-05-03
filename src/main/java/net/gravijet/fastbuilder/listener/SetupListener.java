@@ -1,4 +1,4 @@
-package net.gravijet.fastbuilder.listener;
+﻿package net.gravijet.fastbuilder.listener;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.SetupSession;
@@ -14,6 +14,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -33,6 +35,20 @@ public class SetupListener implements Listener {
 
     public SetupListener(FastBuilder plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockDamage(BlockDamageEvent event) {
+        if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)

@@ -39,7 +39,23 @@ public class HologramManager {
         updateHologram(map, islandIndex, data);
     }
 
+    public void updateHologramAt(String mapName, int islandIndex, Player player, Location location) {
+        if (!plugin.getConfigManager().isHologramsEnabled()) return;
+
+        MapData map = plugin.getMapManager().getMap(mapName);
+        if (map == null) return;
+
+        PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (data == null) return;
+
+        updateHologramAt(map, islandIndex, data, location);
+    }
+
     public void updateHologram(MapData map, int islandIndex, PlayerData playerData) {
+        updateHologramAt(map, islandIndex, playerData, map.getIslandHologramLocation(islandIndex));
+    }
+
+    public void updateHologramAt(MapData map, int islandIndex, PlayerData playerData, Location holoLoc) {
         if (!plugin.getConfigManager().isHologramsEnabled()) return;
 
         String key = map.getName().toLowerCase() + ":" + islandIndex;
@@ -81,9 +97,6 @@ public class HologramManager {
                         .replace("%top_percent%", topPercent);
                 lines.add(ColorUtil.translate(line));
             }
-
-            // Use the configured hologram location for this island
-            Location holoLoc = map.getIslandHologramLocation(islandIndex);
 
             eu.decentsoftware.holograms.api.DHAPI.createHologram(holoId, holoLoc, false, lines);
             holograms.put(key, holoId);
