@@ -23,6 +23,7 @@ import net.gravijet.fastbuilder.paste.FawePaster;
 import net.gravijet.fastbuilder.player.PlayerManager;
 import net.gravijet.fastbuilder.replay.ReplayManager;
 import net.gravijet.fastbuilder.scoreboard.FastScoreboard;
+import net.gravijet.fastbuilder.skin.SkinManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -44,6 +45,7 @@ public class FastBuilder extends JavaPlugin {
     private ReplayManager replayManager;
     private HotbarManager hotbarManager;
     private CpsListener cpsListener;
+    private SkinManager skinManager;
 
     @Override
     public void onEnable() {
@@ -64,6 +66,7 @@ public class FastBuilder extends JavaPlugin {
         fawePaster = new FawePaster(this);
 
         // Initialize managers
+        skinManager = new SkinManager(this);
         mapManager = new MapManager(this);
         playerManager = new PlayerManager(this);
         boosterManager = new BoosterManager(this);
@@ -183,4 +186,5 @@ public class FastBuilder extends JavaPlugin {
     public ReplayManager getReplayManager() { return replayManager; }
     public HotbarManager getHotbarManager() { return hotbarManager; }
     public CpsListener getCpsListener() { return cpsListener; }
+    public SkinManager getSkinManager() { return skinManager; }
 }

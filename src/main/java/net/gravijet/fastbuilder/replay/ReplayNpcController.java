@@ -46,8 +46,8 @@ class ReplayNpcController {
             net.citizensnpcs.api.npc.NPC npc = registry.createNPC(
                     org.bukkit.entity.EntityType.PLAYER, npcName);
 
-            npc.data().set("player-skin-uuid", replayData.getPlayerUuid().toString());
-            npc.data().set("player-skin-name", replayData.getPlayerName());
+            // Do not set player-skin-uuid/name — that triggers a Mojang lookup which fails on
+            // cracked servers. The stored skin texture is injected directly after spawn below.
 
             MapData map = plugin.getMapManager().getMap(replayData.getMapName());
             if (map != null && map.getWorld() != null && !replayData.getFrames().isEmpty()) {
@@ -61,6 +61,14 @@ class ReplayNpcController {
             }
 
             npcId = npc.getId();
+
+            // Apply stored skin texture directly, bypassing Mojang API
+            if (plugin.getSkinManager() != null && !replayData.getSkinValue().isEmpty()) {
+                java.util.List<Player> viewers = new java.util.ArrayList<>();
+                if (viewer != null) viewers.add(viewer);
+                plugin.getSkinManager().applySkinToNpc(npc, replayData.getSkinValue(),
+                        replayData.getSkinSignature(), viewers);
+            }
 
             try {
                 npc.getNavigator().cancelNavigation();

@@ -8,6 +8,7 @@ import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.replay.ReplaySession;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -216,6 +217,14 @@ public class ProtectionListener implements Listener {
             return;
         }
 
+        // Dragon egg: cancel teleport and place held block instead
+        if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
+                && event.getClickedBlock().getType() == org.bukkit.Material.DRAGON_EGG) {
+            event.setCancelled(true);
+            placeBlockAgainstDragonEgg(player, event.getClickedBlock(), event.getBlockFace());
+            return;
+        }
+
         // Custom-length click control: left-click on end island = closer, right-click = further
         if (plugin.getGameplayManager() != null
                 && (event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK
@@ -225,6 +234,31 @@ public class ProtectionListener implements Listener {
 
         if (!isOnOwnIsland(player, event.getClickedBlock().getLocation())) {
             event.setCancelled(true);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void placeBlockAgainstDragonEgg(Player player, org.bukkit.block.Block egg,
+                                             org.bukkit.block.BlockFace face) {
+        ItemStack held = player.getItemInHand();
+        if (held == null || held.getType() == org.bukkit.Material.AIR || !held.getType().isBlock()) return;
+
+        org.bukkit.block.Block target = egg.getRelative(face);
+        if (target.getType() != org.bukkit.Material.AIR) return;
+
+        org.bukkit.block.BlockState replacedState = target.getState();
+        BlockPlaceEvent placeEvent = new BlockPlaceEvent(target, replacedState, egg, held, player, true);
+        org.bukkit.Bukkit.getPluginManager().callEvent(placeEvent);
+        if (placeEvent.isCancelled()) return;
+
+        target.setTypeIdAndData(held.getTypeId(), held.getData().getData(), true);
+
+        if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+            if (held.getAmount() <= 1) {
+                player.setItemInHand(null);
+            } else {
+                held.setAmount(held.getAmount() - 1);
+            }
         }
     }
 
@@ -355,37 +389,39 @@ public class ProtectionListener implements Listener {
             long now = System.currentTimeMillis();
             Long lastZ = fallCooldown.get(player.getUniqueId());
             if (lastZ == null || now - lastZ > 1000) {
-                fallCooldown.put(player.getUniqueId(), now);
-
-                // Island hopping: detect which island the player is moving into
+                // Check hopping BEFORE setting fallCooldown — a successful hop must not arm
+                // the cooldown, or the player cannot hop back within the same second.
                 if (plugin.getConfigManager().isIslandHoppingEnabled()) {
                     int targetIsland = GridCalculator.getIslandIndex(map, to);
                     int currentIsland = session.getIslandIndex();
-                    if (targetIsland >= 0 && targetIsland != currentIsland) {
-                        // Adjacent-only: skip non-adjacent hops (fall instead)
-                        if (Math.abs(targetIsland - currentIsland) <= 1
-                                && !switchingPlayers.contains(player.getUniqueId())) {
-                            java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
-                                    plugin.getMapManager().getIslands(map.getName());
-                            if (islandList != null && targetIsland < islandList.size()) {
-                                net.gravijet.fastbuilder.map.IslandInstance targetInstance = islandList.get(targetIsland);
-                                if (!targetInstance.isOccupied()) {
-                                    // Empty adjacent target → auto-switch session
-                                    switchingPlayers.add(player.getUniqueId());
-                                    java.util.UUID switchUuid = player.getUniqueId();
-                                    // Pre-teleport to target spawn so the player never falls mid-switch
-                                    player.teleport(plugin.getGameplayManager().getEffectiveSpawn(
-                                            switchUuid, map, targetIsland));
-                                    plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
-                                    Bukkit.getScheduler().runTaskLater(plugin,
-                                            () -> switchingPlayers.remove(switchUuid), 20L);
-                                    return;
-                                }
+                    if (targetIsland >= 0 && targetIsland != currentIsland
+                            && Math.abs(targetIsland - currentIsland) <= 1
+                            && !switchingPlayers.contains(player.getUniqueId())) {
+                        java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
+                                plugin.getMapManager().getIslands(map.getName());
+                        if (islandList != null && targetIsland < islandList.size()) {
+                            net.gravijet.fastbuilder.map.IslandInstance targetInstance =
+                                    islandList.get(targetIsland);
+                            if (!targetInstance.isOccupied()) {
+                                java.util.UUID switchUuid = player.getUniqueId();
+                                switchingPlayers.add(switchUuid);
+                                // Suppress death-check task during the switch frame
+                                plugin.getGameplayManager().markIslandHopping(switchUuid);
+                                player.teleport(plugin.getGameplayManager().getEffectiveSpawn(
+                                        switchUuid, map, targetIsland));
+                                plugin.getGameplayManager().switchIsland(player, map, session, targetIsland);
+                                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                                    switchingPlayers.remove(switchUuid);
+                                    plugin.getGameplayManager().unmarkIslandHopping(switchUuid);
+                                }, 20L);
+                                return;
                             }
                         }
                     }
                 }
 
+                // No hop — arm cooldown and trigger fall/reset
+                fallCooldown.put(player.getUniqueId(), now);
                 event.setCancelled(true);
                 plugin.getGameplayManager().onFall(player);
             } else {

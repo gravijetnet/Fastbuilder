@@ -8,6 +8,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,6 +47,34 @@ public class ConfigManager {
         messagesConfig = loadYaml("messages.yml");
         guisConfig = loadYaml("guis.yml");
         itemsConfig = loadYaml("items.yml");
+
+        // Merge any new keys from bundled defaults into existing server config files.
+        // For config.yml we skip after first load (Bukkit's saveDefaultConfig handles initial creation).
+        mergeMissingDefaults(mainConfig,     "config.yml",   new File(plugin.getDataFolder(), "config.yml"));
+        mergeMissingDefaults(messagesConfig, "messages.yml", new File(plugin.getDataFolder(), "messages.yml"));
+        mergeMissingDefaults(guisConfig,     "guis.yml",     new File(plugin.getDataFolder(), "guis.yml"));
+        mergeMissingDefaults(itemsConfig,    "items.yml",    new File(plugin.getDataFolder(), "items.yml"));
+    }
+
+    private void mergeMissingDefaults(FileConfiguration config, String resourceName, File file) {
+        InputStream in = plugin.getResource(resourceName);
+        if (in == null) return;
+        FileConfiguration defaults = YamlConfiguration.loadConfiguration(
+                new InputStreamReader(in, StandardCharsets.UTF_8));
+        boolean changed = false;
+        for (String key : defaults.getKeys(true)) {
+            if (!config.isSet(key)) {
+                config.set(key, defaults.get(key));
+                changed = true;
+            }
+        }
+        if (changed) {
+            try {
+                config.save(file);
+            } catch (IOException e) {
+                plugin.getLogger().warning("Could not save updated " + resourceName + ": " + e.getMessage());
+            }
+        }
     }
 
     public void reload() {

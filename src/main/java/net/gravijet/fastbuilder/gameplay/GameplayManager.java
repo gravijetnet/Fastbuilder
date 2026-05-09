@@ -861,7 +861,7 @@ public class GameplayManager {
             org.bukkit.Location profileSpawn = new org.bukkit.Location(
                     map.getWorld(),
                     map.getOriginX() + diagX + profile.spawnOffsetX,
-                    map.getOriginY() + profile.spawnOffsetY,
+                    map.getOriginY() + map.getSpawnOffsetY(),
                     map.getOriginZ() + (long) islandIndex * map.getActualZStep() + profile.spawnOffsetZ,
                     profile.spawnYaw, profile.spawnPitch
             );
@@ -929,7 +929,7 @@ public class GameplayManager {
                     return new org.bukkit.Location(
                             map.getWorld(),
                             map.getOriginX() + diagX + profile.spawnOffsetX,
-                            map.getOriginY() + profile.spawnOffsetY,
+                            map.getOriginY() + map.getSpawnOffsetY(),
                             map.getOriginZ() + (long) islandIndex * map.getActualZStep()
                                     + profile.spawnOffsetZ,
                             profile.spawnYaw, profile.spawnPitch

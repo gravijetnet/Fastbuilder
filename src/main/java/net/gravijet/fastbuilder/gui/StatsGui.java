@@ -179,7 +179,17 @@ public class StatsGui {
                         String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
                         ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                         SkullMeta meta = (SkullMeta) skull.getItemMeta();
-                        meta.setOwner(entry.getKey());
+                        boolean skinAppliedInf = false;
+                        if (plugin.getSkinManager() != null) {
+                            String[] skin = plugin.getSkinManager().getSkinByName(entry.getKey());
+                            if (skin != null && !skin[0].isEmpty()) {
+                                skinAppliedInf = plugin.getSkinManager()
+                                        .applyTextureToSkullMeta(meta, skin[0], skin[1]);
+                            }
+                        }
+                        if (!skinAppliedInf) {
+                            try { meta.setOwner(entry.getKey()); } catch (Exception ignored) {}
+                        }
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();
                         lore.add(ColorUtil.translate("&7Distance: &f" + entry.getValue()[0] + " blocks"));
@@ -216,7 +226,17 @@ public class StatsGui {
                         String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
                         ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                         SkullMeta meta = (SkullMeta) skull.getItemMeta();
-                        meta.setOwner(entry.getKey());
+                        boolean skinApplied = false;
+                        if (plugin.getSkinManager() != null) {
+                            String[] skin = plugin.getSkinManager().getSkinByName(entry.getKey());
+                            if (skin != null && !skin[0].isEmpty()) {
+                                skinApplied = plugin.getSkinManager()
+                                        .applyTextureToSkullMeta(meta, skin[0], skin[1]);
+                            }
+                        }
+                        if (!skinApplied) {
+                            try { meta.setOwner(entry.getKey()); } catch (Exception ignored) {}
+                        }
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();
                         lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));

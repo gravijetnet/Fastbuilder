@@ -41,7 +41,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 6; // v6 adds customLength
+    private static final int VERSION = 7; // v7 adds skin texture (value + signature)
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -101,8 +101,18 @@ public class ReplayManager {
         // contains §-codes already — Citizens accepts §-codes directly for NPC names.
         String displayTag = player.getDisplayName();
 
+        // Capture skin texture at recording time for cracked-server-safe replay skins.
+        String skinValue = "";
+        String skinSignature = "";
+        if (plugin.getSkinManager() != null) {
+            String sv = plugin.getSkinManager().getSkinValue(player.getUniqueId());
+            String ss = plugin.getSkinManager().getSkinSignature(player.getUniqueId());
+            if (sv != null) { skinValue = sv; skinSignature = ss != null ? ss : ""; }
+        }
+
         activeRecorders.put(player.getUniqueId(),
-                new ReplayRecorder(player.getUniqueId(), player.getName(), displayTag, mapName, islandIndex, initialBlocks));
+                new ReplayRecorder(player.getUniqueId(), player.getName(), displayTag,
+                        mapName, islandIndex, initialBlocks, skinValue, skinSignature));
     }
 
     public void recordBlockPlace(UUID playerUuid, Location loc, int blockId, byte blockData) {
@@ -323,7 +333,9 @@ public class ReplayManager {
             out.writeLong(data.getTimestamp());
             out.writeBoolean(data.isSuccessful());
             out.writeLong(data.getRunTimeMillis());
-            out.writeInt(data.getCustomLength()); // v6
+            out.writeInt(data.getCustomLength());   // v6
+            out.writeUTF(data.getSkinValue());      // v7
+            out.writeUTF(data.getSkinSignature());  // v7
 
             // Initial blocks (v2)
             out.writeInt(data.getInitialBlocks().size());
@@ -387,18 +399,19 @@ public class ReplayManager {
             if (magic != MAGIC) throw new IOException("Invalid replay file magic");
 
             int version = in.readInt();
-            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version); // currently supports v1–v6
-
+            if (version < 1 || version > VERSION) throw new IOException("Unsupported replay version: " + version); // currently supports v1–v7
 
             UUID uuid        = UUID.fromString(in.readUTF());
             String name      = in.readUTF();
-            String displayTag = version >= 5 ? in.readUTF() : ""; // v5: rank-prefixed display tag
+            String displayTag  = version >= 5 ? in.readUTF() : "";
             String mapName   = in.readUTF();
             int islandIndex  = in.readInt();
             long timestamp   = in.readLong();
             boolean success  = in.readBoolean();
             long runTime     = in.readLong();
-            int customLength = version >= 6 ? in.readInt() : 0; // v6
+            int customLength   = version >= 6 ? in.readInt() : 0;
+            String skinValue   = version >= 7 ? in.readUTF() : "";
+            String skinSig     = version >= 7 ? in.readUTF() : "";
 
             // Read initial blocks (v2 only; v1 files have none)
             List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
@@ -460,7 +473,7 @@ public class ReplayManager {
                         sneaking, sprinting, swingArm, handItemId, handItemData, placement));
             }
 
-            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks, customLength);
+            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks, customLength, skinValue, skinSig);
         }
     }
 

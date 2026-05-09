@@ -76,14 +76,23 @@ public class NpcManager implements Listener {
             String npcName = ColorUtil.translate(plugin.getConfigManager().getNpcName());
             net.citizensnpcs.api.npc.NPC npc = registry.createNPC(EntityType.PLAYER, npcName);
 
-            // Apply the player's own skin so the NPC mirrors the viewer
-            npc.data().set("player-skin-uuid", player.getUniqueId().toString());
-            npc.data().set("player-skin-name", player.getName());
-            // Mark as a FastBuilder NPC so we can clean up orphans after a crash
+            // Do NOT set player-skin-uuid/name — that triggers a Mojang lookup which fails
+            // on cracked servers. We inject the cached skin texture directly after spawn.
             npc.data().setPersistent(MARKER_KEY, "true");
 
             npc.spawn(adjusted);
             npc.setProtected(true);
+
+            // Apply cached skin texture directly via NMS
+            if (plugin.getSkinManager() != null) {
+                String skinValue = plugin.getSkinManager().getSkinValue(player.getUniqueId());
+                String skinSig   = plugin.getSkinManager().getSkinSignature(player.getUniqueId());
+                if (skinValue != null && !skinValue.isEmpty()) {
+                    java.util.List<org.bukkit.entity.Player> viewers =
+                            adjusted.getWorld().getPlayers();
+                    plugin.getSkinManager().applySkinToNpc(npc, skinValue, skinSig, viewers);
+                }
+            }
 
             // Zero-tick tablist removal: hide the NPC from the tab list immediately in the same tick.
             if (npc.isSpawned() && npc.getEntity() instanceof org.bukkit.entity.Player) {

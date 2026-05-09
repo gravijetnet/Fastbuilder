@@ -24,31 +24,42 @@ public class ReplayData {
     private final List<ReplayFrame.BlockPlacement> initialBlocks;
     // Custom length (blocks) active during this run. 0 = normal mode (no custom length).
     private final int customLength;
+    // Skin texture captured at recording time — Base64 encoded. Empty on old replays.
+    private final String skinValue;
+    private final String skinSignature;
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, new ArrayList<>(), 0);
+                frames, new ArrayList<>(), 0, "", "");
     }
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames,
                       List<ReplayFrame.BlockPlacement> initialBlocks) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, initialBlocks, 0);
+                frames, initialBlocks, 0, "", "");
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
                       int islandIndex, long timestamp, boolean successful, long runTimeMillis,
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks) {
         this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
-                runTimeMillis, frames, initialBlocks, 0);
+                runTimeMillis, frames, initialBlocks, 0, "", "");
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
                       int islandIndex, long timestamp, boolean successful, long runTimeMillis,
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
                       int customLength) {
+        this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
+                runTimeMillis, frames, initialBlocks, customLength, "", "");
+    }
+
+    public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
+                      int islandIndex, long timestamp, boolean successful, long runTimeMillis,
+                      List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
+                      int customLength, String skinValue, String skinSignature) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
@@ -60,6 +71,8 @@ public class ReplayData {
         this.frames = frames;
         this.initialBlocks = initialBlocks != null ? initialBlocks : new ArrayList<>();
         this.customLength = customLength;
+        this.skinValue     = skinValue     != null ? skinValue     : "";
+        this.skinSignature = skinSignature != null ? skinSignature : "";
     }
 
     public UUID getPlayerUuid() { return playerUuid; }
@@ -73,6 +86,8 @@ public class ReplayData {
     public List<ReplayFrame> getFrames() { return frames; }
     public List<ReplayFrame.BlockPlacement> getInitialBlocks() { return initialBlocks; }
     public int getCustomLength() { return customLength; }
+    public String getSkinValue() { return skinValue; }
+    public String getSkinSignature() { return skinSignature; }
     public int getTotalTicks() { return frames.isEmpty() ? 0 : frames.get(frames.size() - 1).getTick(); }
 
     public int getBlocksPlaced() {
