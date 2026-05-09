@@ -36,6 +36,11 @@ public class PlayerListener implements Listener {
         PlayerManager pm = plugin.getPlayerManager();
         MapManager mm = plugin.getMapManager();
 
+        // Cache skin texture early — used by NPCs, leaderboard skulls, and replay NPCs.
+        if (plugin.getSkinManager() != null) {
+            plugin.getSkinManager().cacheSkin(player);
+        }
+
         PlayerData data = pm.getPlayerData(player.getUniqueId(), player.getName());
 
         // 1. Try the default map first
@@ -95,7 +100,10 @@ public class PlayerListener implements Listener {
     }
 
     private void finalizeJoin(Player player, PlayerData data, MapManager mm, MapData map, int island) {
-        player.teleport(map.getIslandSpawn(island));
+        org.bukkit.Location spawn = (plugin.getGameplayManager() != null)
+                ? plugin.getGameplayManager().getEffectiveSpawn(player.getUniqueId(), map, island)
+                : map.getIslandSpawn(island);
+        player.teleport(spawn);
         data.setLastMap(map.getName());
         data.setLastIsland(island);
 

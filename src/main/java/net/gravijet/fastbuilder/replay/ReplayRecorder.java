@@ -23,6 +23,9 @@ public class ReplayRecorder {
     private final int islandIndex;
     private final long startTimestamp;
     private final List<ReplayFrame.BlockPlacement> initialBlocks;
+    // Skin texture captured at recording start.
+    private final String skinValue;
+    private final String skinSignature;
 
     private int currentTick = 0;
     private final List<ReplayFrame> frames = new ArrayList<>();
@@ -34,17 +37,24 @@ public class ReplayRecorder {
     private boolean pendingArmSwing = false;
 
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex) {
-        this(playerUuid, playerName, "", mapName, islandIndex, Collections.emptyList());
+        this(playerUuid, playerName, "", mapName, islandIndex, Collections.emptyList(), "", "");
     }
 
     public ReplayRecorder(UUID playerUuid, String playerName, String mapName, int islandIndex,
                           List<ReplayFrame.BlockPlacement> initialBlocks) {
-        this(playerUuid, playerName, "", mapName, islandIndex, initialBlocks);
+        this(playerUuid, playerName, "", mapName, islandIndex, initialBlocks, "", "");
     }
 
     public ReplayRecorder(UUID playerUuid, String playerName, String playerDisplayTag,
                           String mapName, int islandIndex,
                           List<ReplayFrame.BlockPlacement> initialBlocks) {
+        this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, initialBlocks, "", "");
+    }
+
+    public ReplayRecorder(UUID playerUuid, String playerName, String playerDisplayTag,
+                          String mapName, int islandIndex,
+                          List<ReplayFrame.BlockPlacement> initialBlocks,
+                          String skinValue, String skinSignature) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
@@ -52,6 +62,8 @@ public class ReplayRecorder {
         this.islandIndex = islandIndex;
         this.startTimestamp = System.currentTimeMillis();
         this.initialBlocks = new ArrayList<>(initialBlocks);
+        this.skinValue     = skinValue     != null ? skinValue     : "";
+        this.skinSignature = skinSignature != null ? skinSignature : "";
     }
 
     /**
@@ -128,7 +140,7 @@ public class ReplayRecorder {
         return new ReplayData(
                 playerUuid, playerName, playerDisplayTag, mapName, islandIndex,
                 startTimestamp, successful, runTimeMillis, new ArrayList<>(frames),
-                new ArrayList<>(initialBlocks), customLength
+                new ArrayList<>(initialBlocks), customLength, skinValue, skinSignature
         );
     }
 

@@ -23,8 +23,6 @@ import org.bukkit.event.player.PlayerMoveEvent;
 public class GameplayListener implements Listener {
 
     private final FastBuilder plugin;
-    // Per-player cooldown to prevent rapid island-hop re-triggers
-    private final java.util.Set<java.util.UUID> islandHopCooldown = new java.util.HashSet<>();
 
     public GameplayListener(FastBuilder plugin) {
         this.plugin = plugin;
@@ -98,98 +96,6 @@ public class GameplayListener implements Listener {
                 return;
             }
         }
-
-        // Island hopping: trigger switch if player steps into an adjacent island's zone
-        checkIslandHop(player, gm, map, session, to);
-    }
-
-    /**
-     * Detect if the player has walked into an adjacent island's Z zone and trigger a switch.
-     * Teleports back if the target island is occupied or out of bounds.
-     */
-    private void checkIslandHop(Player player, GameplayManager gm, MapData map, RunSession session, Location to) {
-        if (!plugin.getConfigManager().isIslandJumpSwitchEnabled()) return;
-
-        java.util.UUID uuid = player.getUniqueId();
-        // Build mode: player is completely untracked — skip all island switching
-        if (gm.isInBuildMode(uuid)) return;
-        if (islandHopCooldown.contains(uuid)) return;
-        if (session.isResetting()) return;
-        if (plugin.getMapManager().hasSetupSession(uuid)) return;
-
-        int step = map.getActualZStep();
-        if (step <= 0) return;
-
-        int bz = to.getBlockZ();
-        int relZ = bz - map.getOriginZ();
-        if (relZ < 0) return;
-
-        int currentIndex = session.getIslandIndex();
-
-        // Player must be within the current island's X range (account for diagonal offset)
-        int bx = to.getBlockX();
-        int currentMinX = map.getOriginX() + currentIndex * map.getDiagonalStepX();
-        if (bx < currentMinX || bx > currentMinX + map.getIslandWidth() - 1) return;
-
-        int candidateIndex = relZ / step;
-        if (candidateIndex == currentIndex) return;
-
-        // Only trigger if the player has actually left their current island's Z bounds.
-        // When physicalIslandLength < islandLength the step is smaller than the declared
-        // island width, so the step-based slot index can differ from the player's real
-        // island even while they are still standing on it. Without this guard every
-        // movement near the far-Z edge of the island would falsely trigger a hop/reset.
-        int[] ownBounds = net.gravijet.fastbuilder.map.GridCalculator.getIslandBounds(map, currentIndex);
-        if (bz >= ownBounds[2] && bz <= ownBounds[5]) return;
-
-        // Only allow hopping to directly adjacent islands (diff of 1)
-        if (Math.abs(candidateIndex - currentIndex) > 1) {
-            teleportBack(player, map, currentIndex, uuid);
-            return;
-        }
-
-        // Confirm player is within this island's Z extent (not in the gap between islands)
-        int islandStartZ = map.getOriginZ() + candidateIndex * step;
-        int islandEndZ = islandStartZ + map.getIslandLength() - 1;
-        if (bz < islandStartZ || bz > islandEndZ) return;
-
-        java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =
-                plugin.getMapManager().getIslands(map.getName());
-
-        // Boundary check: target slot must exist within current scale
-        if (candidateIndex < 0 || candidateIndex >= islandList.size()) {
-            teleportBack(player, map, currentIndex, uuid);
-            return;
-        }
-
-        net.gravijet.fastbuilder.map.IslandInstance target = islandList.get(candidateIndex);
-        if (target.isOccupied() && !target.getOccupantUuid().equals(uuid)) {
-            // Target occupied by another player — push back
-            teleportBack(player, map, currentIndex, uuid);
-            return;
-        }
-
-        // Perform the island switch — teleport immediately so the player never falls
-        islandHopCooldown.add(uuid);
-        // Block death-check task during the switch frame so onFall cannot fire mid-hop
-        gm.markIslandHopping(uuid);
-        // Pre-teleport to target spawn before switchIsland clears the old session
-        player.teleport(gm.getEffectiveSpawn(uuid, map, candidateIndex));
-        gm.switchIsland(player, map, session, candidateIndex);
-        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            islandHopCooldown.remove(uuid);
-            gm.unmarkIslandHopping(uuid);
-        }, 40L);
-    }
-
-    private void teleportBack(Player player, MapData map, int islandIndex, java.util.UUID uuid) {
-        islandHopCooldown.add(uuid);
-        GameplayManager gm = plugin.getGameplayManager();
-        Location spawn = (gm != null)
-                ? gm.getEffectiveSpawn(uuid, map, islandIndex)
-                : map.getIslandSpawn(islandIndex);
-        player.teleport(spawn);
-        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> islandHopCooldown.remove(uuid), 20L);
     }
 
     /**
