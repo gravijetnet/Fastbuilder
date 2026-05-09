@@ -1,4 +1,4 @@
-﻿package net.gravijet.fastbuilder.listener;
+package net.gravijet.fastbuilder.listener;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.SetupSession;
@@ -37,14 +37,14 @@ public class SetupListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockDamage(BlockDamageEvent event) {
         if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
             event.setCancelled(true);
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
         if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
             event.setCancelled(true);

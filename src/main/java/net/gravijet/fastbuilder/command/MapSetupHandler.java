@@ -1,4 +1,4 @@
-﻿package net.gravijet.fastbuilder.command;
+package net.gravijet.fastbuilder.command;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.MapData;
@@ -87,17 +87,12 @@ class MapSetupHandler {
             plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
             net.gravijet.fastbuilder.player.PlayerData existingData =
                     plugin.getPlayerManager().getCachedData(player.getUniqueId());
-            if (existingData != null) {
-                if (existingData.getLastMap() != null) {
-                    net.gravijet.fastbuilder.map.MapData existingMap = mm.getMap(existingData.getLastMap());
-                    if (existingMap != null) {
-                        plugin.getGameplayManager().revertIslandDesign(existingMap, existingData.getLastIsland());
-                    }
-                    existingData.clearCustomLengths();
+            if (existingData != null && existingData.getLastMap() != null) {
+                net.gravijet.fastbuilder.map.MapData existingMap = mm.getMap(existingData.getLastMap());
+                if (existingMap != null) {
+                    plugin.getGameplayManager().revertIslandDesign(existingMap, existingData.getLastIsland());
                 }
-                // Clear lastMap/lastIsland so no other codepath teleports the admin back
-                existingData.setLastMap(null);
-                existingData.setLastIsland(-1);
+                existingData.clearCustomLengths();
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
         }
@@ -108,6 +103,14 @@ class MapSetupHandler {
             if (d != null && d.getLastMap() != null)
                 plugin.getHologramManager().removeHologram(d.getLastMap(), d.getLastIsland());
         }
+        // Clear lastMap/lastIsland AFTER hologram removal so the cleanup runs correctly
+        net.gravijet.fastbuilder.player.PlayerData cleanupData =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (cleanupData != null) {
+            cleanupData.setLastMap(null);
+            cleanupData.setLastIsland(-1);
+        }
+        plugin.getScoreboardManager().removeScoreboard(player);
         mm.freeAllIslands(player.getUniqueId());
 
         mm.removeSetupSession(player.getUniqueId());

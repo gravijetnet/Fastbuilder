@@ -1,4 +1,4 @@
-﻿package net.gravijet.fastbuilder.gui;
+package net.gravijet.fastbuilder.gui;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.MapData;
