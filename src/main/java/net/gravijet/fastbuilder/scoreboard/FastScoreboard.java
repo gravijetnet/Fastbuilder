@@ -434,6 +434,7 @@ public class FastScoreboard {
         for (int i = 0; i < lineCount && i < prev.length; i++) {
             String raw = configLines.get(i);
             if (!raw.contains("%current_time%") && !raw.contains("%blocks%")) continue;
+            if (raw.contains("%top_name_") || raw.contains("%top_time_")) continue;
 
             String rendered = raw
                     .replace("%current_time%", currentTime)

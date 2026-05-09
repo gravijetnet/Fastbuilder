@@ -323,6 +323,8 @@ public class HotbarManager implements Listener {
         ReplaySession session = plugin.getReplayManager().getPlaybackSession(player.getUniqueId());
         if (session != null && session.isInNpcCamera()) {
             session.toggleNpcCamera(player);
+        } else {
+            plugin.getReplayManager().stopPlayback(player.getUniqueId());
         }
     }
 
@@ -371,6 +373,9 @@ public class HotbarManager implements Listener {
                 session.updateControlItems();
                 break;
             case ReplaySession.SLOT_STOP:
+                plugin.getReplayManager().stopPlayback(player.getUniqueId());
+                break;
+            default:
                 plugin.getReplayManager().stopPlayback(player.getUniqueId());
                 break;
         }

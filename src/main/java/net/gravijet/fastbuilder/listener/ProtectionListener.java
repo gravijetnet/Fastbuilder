@@ -1,4 +1,4 @@
-﻿package net.gravijet.fastbuilder.listener;
+package net.gravijet.fastbuilder.listener;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.RunSession;
