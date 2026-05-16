@@ -45,6 +45,9 @@ import java.util.UUID;
 public class FastScoreboard {
 
     private static final int MAX_LINES  = 15;
+    /** Matches an unresolved placeholder token like %coins% or %papi_stat%. */
+    private static final java.util.regex.Pattern PLACEHOLDER_PATTERN =
+            java.util.regex.Pattern.compile("%[A-Za-z0-9_]+%");
     /** Unique invisible entries — one per scoreboard slot (colour code pairs). */
     private static final String[] ENTRIES;
 
@@ -439,9 +442,10 @@ public class FastScoreboard {
             String rendered = raw
                     .replace("%current_time%", currentTime)
                     .replace("%blocks%",       blocks);
-            // Resolve other placeholders already handled by the 1-s task via cached prev values.
-            // For tick lines we only refresh the time/blocks portion; other %ph% tokens stay
-            // frozen between slow updates (acceptable for a fast-moving timer display).
+            // If the line still contains another placeholder (e.g. %coins%, %pb%, or a
+            // PAPI token), the per-tick path can't resolve it — leave the whole line to
+            // the slow updateScoreboard() task so it never renders a raw "%coins%".
+            if (PLACEHOLDER_PATTERN.matcher(rendered).find()) continue;
             rendered = ColorUtil.translate(rendered);
 
             if (rendered.equals(prev[i])) continue;
