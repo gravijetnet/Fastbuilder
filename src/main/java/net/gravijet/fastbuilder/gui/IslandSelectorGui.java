@@ -88,7 +88,12 @@ public class IslandSelectorGui {
             if (island.isOccupied()) {
                 item = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                 SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
-                skullMeta.setOwner(island.getOccupantName());
+                if (plugin.getSkinManager() != null) {
+                    plugin.getSkinManager().applyCachedSkin(skullMeta,
+                            island.getOccupantUuid(), island.getOccupantName());
+                } else {
+                    skullMeta.setOwner(island.getOccupantName());
+                }
                 skullMeta.setDisplayName(ColorUtil.translate("&c#" + displayNumber + " &7- &f" + island.getOccupantName()));
                 java.util.List<String> lore = new java.util.ArrayList<>();
                 lore.add(ColorUtil.translate("&cOccupied"));
