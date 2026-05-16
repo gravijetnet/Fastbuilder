@@ -36,7 +36,13 @@ public class HologramManager {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        updateHologram(map, islandIndex, data);
+        // Use the player's design-profile hologram position when one is active so the
+        // hologram doesn't snap back to the default spot after every run.
+        Location loc = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getEffectiveHologramLocation(
+                        player.getUniqueId(), map, islandIndex)
+                : map.getIslandHologramLocation(islandIndex);
+        updateHologramAt(map, islandIndex, data, loc);
     }
 
     public void updateHologramAt(String mapName, int islandIndex, Player player, Location location) {
