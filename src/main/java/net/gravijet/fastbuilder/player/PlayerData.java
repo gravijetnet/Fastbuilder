@@ -299,11 +299,23 @@ public class PlayerData {
     // --- Stats helpers ---
 
     public MapStats getOrCreateStats(String mapName) {
-        return mapStats.computeIfAbsent(mapName, k -> new MapStats());
+        MapStats existing = getStats(mapName);
+        if (existing != null) return existing;
+        MapStats created = new MapStats();
+        mapStats.put(mapName, created);
+        return created;
     }
 
     public MapStats getStats(String mapName) {
-        return mapStats.get(mapName);
+        MapStats exact = mapStats.get(mapName);
+        if (exact != null || mapName == null) return exact;
+        // Stats keys are stored with the map's original casing. Fall back to a
+        // case-insensitive match so a differently-cased lookup still resolves
+        // (no stored-format change, so no data migration is required).
+        for (Map.Entry<String, MapStats> e : mapStats.entrySet()) {
+            if (mapName.equalsIgnoreCase(e.getKey())) return e.getValue();
+        }
+        return null;
     }
 
     public Map<String, MapStats> getAllStats() {
