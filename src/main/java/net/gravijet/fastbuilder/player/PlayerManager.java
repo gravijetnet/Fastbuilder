@@ -131,11 +131,24 @@ public class PlayerManager {
 
     /**
      * Save the player's data and remove from cache (on player quit).
-     * Save is asynchronous.
+     *
+     * <p>The save runs async, and the cache entry is kept until that write
+     * completes — so a quick quit→rejoin keeps using the live (correct)
+     * object instead of loading a pre-save snapshot from disk. The post-save
+     * eviction only happens if the player is still offline, so a rejoined
+     * player is never evicted mid-session.</p>
      */
     public void unload(UUID uuid) {
-        savePlayerData(uuid);
-        cache.remove(uuid);
+        final PlayerData data = cache.get(uuid);
+        if (data == null) return;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            provider.savePlayerData(data);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (Bukkit.getPlayer(uuid) == null) {
+                    cache.remove(uuid);
+                }
+            });
+        });
     }
 
     // -------------------------------------------------------------------------

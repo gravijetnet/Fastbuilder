@@ -113,7 +113,10 @@ public class ReplaySession {
         int replayAreaX = REPLAY_BASE_X - replaySlot * REPLAY_SLOT_SPACING;
         int replayAreaZ = REPLAY_BASE_Z;
 
-        int islandOriginX = map.getOriginX();
+        // Recorded block coords are absolute, so the translation origin must include
+        // the diagonal X shift of the slot the run was recorded on (0 for straight maps).
+        int islandOriginX = map.getOriginX()
+                + (int) ((long) replayData.getIslandIndex() * map.getDiagonalStepX());
         int islandOriginY = map.getOriginY();
         int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getActualZStep();
 
@@ -263,9 +266,20 @@ public class ReplaySession {
 
                 playbackFraction += playbackSpeed;
 
-                while (playbackFraction >= 1.0 && currentTick < replayData.getFrames().size()) {
+                List<ReplayFrame> loopFrames = replayData.getFrames();
+                while (playbackFraction >= 1.0 && currentTick < loopFrames.size()) {
+                    int recTick = loopFrames.get(currentTick).getTick();
                     processFrameEffects(p, currentTick);
                     currentTick++;
+                    // Collapse extra frames recorded in the SAME server tick (multiple
+                    // blocks placed within one 50ms tick) into this single playback
+                    // step so the replay matches the real run's duration. Same-tick
+                    // frames share an identical position, so NPC motion is unaffected.
+                    while (currentTick < loopFrames.size()
+                            && loopFrames.get(currentTick).getTick() == recTick) {
+                        processFrameEffects(p, currentTick);
+                        currentTick++;
+                    }
                     playbackFraction -= 1.0;
                 }
 

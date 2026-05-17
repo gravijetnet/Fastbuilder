@@ -143,6 +143,10 @@ public class GameplayListener implements Listener {
 
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
 
+        // Diagonal maps shift each island slot in +X by diagonalStepX per index.
+        // 0 for straight maps, so this is a no-op there.
+        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
+
         // End-island mode: derive finish zone from the live end-island position
         if (map.hasEndIsland()) {
             int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
@@ -154,7 +158,7 @@ public class GameplayListener implements Listener {
             int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
             // End island is placed to the +X (east) side of the start island (1 block offset applied)
-            int endX = map.getOriginX() + map.getIslandWidth() + customLength - 2;
+            int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
             int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
                     + map.getEndIslandZOffset();
@@ -170,17 +174,17 @@ public class GameplayListener implements Listener {
 
         int[] finishOverride = pData != null ? pData.getActiveFinishZone(map.getName()) : null;
         if (finishOverride != null) {
-            fMinX = map.getOriginX() + finishOverride[0];
+            fMinX = map.getOriginX() + diagX + finishOverride[0];
             fMinY = map.getOriginY() + finishOverride[1];
             fMinZ = map.getOriginZ() + offsetZ + finishOverride[2];
-            fMaxX = map.getOriginX() + finishOverride[3];
+            fMaxX = map.getOriginX() + diagX + finishOverride[3];
             fMaxY = map.getOriginY() + finishOverride[4];
             fMaxZ = map.getOriginZ() + offsetZ + finishOverride[5];
         } else {
-            fMinX = map.getOriginX() + map.getFinishMinX();
+            fMinX = map.getOriginX() + diagX + map.getFinishMinX();
             fMinY = map.getOriginY() + map.getFinishMinY();
             fMinZ = map.getOriginZ() + offsetZ + map.getFinishMinZ();
-            fMaxX = map.getOriginX() + map.getFinishMaxX();
+            fMaxX = map.getOriginX() + diagX + map.getFinishMaxX();
             fMaxY = map.getOriginY() + map.getFinishMaxY();
             fMaxZ = map.getOriginZ() + offsetZ + map.getFinishMaxZ();
         }
@@ -192,7 +196,7 @@ public class GameplayListener implements Listener {
                 customLength = Math.max(map.getMinCustomLength(),
                         Math.min(map.getMaxCustomLength(), customLength));
                 int finishZoneWidth = fMaxX - fMinX;
-                fMinX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
+                fMinX = map.getOriginX() + diagX + (int) map.getSpawnOffsetX() + customLength;
                 fMaxX = fMinX + finishZoneWidth;
             }
         }
