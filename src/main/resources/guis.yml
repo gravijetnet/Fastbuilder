@@ -969,7 +969,7 @@ block-selector-slots:
         - "%block_status%"
     14:
       name: "Hardened Clay"
-      material: HARDENED_CLAY:0
+      material: HARD_CLAY:0
       price: 400
       lore:
         - "&ePrice: %price%"

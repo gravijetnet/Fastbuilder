@@ -172,6 +172,7 @@ public class BlockSelectorGui {
                 data.purchaseBlock(mat);
                 String oldBlockOnPurchase = data.getSelectedBlock();
                 data.setSelectedBlock(mat);
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().updateBlockSlot(player);
                 if (oldBlockOnPurchase != null && !oldBlockOnPurchase.equals(mat)
@@ -192,6 +193,7 @@ public class BlockSelectorGui {
 
         String oldBlock = data.getSelectedBlock();
         data.setSelectedBlock(mat);
+        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().updateBlockSlot(player);
         if (oldBlock != null && !oldBlock.equals(mat) && plugin.getGameplayManager() != null) {

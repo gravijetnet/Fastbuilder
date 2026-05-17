@@ -50,7 +50,9 @@ public class StatsGui {
 
         ItemStack head = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
         SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
-        skullMeta.setOwner(data.getName());
+        if (plugin.getSkinManager() != null) {
+            plugin.getSkinManager().applyCachedSkin(skullMeta, data.getUuid(), data.getName());
+        }
         skullMeta.setDisplayName(ColorUtil.translate("&c&l" + data.getName()));
         List<String> headLore = new ArrayList<>();
         headLore.add(ColorUtil.translate("&7Coins: &f" + data.getCoins()));
@@ -179,16 +181,8 @@ public class StatsGui {
                         String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
                         ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                         SkullMeta meta = (SkullMeta) skull.getItemMeta();
-                        boolean skinAppliedInf = false;
                         if (plugin.getSkinManager() != null) {
-                            String[] skin = plugin.getSkinManager().getSkinByName(entry.getKey());
-                            if (skin != null && !skin[0].isEmpty()) {
-                                skinAppliedInf = plugin.getSkinManager()
-                                        .applyTextureToSkullMeta(meta, skin[0], skin[1]);
-                            }
-                        }
-                        if (!skinAppliedInf) {
-                            try { meta.setOwner(entry.getKey()); } catch (Exception ignored) {}
+                            plugin.getSkinManager().applyCachedSkin(meta, null, entry.getKey());
                         }
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();
@@ -226,16 +220,8 @@ public class StatsGui {
                         String rankColor = pos == 1 ? "&6" : pos == 2 ? "&7" : pos == 3 ? "&c" : "&8";
                         ItemStack skull = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                         SkullMeta meta = (SkullMeta) skull.getItemMeta();
-                        boolean skinApplied = false;
                         if (plugin.getSkinManager() != null) {
-                            String[] skin = plugin.getSkinManager().getSkinByName(entry.getKey());
-                            if (skin != null && !skin[0].isEmpty()) {
-                                skinApplied = plugin.getSkinManager()
-                                        .applyTextureToSkullMeta(meta, skin[0], skin[1]);
-                            }
-                        }
-                        if (!skinApplied) {
-                            try { meta.setOwner(entry.getKey()); } catch (Exception ignored) {}
+                            plugin.getSkinManager().applyCachedSkin(meta, null, entry.getKey());
                         }
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();

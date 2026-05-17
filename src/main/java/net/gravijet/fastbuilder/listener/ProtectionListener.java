@@ -391,10 +391,23 @@ public class ProtectionListener implements Listener {
             if (lastZ == null || now - lastZ > 1000) {
                 // Check hopping BEFORE setting fallCooldown — a successful hop must not arm
                 // the cooldown, or the player cannot hop back within the same second.
-                if (plugin.getConfigManager().isIslandHoppingEnabled()) {
-                    int targetIsland = GridCalculator.getIslandIndex(map, to);
+                if (plugin.getConfigManager().isIslandHoppingEnabled()
+                        && plugin.getConfigManager().isIslandJumpSwitchEnabled()) {
                     int currentIsland = session.getIslandIndex();
+                    // When the Z boundary is crossed the player is in the void gap
+                    // between slots, so getIslandIndex(to) returns -1. Derive the
+                    // target from the crossing direction instead of the gap position
+                    // (which is what made jump-switching never trigger).
+                    int targetIsland = GridCalculator.getIslandIndex(map, to);
+                    if (targetIsland < 0) {
+                        if (to.getBlockZ() > bounds[5]) {
+                            targetIsland = currentIsland + 1;
+                        } else if (to.getBlockZ() < bounds[2]) {
+                            targetIsland = currentIsland - 1;
+                        }
+                    }
                     if (targetIsland >= 0 && targetIsland != currentIsland
+                            && targetIsland < map.getScale()
                             && Math.abs(targetIsland - currentIsland) <= 1
                             && !switchingPlayers.contains(player.getUniqueId())) {
                         java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islandList =

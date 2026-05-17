@@ -46,6 +46,7 @@ public class ItemBuilder {
     public static ItemBuilder fromString(String materialString) {
         String[] parts = materialString.split(":");
         Material mat = Material.matchMaterial(parts[0]);
+        if (mat == null) mat = resolveAlias(parts[0]);
         if (mat == null) mat = Material.STONE;
         byte d = 0;
         if (parts.length > 1) {
@@ -54,6 +55,26 @@ public class ItemBuilder {
             } catch (NumberFormatException ignored) {}
         }
         return new ItemBuilder(mat, d);
+    }
+
+    /**
+     * Map modern (1.9+) material names onto their Minecraft 1.8.8 enum equivalents
+     * so configs written with the newer names still resolve instead of silently
+     * falling back to STONE. Returns null if no alias is known.
+     */
+    private static Material resolveAlias(String raw) {
+        if (raw == null) return null;
+        String key = raw.trim().toUpperCase().replace(' ', '_').replace('-', '_');
+        switch (key) {
+            case "HARDENED_CLAY":
+            case "TERRACOTTA":
+                return Material.HARD_CLAY;
+            case "STAINED_HARDENED_CLAY":
+            case "STAINED_TERRACOTTA":
+                return Material.STAINED_CLAY;
+            default:
+                return null;
+        }
     }
 
     public ItemBuilder material(Material material) {

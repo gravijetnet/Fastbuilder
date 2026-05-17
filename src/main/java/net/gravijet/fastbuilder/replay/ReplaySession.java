@@ -80,6 +80,11 @@ public class ReplaySession {
     private int replayMinZ, replayMaxZ;
     private int precomputedMaxX;
 
+    // Region of the pasted end island {x,y,z,w,h,l} so stop() can clear it.
+    // Without this, the reusable replay slot accumulates stale end islands
+    // when consecutive replays use different custom lengths.
+    private int[] endIslandClearRegion = null;
+
     private float savedExp   = 0f;
     private int   savedLevel = 0;
 
@@ -108,7 +113,10 @@ public class ReplaySession {
         int replayAreaX = REPLAY_BASE_X - replaySlot * REPLAY_SLOT_SPACING;
         int replayAreaZ = REPLAY_BASE_Z;
 
-        int islandOriginX = map.getOriginX();
+        // Recorded block coords are absolute, so the translation origin must include
+        // the diagonal X shift of the slot the run was recorded on (0 for straight maps).
+        int islandOriginX = map.getOriginX()
+                + (int) ((long) replayData.getIslandIndex() * map.getDiagonalStepX());
         int islandOriginY = map.getOriginY();
         int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getActualZStep();
 
@@ -182,9 +190,17 @@ public class ReplaySession {
                                     : (map.getBaseCustomLength() > 0
                                         ? map.getBaseCustomLength()
                                         : map.getEffectiveMinCustomLength());
-                            int endX = replayAreaXFinal + map.getIslandWidth() + len - 1;
+                            // Use the same X formula as EndPlatformManager/GameplayListener
+                            // (… + len - 2) so the replay's end island sits exactly where
+                            // it was during the actual recorded run.
+                            int endX = replayAreaXFinal + map.getIslandWidth() + len - 2;
                             int endY = REPLAY_AREA_Y + map.getEndIslandYOffset();
                             int endZ = replayAreaZ + map.getEndIslandZOffset();
+                            endIslandClearRegion = new int[]{
+                                endX, endY, endZ,
+                                map.getEndIslandWidth(), map.getEndIslandHeight(),
+                                map.getEndIslandLength()
+                            };
                             forceLoadChunksInLine(map.getWorld(),
                                     replayAreaXFinal, REPLAY_AREA_Y, replayAreaZ,
                                     endX + map.getEndIslandWidth(), endY, endZ + map.getEndIslandLength());
@@ -250,9 +266,20 @@ public class ReplaySession {
 
                 playbackFraction += playbackSpeed;
 
-                while (playbackFraction >= 1.0 && currentTick < replayData.getFrames().size()) {
+                List<ReplayFrame> loopFrames = replayData.getFrames();
+                while (playbackFraction >= 1.0 && currentTick < loopFrames.size()) {
+                    int recTick = loopFrames.get(currentTick).getTick();
                     processFrameEffects(p, currentTick);
                     currentTick++;
+                    // Collapse extra frames recorded in the SAME server tick (multiple
+                    // blocks placed within one 50ms tick) into this single playback
+                    // step so the replay matches the real run's duration. Same-tick
+                    // frames share an identical position, so NPC motion is unaffected.
+                    while (currentTick < loopFrames.size()
+                            && loopFrames.get(currentTick).getTick() == recTick) {
+                        processFrameEffects(p, currentTick);
+                        currentTick++;
+                    }
                     playbackFraction -= 1.0;
                 }
 
@@ -376,6 +403,16 @@ public class ReplaySession {
                     replayAreaX, REPLAY_AREA_Y, REPLAY_BASE_Z,
                     map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
                     map.getActualZStep(), 0, 1, null);
+
+            // Clear the pasted end island too — otherwise the reusable replay slot
+            // keeps a stale end island when the next replay uses a different length.
+            if (endIslandClearRegion != null) {
+                int[] r = endIslandClearRegion;
+                plugin.getFawePaster().clearRegion(map.getWorld(),
+                        r[0], r[1], r[2],
+                        r[0] + r[3] - 1, r[1] + r[4] - 1, r[2] + r[5] - 1, null);
+                endIslandClearRegion = null;
+            }
         }
 
         npcController.despawn();

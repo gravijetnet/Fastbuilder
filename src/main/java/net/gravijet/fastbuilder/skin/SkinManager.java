@@ -103,6 +103,35 @@ public class SkinManager {
         }
     }
 
+    /**
+     * Apply a player's head texture to a SkullMeta using only the local cache.
+     *
+     * <p>Tries the cached texture by UUID first, then by name. Only when no cached
+     * skin exists AND the server is in online mode does it fall back to
+     * {@link SkullMeta#setOwner(String)} — that call triggers a synchronous Mojang
+     * profile lookup which throws {@code AuthenticationUnavailableException} on
+     * cracked/offline servers and aborts whatever GUI is being built. On offline
+     * servers with no cached skin the skull is simply left as a default head.</p>
+     */
+    public void applyCachedSkin(SkullMeta meta, UUID uuid, String name) {
+        String[] skin = null;
+        if (uuid != null) {
+            String[] s = skinByUuid.get(uuid);
+            if (s != null && s[0] != null && !s[0].isEmpty()) skin = s;
+        }
+        if (skin == null && name != null && !name.isEmpty()) {
+            skin = getSkinByName(name);
+        }
+        if (skin != null && skin[0] != null && !skin[0].isEmpty()) {
+            if (applyTextureToSkullMeta(meta, skin[0], skin[1])) return;
+        }
+        // No cached skin — only do the (blocking, network) Mojang lookup on
+        // online-mode servers where it can actually succeed.
+        if (name != null && !name.isEmpty() && Bukkit.getServer().getOnlineMode()) {
+            try { meta.setOwner(name); } catch (Exception ignored) {}
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Citizens NPC — apply texture without Mojang lookup
     // -------------------------------------------------------------------------

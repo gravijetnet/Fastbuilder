@@ -439,6 +439,7 @@ public class ShopGui {
                 data.removeCoins(price);
                 data.purchaseBlock("anim:" + animId);
                 data.setSelectedAnimation(animId);
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String aName = slotsSection.getString(configKey + ".name", "Animation");
@@ -450,6 +451,7 @@ public class ShopGui {
         }
 
         data.setSelectedAnimation(animId);
+        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String aName = slotsSection.getString(configKey + ".name", "Animation");
@@ -544,6 +546,7 @@ public class ShopGui {
                 data.removeCoins(price);
                 data.purchaseBlock("sound:" + soundId);
                 data.setSelectedDeathSound(soundId);
+                plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String sName = slotsSection.getString(configKey + ".name", "Sound");
@@ -555,6 +558,7 @@ public class ShopGui {
         }
 
         data.setSelectedDeathSound(soundId);
+        plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String sName = slotsSection.getString(configKey + ".name", "Sound");

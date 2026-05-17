@@ -188,11 +188,24 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             plugin.getHotbarManager().giveItems(player);
         }
         plugin.getScoreboardManager().createScoreboard(player);
-        if (plugin.getNpcManager() != null) {
+
+        // Respect the player's selected design: applyPlayerDesign() already spawned the
+        // NPC at the design's custom position, so don't overwrite it with the default one.
+        boolean designHasNpc = false;
+        String selDesign = data.getSelectedDesign(map.getName());
+        if (selDesign != null && !selDesign.equals(map.getTemplateFile())) {
+            MapData.DesignProfile prof = map.getDesignProfile(selDesign);
+            if (prof != null && prof.hasNpcPosition()) designHasNpc = true;
+        }
+        if (plugin.getNpcManager() != null && !designHasNpc) {
             plugin.getNpcManager().spawnNpc(player, map.getIslandNpcLocation(island));
         }
         if (plugin.getHologramManager() != null) {
-            plugin.getHologramManager().updateHologram(map.getName(), island, player);
+            org.bukkit.Location holoLoc = plugin.getGameplayManager() != null
+                    ? plugin.getGameplayManager().getEffectiveHologramLocation(
+                            player.getUniqueId(), map, island)
+                    : map.getIslandHologramLocation(island);
+            plugin.getHologramManager().updateHologramAt(map.getName(), island, player, holoLoc);
         }
 
         // Check autoscale

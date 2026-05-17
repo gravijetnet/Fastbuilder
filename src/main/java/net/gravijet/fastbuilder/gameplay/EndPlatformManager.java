@@ -62,7 +62,9 @@ class EndPlatformManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 2;
+        // Diagonal maps shift each slot in +X by diagonalStepX (0 for straight maps).
+        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
@@ -77,7 +79,8 @@ class EndPlatformManager {
 
         Runnable pasteNew = () -> {
             forceLoadChunkCorridor(world,
-                    map.getOriginX(), endY, map.getOriginZ() + islandIndex * map.getActualZStep(),
+                    map.getOriginX() + diagX, endY,
+                    map.getOriginZ() + islandIndex * map.getActualZStep(),
                     clearMaxX, clearMaxY, clearMaxZ);
             plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
                 plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
@@ -105,7 +108,9 @@ class EndPlatformManager {
                 plugin.getPlayerManager().getCachedData(uuid);
         int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + customLength - 2;
+        // Diagonal maps shift each slot in +X by diagonalStepX (0 for straight maps).
+        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
@@ -118,7 +123,8 @@ class EndPlatformManager {
         int clearMaxY = endY + map.getEndIslandHeight() - 1;
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
         forceLoadChunkCorridor(world,
-                map.getOriginX(), endY, map.getOriginZ() + islandIndex * map.getActualZStep(),
+                map.getOriginX() + diagX, endY,
+                map.getOriginZ() + islandIndex * map.getActualZStep(),
                 clearMaxX, clearMaxY, clearMaxZ);
         plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
             plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
@@ -127,7 +133,8 @@ class EndPlatformManager {
 
     @SuppressWarnings("deprecation")
     private void placeEndPlatformLegacy(UUID uuid, MapData map, RunSession session, int customLength) {
-        int platformX = map.getOriginX() + (int) map.getSpawnOffsetX() + customLength;
+        int diagX = (int) ((long) session.getIslandIndex() * map.getDiagonalStepX());
+        int platformX = map.getOriginX() + diagX + (int) map.getSpawnOffsetX() + customLength;
         int platformY = map.getOriginY() + map.getFinishMinY();
         int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getActualZStep();
         int minZ = islandBaseZ + map.getFinishMinZ();
@@ -216,7 +223,8 @@ class EndPlatformManager {
                 ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
         if (defaultLength <= 0) return;
 
-        int endX = map.getOriginX() + map.getIslandWidth() + defaultLength - 2;
+        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + defaultLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset();
         int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
 
@@ -224,7 +232,7 @@ class EndPlatformManager {
         int clearMaxY = endY + map.getEndIslandHeight() - 1;
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
 
-        forceLoadChunkCorridor(world, map.getOriginX(), endY,
+        forceLoadChunkCorridor(world, map.getOriginX() + diagX, endY,
                 map.getOriginZ() + islandIndex * map.getActualZStep(), clearMaxX, clearMaxY, clearMaxZ);
         plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ,
                 () -> plugin.getFawePaster().pasteTemplate(
