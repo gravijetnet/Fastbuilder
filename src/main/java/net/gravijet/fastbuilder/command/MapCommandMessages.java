@@ -30,6 +30,7 @@ class MapCommandMessages {
     void msgAdmin(Player player, String key, String placeholder, String value) {
         String raw = plugin.getConfigManager().getAdminMessage(key);
         if (raw == null || raw.isEmpty()) raw = plugin.getConfigManager().getMessage(key);
+        if (raw == null) raw = "";
         raw = raw.replace(placeholder, value);
         raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));
@@ -37,6 +38,7 @@ class MapCommandMessages {
 
     void msgMap(Player player, String key, String mapName) {
         String raw = plugin.getConfigManager().getMessage(key);
+        if (raw == null) raw = "";
         raw = raw.replace("%map%", mapName);
         raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
         player.sendMessage(ColorUtil.translate(raw));

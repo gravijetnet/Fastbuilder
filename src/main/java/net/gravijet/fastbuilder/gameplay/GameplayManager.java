@@ -288,7 +288,10 @@ public class GameplayManager {
         }
 
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-        if (data == null) return;
+        if (data == null) {
+            finishCooldown.remove(uuid);
+            return;
+        }
 
         session.addSessionBest(time);
 
@@ -424,7 +427,9 @@ public class GameplayManager {
                 int activeDist = data.getCustomLength(session.getMapName());
                 if (activeDist <= 0) activeDist = statsMap != null && statsMap.getBaseCustomLength() > 0
                         ? statsMap.getBaseCustomLength() : 0;
-                if (activeDist > 0) {
+                if (activeDist > 0 && statsMap != null) {
+                    activeDist = Math.max(statsMap.getEffectiveMinCustomLength(),
+                            Math.min(statsMap.getEffectiveMaxCustomLength(), activeDist));
                     data.updateCustomLengthBest(session.getMapName(), activeDist, time);
                     data.updateCustomLengthSessionBest(session.getMapName(), activeDist, time);
                     plugin.getPlayerManager().savePlayerData(player.getUniqueId());
@@ -1157,19 +1162,23 @@ public class GameplayManager {
     @SuppressWarnings("deprecation")
     private void sendActionBar(Player player, String message) {
         try {
+            // Escape backslashes and double-quotes so the JSON payload is always valid
+            String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"");
             Object packet = getNMSClass("PacketPlayOutChat")
                     .getConstructor(getNMSClass("IChatBaseComponent"), byte.class)
                     .newInstance(
                             getNMSClass("IChatBaseComponent$ChatSerializer")
                                     .getMethod("a", String.class)
-                                    .invoke(null, "{\"text\":\"" + message + "\"}"),
+                                    .invoke(null, "{\"text\":\"" + escaped + "\"}"),
                             (byte) 2
                     );
             Object handle = player.getClass().getMethod("getHandle").invoke(player);
             Object playerConnection = handle.getClass().getField("playerConnection").get(handle);
             playerConnection.getClass().getMethod("sendPacket", getNMSClass("Packet"))
                     .invoke(playerConnection, packet);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            plugin.getLogger().fine("sendActionBar failed for " + player.getName() + ": " + e.getMessage());
+        }
     }
 
     private Class<?> getNMSClass(String name) throws ClassNotFoundException {
@@ -1178,7 +1187,7 @@ public class GameplayManager {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "x";
+        if (Math.abs(mult - Math.floor(mult)) < 1e-9) return (int) mult + "x";
         return String.format("%.1fx", mult);
     }
 

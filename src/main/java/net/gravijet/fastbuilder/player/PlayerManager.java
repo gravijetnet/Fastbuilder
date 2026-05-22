@@ -80,30 +80,40 @@ public class PlayerManager {
      * accept the brief I/O block).
      */
     public PlayerData getPlayerData(UUID uuid, String name) {
-        PlayerData data = cache.get(uuid);
-        if (data != null) {
-            data.setName(name); // keep name fresh
+        // Synchronized block makes the check-then-act atomic under the map's own lock
+        synchronized (cache) {
+            PlayerData data = cache.get(uuid);
+            if (data != null) {
+                data.setName(name); // keep name fresh
+                return data;
+            }
+            // Load (potentially blocking — call only from async join handler or early startup)
+            data = provider.loadPlayerData(uuid, name);
+            cache.put(uuid, data);
             return data;
         }
-        // Load (potentially blocking — call only from async join handler or early startup)
-        data = provider.loadPlayerData(uuid, name);
-        cache.put(uuid, data);
-        return data;
     }
 
     /** Load player data asynchronously, running {@code callback} on the main thread when done. */
     public void getPlayerDataAsync(UUID uuid, String name, java.util.function.Consumer<PlayerData> callback) {
-        PlayerData cached = cache.get(uuid);
-        if (cached != null) {
-            cached.setName(name);
-            callback.accept(cached);
-            return;
+        synchronized (cache) {
+            PlayerData cached = cache.get(uuid);
+            if (cached != null) {
+                cached.setName(name);
+                callback.accept(cached);
+                return;
+            }
         }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             PlayerData data = provider.loadPlayerData(uuid, name);
             Bukkit.getScheduler().runTask(plugin, () -> {
-                cache.put(uuid, data);
-                callback.accept(data);
+                // Re-check under lock in case another load completed while we were in async
+                synchronized (cache) {
+                    if (!cache.containsKey(uuid)) {
+                        cache.put(uuid, data);
+                    }
+                }
+                callback.accept(cache.get(uuid));
             });
         });
     }

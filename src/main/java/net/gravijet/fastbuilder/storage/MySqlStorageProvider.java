@@ -63,8 +63,9 @@ public class MySqlStorageProvider implements StorageProvider {
             throw new Exception("MySQL JDBC driver not found. Add mysql-connector-j or mysql-connector-java to the classpath.");
         }
 
+        boolean useSSL = plugin.getConfigManager().getStorageMySQL("use-ssl", "false").equalsIgnoreCase("true");
         String url = "jdbc:mysql://" + host + ":" + port + "/" + database
-                + "?useSSL=false&autoReconnect=true&characterEncoding=utf8"
+                + "?useSSL=" + useSSL + "&autoReconnect=true&characterEncoding=utf8"
                 + "&serverTimezone=UTC";
 
         synchronized (pool) {
@@ -147,8 +148,8 @@ public class MySqlStorageProvider implements StorageProvider {
             try { stmt.execute("ALTER TABLE player_infinite_distances ADD COLUMN time BIGINT NOT NULL DEFAULT 0"); }
             catch (Exception ignored) {}
 
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_map_stats_map_best " +
-                    "ON player_map_stats(map_name, best_time)");
+            try { stmt.execute("CREATE INDEX idx_map_stats_map_best ON player_map_stats(map_name, best_time)"); }
+            catch (SQLException ignored) {} // silently skip if the index already exists
 
             stmt.execute("CREATE TABLE IF NOT EXISTS player_booster_inventory (" +
                     "uuid     VARCHAR(36) NOT NULL," +

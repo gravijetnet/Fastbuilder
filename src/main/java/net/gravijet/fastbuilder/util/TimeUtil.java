@@ -71,7 +71,7 @@ public final class TimeUtil {
      * </ul>
      */
     public static String formatTimeFull(long millis) {
-        if (millis < 0) return "0,000";
+        if (millis < 0) return EMPTY_RAW;
         long rounded      = roundTo50(millis);
         long totalSeconds = rounded / 1000;
         long ms           = rounded % 1000;

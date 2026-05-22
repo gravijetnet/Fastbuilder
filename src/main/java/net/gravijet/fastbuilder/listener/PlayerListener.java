@@ -90,11 +90,15 @@ public class PlayerListener implements Listener {
                 player.sendMessage(ColorUtil.translate(prefix + "&fNo maps are configured yet."));
                 sendSetupPrompt(player);
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+                String noIslands = plugin.getConfigManager().getMessage("no-free-islands");
+                if (noIslands == null) noIslands = "";
+                player.sendMessage(ColorUtil.translate(noIslands
                         .replace("%prefix%", plugin.getConfigManager().getPrefix())));
             }
         } else {
-            player.kickPlayer(ColorUtil.translate(plugin.getConfigManager().getMessage("no-free-islands")
+            String noIslands = plugin.getConfigManager().getMessage("no-free-islands");
+            if (noIslands == null) noIslands = "";
+            player.kickPlayer(ColorUtil.translate(noIslands
                     .replace("%prefix%", plugin.getConfigManager().getPrefix())));
         }
     }

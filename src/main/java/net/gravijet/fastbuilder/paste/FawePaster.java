@@ -84,8 +84,14 @@ public class FawePaster {
         int h = maxY - minY + 1;
         int l = maxZ - minZ + 1;
 
-        byte[] ids  = new byte[w * h * l];
-        byte[] data = new byte[w * h * l];
+        long volume = (long) w * h * l;
+        if (volume <= 0 || volume > 16_000_000L) {
+            plugin.getLogger().severe("saveTemplate: region too large or invalid (" + w + "x" + h + "x" + l + "), aborting.");
+            return false;
+        }
+
+        byte[] ids  = new byte[(int) volume];
+        byte[] data = new byte[(int) volume];
         int blockCount = 0;
 
         for (int y = 0; y < h; y++) {
@@ -257,9 +263,9 @@ public class FawePaster {
         List<BlockEntry> islandBlocks = new ArrayList<>(entries.size());
         for (BlockEntry e : entries) {
             islandBlocks.add(new BlockEntry(
-                    (short)(e.relX + offX),
+                    e.relX + offX,
                     e.relY,
-                    (short)(e.relZ + offZ),
+                    e.relZ + offZ,
                     e.blockId,
                     e.data));
         }
@@ -330,7 +336,7 @@ public class FawePaster {
                 for (int i = index; i < end; i++) {
                     BlockEntry e = entries.get(i);
                     Block b = world.getBlockAt(baseX + e.relX, baseY + e.relY, baseZ + e.relZ);
-                    b.setTypeIdAndData(e.blockId & 0xFFFF, e.data, false);
+                    b.setTypeIdAndData(e.blockId & 0xFF, e.data, false);
                 }
                 index = end;
                 if (index >= entries.size()) {
@@ -483,7 +489,7 @@ public class FawePaster {
                         int id  = blockIds[idx] & 0xFF;
                         if (id != 0) {
                             entries.add(new BlockEntry(
-                                    (short)x, (short)y, (short)z,
+                                    x, y, z,
                                     (short)id, blockData[idx]));
                         }
                     }
@@ -562,7 +568,7 @@ public class FawePaster {
      * Called automatically the first time a .template file is loaded.
      */
     private void convertLegacyToSchematic(String name, List<BlockEntry> entries) {
-        short maxX = 0, maxY = 0, maxZ = 0;
+        int maxX = 0, maxY = 0, maxZ = 0;
         for (BlockEntry e : entries) {
             if (e.relX > maxX) maxX = e.relX;
             if (e.relY > maxY) maxY = e.relY;
@@ -604,12 +610,12 @@ public class FawePaster {
 
     /** Immutable single-block record used throughout the paste pipeline. */
     public static class BlockEntry {
-        public final short relX, relY, relZ;
+        public final int  relX, relY, relZ;
         /** Block type ID (0-255 for 1.8.8 blocks). */
         public final short blockId;
         public final byte  data;
 
-        public BlockEntry(short relX, short relY, short relZ, short blockId, byte data) {
+        public BlockEntry(int relX, int relY, int relZ, short blockId, byte data) {
             this.relX    = relX;
             this.relY    = relY;
             this.relZ    = relZ;

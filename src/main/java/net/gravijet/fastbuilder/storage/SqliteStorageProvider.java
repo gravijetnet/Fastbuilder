@@ -183,7 +183,7 @@ public class SqliteStorageProvider implements StorageProvider {
                     }
                 }
             }
-            // (Lade-Logik für andere Tabellen bleibt gleich, da sie bereits Java 8 konform war)
+            // Load remaining sub-tables (already Java 8 compatible)
             loadSubTables(uuidStr, data);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[SQLite] Failed to load player: " + uuid, e);

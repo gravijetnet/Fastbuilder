@@ -129,7 +129,8 @@ public class ReplayManager {
         ReplayRecorder recorder = activeRecorders.remove(playerUuid);
         if (recorder == null) return;
 
-        RunSession run = plugin.getGameplayManager().getSession(playerUuid);
+        RunSession run = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getSession(playerUuid) : null;
         long runTime = run != null ? run.getElapsed() : 0;
 
         // Capture the active custom length for this run (0 = normal mode)
@@ -165,11 +166,20 @@ public class ReplayManager {
 
         if (player.hasPermission("fastbuilder.replays.unlimited")) return Integer.MAX_VALUE;
 
-        // Check fastbuilder.replays.N (highest permission wins, checked 1000 → 1)
-        for (int i = 1000; i >= 1; i--) {
-            if (player.hasPermission("fastbuilder.replays." + i)) return i;
+        // Check fastbuilder.replays.N (highest permission wins).
+        // Use a descending power-of-two probe to avoid 1000 permission checks per call.
+        int best = configDefault;
+        for (int probe = 512; probe >= 1; probe >>= 1) {
+            for (int v = best + probe; v <= 1000; v += probe) {
+                if (player.hasPermission("fastbuilder.replays." + v)) { best = v; break; }
+            }
         }
-        return configDefault;
+        // Fine-scan around found value (handles non-power-of-two gaps)
+        for (int v = best + 1; v <= 1000; v++) {
+            if (!player.hasPermission("fastbuilder.replays." + v)) break;
+            best = v;
+        }
+        return best;
     }
 
     // -------------------------------------------------------------------------
@@ -187,7 +197,13 @@ public class ReplayManager {
 
         // Allocate a free replay slot (1000-block spaced areas)
         int slot = 0;
-        while (usedReplaySlots.contains(slot)) slot++;
+        while (usedReplaySlots.contains(slot)) {
+            if (slot == Integer.MAX_VALUE) {
+                plugin.getLogger().severe("ReplayManager: all replay slots exhausted, cannot start playback.");
+                return;
+            }
+            slot++;
+        }
         usedReplaySlots.add(slot);
 
         ReplaySession session = new ReplaySession(plugin, viewer.getUniqueId(), replayData, slot);
@@ -239,7 +255,7 @@ public class ReplayManager {
         File playerDir = new File(replaysDir, playerUuid.toString());
         if (!playerDir.exists()) return null;
         File[] files = playerDir.listFiles((dir, name) ->
-                name.contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
         if (files == null || files.length == 0) return null;
 
         ReplayData best = null;
@@ -252,7 +268,9 @@ public class ReplayManager {
                     bestTime = rd.getRunTimeMillis();
                     best = rd;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to load replay for PB check: " + f.getName() + " — " + e.getMessage());
+            }
         }
         return best;
     }
@@ -275,7 +293,7 @@ public class ReplayManager {
         if (!playerDir.exists()) return replays;
 
         File[] files = playerDir.listFiles((dir, name) ->
-                name.contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
         if (files == null) return replays;
 
         for (File file : files) {
@@ -384,15 +402,21 @@ public class ReplayManager {
 
     private ReplayData loadReplay(File file) throws IOException {
         // Detect GZIP vs. raw: check first two bytes for the GZIP magic (0x1f 0x8b)
-        InputStream rawStream = new BufferedInputStream(new FileInputStream(file));
+        // rawStream is owned by DataInputStream (or GZIPInputStream) and closed via try-with-resources.
+        BufferedInputStream rawStream = new BufferedInputStream(new FileInputStream(file));
         rawStream.mark(2);
         int b1 = rawStream.read(), b2 = rawStream.read();
         rawStream.reset();
         InputStream decompressed;
-        if (b1 == 0x1f && b2 == 0x8b) {
-            decompressed = new GZIPInputStream(rawStream);
-        } else {
-            decompressed = rawStream; // legacy uncompressed format
+        try {
+            if (b1 == 0x1f && b2 == 0x8b) {
+                decompressed = new GZIPInputStream(rawStream);
+            } else {
+                decompressed = rawStream; // legacy uncompressed format
+            }
+        } catch (IOException e) {
+            rawStream.close();
+            throw e;
         }
         try (DataInputStream in = new DataInputStream(decompressed)) {
             int magic = in.readInt();
@@ -487,7 +511,7 @@ public class ReplayManager {
         if (limit == Integer.MAX_VALUE) return;
 
         File[] files = playerDir.listFiles((dir, name) ->
-                name.contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
         if (files == null || files.length <= limit) return;
 
         // Load metadata to find the PB file
@@ -517,7 +541,9 @@ public class ReplayManager {
             if (f.equals(pbFile)) continue;
             // Protect favorites
             if (favorites.contains(f.getName())) continue;
-            f.delete();
+            if (!f.delete()) {
+                plugin.getLogger().warning("Could not delete old replay: " + f.getName());
+            }
             toDelete--;
         }
     }

@@ -10,6 +10,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Economy system for coins.
@@ -210,7 +211,9 @@ public class CoinManager {
      * The curve is smooth and continuous — no discrete tiers.
      */
     private int computeTierCoins(long timeMs, double averageMs) {
+        if (averageMs <= 0) return 15; // no average yet — award baseline
         double ratio = timeMs / averageMs;
+        if (ratio <= 0) return 30; // instantaneous time — award cap
         int raw = (int) Math.round(15.0 / ratio);
         return Math.max(5, Math.min(30, raw));
     }
@@ -223,9 +226,7 @@ public class CoinManager {
         int min = plugin.getConfigManager().getCoinsDropIntervalMin();
         int max = plugin.getConfigManager().getCoinsDropIntervalMax();
         if (min >= max) return Math.max(1, min);
-        // Simple deterministic spread — no randomness needed here since the
-        // interval is internal and doesn't affect balance meaningfully
-        return min + (int) ((System.currentTimeMillis() % (max - min + 1)));
+        return min + ThreadLocalRandom.current().nextInt(max - min + 1);
     }
 
     private int computeDropAmount(int intervalSeconds) {
@@ -285,6 +286,8 @@ public class CoinManager {
                     if (expElapsed >= 3600) {
                         expElapsedSeconds.put(uuid, 0);
                         final String name = player.getName();
+                        // Validate name contains only safe characters before dispatching
+                        if (name.matches("[a-zA-Z0-9_]{1,16}")) {
                         // Run on next tick so we're not blocking the scheduler body
                         Bukkit.getScheduler().runTask(plugin, () ->
                             Bukkit.dispatchCommand(
@@ -292,6 +295,7 @@ public class CoinManager {
                                 "adminexp give " + name + " 10 Fastbuilder"
                             )
                         );
+                        }
                     } else {
                         expElapsedSeconds.put(uuid, expElapsed);
                     }
@@ -301,7 +305,7 @@ public class CoinManager {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "xx";
+        if (Math.abs(mult - Math.floor(mult)) < 1e-9) return (int) mult + "xx";
         return String.format("%.1fxx", mult);
     }
 }

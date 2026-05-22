@@ -115,7 +115,7 @@ public final class GridCalculator {
     public static int[] getIslandBounds(MapData map, int index) {
         int minX = (int)(map.getOriginX() + (long) index * map.getDiagonalStepX());
         int minY = map.getOriginY();
-        int minZ = map.getOriginZ() + index * map.getActualZStep();
+        int minZ = (int)(map.getOriginZ() + (long) index * map.getActualZStep());
         int maxX = minX + map.getIslandWidth() - 1;
         int maxY = minY + map.getIslandHeight() - 1;
         int maxZ = minZ + map.getIslandLength() - 1;

@@ -53,6 +53,7 @@ public class RunSession {
     public long finish() {
         if (!running) return -1;
         long rawMs = System.currentTimeMillis() - startTime;
+        if (rawMs < 0) rawMs = 0; // guard against NTP clock adjustment
         finishTimeMs = net.gravijet.fastbuilder.util.TimeUtil.roundTo50(rawMs);
         running = false;
         finished = true;

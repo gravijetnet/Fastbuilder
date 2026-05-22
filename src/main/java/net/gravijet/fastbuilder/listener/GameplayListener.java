@@ -145,7 +145,8 @@ public class GameplayListener implements Listener {
 
         // Diagonal maps shift each island slot in +X by diagonalStepX per index.
         // 0 for straight maps, so this is a no-op there.
-        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
+        long diagXLong = (long) islandIndex * map.getDiagonalStepX();
+        int diagX = (int) diagXLong;
 
         // End-island mode: derive finish zone from the live end-island position
         if (map.hasEndIsland()) {
