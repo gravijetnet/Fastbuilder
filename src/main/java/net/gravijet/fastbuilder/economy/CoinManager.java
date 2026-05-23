@@ -305,7 +305,7 @@ public class CoinManager {
     }
 
     private static String formatMult(double mult) {
-        if (Math.abs(mult - Math.floor(mult)) < 1e-9) return (int) mult + "xx";
-        return String.format("%.1fxx", mult);
+        if (Math.abs(mult - Math.floor(mult)) < 1e-9) return (int) mult + "x";
+        return String.format("%.1fx", mult);
     }
 }

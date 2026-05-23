@@ -93,9 +93,12 @@ public class FastScoreboard {
         List<String> configLines = plugin.getConfigManager().getScoreboardLines();
         int lineCount = Math.min(configLines.size(), MAX_LINES);
 
-        // Create teams for each slot and assign entries
+        // Create teams for each slot and assign entries.
+        // Team name must be ≤ 16 chars. Use the lower 18 bits of hashCode (6 hex digits) + line index.
+        // Lower 18 bits give 262 144 values — collision probability ~0.4% per line at 1000 players,
+        // far below the old 10-digit signed decimal that regularly exceeded the 16-char limit.
         for (int i = 0; i < lineCount; i++) {
-            String teamName = "fb_" + player.getName().hashCode() + "_" + i;
+            String teamName = "fb_" + Integer.toHexString(player.getName().hashCode() & 0x3FFFF) + "_" + i;
             Team team = board.getTeam(teamName);
             if (team == null) team = board.registerNewTeam(teamName);
 
@@ -175,7 +178,7 @@ public class FastScoreboard {
 
     /** Retrieve the team for line slot {@code index} from the board. */
     private Team getTeam(Scoreboard board, Player player, int index) {
-        String teamName = "fb_" + player.getName().hashCode() + "_" + index;
+        String teamName = "fb_" + Integer.toHexString(player.getName().hashCode() & 0x3FFFF) + "_" + index;
         return board.getTeam(teamName);
     }
 
@@ -191,10 +194,11 @@ public class FastScoreboard {
             team.setPrefix(line);
             team.setSuffix("");
         } else {
-            // Avoid splitting mid-colour-sequence: if char at position 15 is §, back up by 1
+            // Avoid splitting mid-colour-sequence: back up while the split would leave \u00a7 at
+            // the end of prefix (the colour-code letter would then appear in suffix without its \u00a7).
             int splitAt = 16;
-            if (splitAt > 0 && line.charAt(splitAt - 1) == '\u00a7') {
-                splitAt = 15;
+            while (splitAt > 0 && splitAt < line.length() && line.charAt(splitAt - 1) == '\u00a7') {
+                splitAt--;
             }
             String prefix = line.substring(0, splitAt);
             String rest   = line.substring(splitAt);

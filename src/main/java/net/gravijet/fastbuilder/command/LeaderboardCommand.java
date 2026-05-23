@@ -35,9 +35,10 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!sender.hasPermission("fastbuilder.command.leaderboard")) {
+            String noPermMsg = plugin.getConfigManager().getMessage("no-permission");
+            if (noPermMsg == null) noPermMsg = "%prefix%&cYou do not have permission.";
             sender.sendMessage(ColorUtil.translate(
-                    plugin.getConfigManager().getMessage("no-permission")
-                            .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+                    noPermMsg.replace("%prefix%", plugin.getConfigManager().getPrefix())));
             return true;
         }
 

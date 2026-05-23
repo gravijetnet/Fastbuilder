@@ -120,17 +120,17 @@ public class ShopGui {
 
         player.closeInventory();
 
-        if (slot == guis.getInt("shop.blocks-slot", 10)) {
+        if (slot == guis.getInt("shop.blocks-slot", 9)) {
             blockGui.open(player, 1);
-        } else if (slot == guis.getInt("shop.boosters-slot", 28)) {
+        } else if (slot == guis.getInt("shop.boosters-slot", 10)) {
             boosterGui.openHub(player);
-        } else if (slot == guis.getInt("shop.pickaxes-slot", 13)) {
+        } else if (slot == guis.getInt("shop.pickaxes-slot", 11)) {
             openPickaxeSelector(player, 1);
-        } else if (slot == guis.getInt("shop.designs-slot", 16)) {
+        } else if (slot == guis.getInt("shop.designs-slot", 13)) {
             openDesignSelector(player);
-        } else if (slot == guis.getInt("shop.animations-slot", 31)) {
+        } else if (slot == guis.getInt("shop.animations-slot", 15)) {
             openAnimationSelector(player);
-        } else if (slot == guis.getInt("shop.death-sounds-slot", 34)) {
+        } else if (slot == guis.getInt("shop.death-sounds-slot", 17)) {
             openDeathSoundSelector(player);
         }
     }

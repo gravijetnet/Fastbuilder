@@ -41,7 +41,12 @@ public class BlockSelectorGui {
         }
 
         int maxPage = 1;
-        for (String key : guis.getConfigurationSection("block-selector-slots").getKeys(false)) {
+        org.bukkit.configuration.ConfigurationSection allSlotsSection = guis.getConfigurationSection("block-selector-slots");
+        if (allSlotsSection == null) {
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cBlock selector slots not configured."));
+            return;
+        }
+        for (String key : allSlotsSection.getKeys(false)) {
             try {
                 int p = Integer.parseInt(key);
                 if (p > maxPage) maxPage = p;

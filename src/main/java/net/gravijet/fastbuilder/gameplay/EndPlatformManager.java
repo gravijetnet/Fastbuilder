@@ -27,6 +27,9 @@ class EndPlatformManager {
     private final Map<UUID, List<Location>> endPlatforms = new HashMap<>();
     private final Map<UUID, Map<String, int[]>> endPlatformOrigStates = new HashMap<>();
 
+    // Per-player chunk-load task IDs — cancel the old task before starting a new one
+    private final Map<UUID, Integer> chunkLoadTasks = new HashMap<>();
+
     EndPlatformManager(FastBuilder plugin, Map<UUID, RunSession> activeSessions) {
         this.plugin = plugin;
         this.activeSessions = activeSessions;
@@ -66,7 +69,7 @@ class EndPlatformManager {
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
         int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
-        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+        int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
         endIslandRegions.put(uuid, new int[]{
             endX, endY, endZ,
@@ -78,9 +81,9 @@ class EndPlatformManager {
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
 
         Runnable pasteNew = () -> {
-            forceLoadChunkCorridor(world,
+            forceLoadChunkCorridor(uuid, world,
                     map.getOriginX() + diagX, endY,
-                    map.getOriginZ() + islandIndex * map.getActualZStep(),
+                    map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()),
                     clearMaxX, clearMaxY, clearMaxZ);
             plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
                 plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
@@ -112,7 +115,7 @@ class EndPlatformManager {
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
         int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
-        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+        int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
         endIslandRegions.put(uuid, new int[]{
             endX, endY, endZ,
@@ -122,9 +125,9 @@ class EndPlatformManager {
         int clearMaxX = endX + map.getEndIslandWidth()  - 1;
         int clearMaxY = endY + map.getEndIslandHeight() - 1;
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
-        forceLoadChunkCorridor(world,
+        forceLoadChunkCorridor(uuid, world,
                 map.getOriginX() + diagX, endY,
-                map.getOriginZ() + islandIndex * map.getActualZStep(),
+                map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()),
                 clearMaxX, clearMaxY, clearMaxZ);
         plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
             plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
@@ -226,14 +229,14 @@ class EndPlatformManager {
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
         int endX = map.getOriginX() + diagX + map.getIslandWidth() + defaultLength - 2;
         int endY = map.getOriginY() + map.getEndIslandYOffset();
-        int endZ = map.getOriginZ() + islandIndex * map.getActualZStep() + map.getEndIslandZOffset();
+        int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
         int clearMaxX = endX + map.getEndIslandWidth()  - 1;
         int clearMaxY = endY + map.getEndIslandHeight() - 1;
         int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
 
-        forceLoadChunkCorridor(world, map.getOriginX() + diagX, endY,
-                map.getOriginZ() + islandIndex * map.getActualZStep(), clearMaxX, clearMaxY, clearMaxZ);
+        forceLoadChunkCorridor(null, world, map.getOriginX() + diagX, endY,
+                map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()), clearMaxX, clearMaxY, clearMaxZ);
         plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ,
                 () -> plugin.getFawePaster().pasteTemplate(
                         world, map.getEndIslandTemplateFile(), endX, endY, endZ, null));
@@ -246,8 +249,14 @@ class EndPlatformManager {
 
     int[] getEndIslandRegion(UUID uuid) { return endIslandRegions.get(uuid); }
 
-    private void forceLoadChunkCorridor(org.bukkit.World world, int fromX, int fromY, int fromZ,
+    private void forceLoadChunkCorridor(UUID uuid, org.bukkit.World world, int fromX, int fromY, int fromZ,
                                          int toX, int toY, int toZ) {
+        // Cancel any in-progress chunk-load task for this player before starting a new one
+        if (uuid != null) {
+            Integer oldTask = chunkLoadTasks.remove(uuid);
+            if (oldTask != null) org.bukkit.Bukkit.getScheduler().cancelTask(oldTask);
+        }
+
         int minCX = Math.min(fromX, toX) >> 4, maxCX = Math.max(fromX, toX) >> 4;
         int minCZ = Math.min(fromZ, toZ) >> 4, maxCZ = Math.max(fromZ, toZ) >> 4;
 
@@ -260,15 +269,19 @@ class EndPlatformManager {
         if (chunks.isEmpty()) return;
 
         final int[] idx = {0};
-        new BukkitRunnable() {
+        int taskId = new BukkitRunnable() {
             @Override
             public void run() {
                 for (int i = 0; i < 10 && idx[0] < chunks.size(); i++, idx[0]++) {
                     int[] c = chunks.get(idx[0]);
                     if (!world.isChunkLoaded(c[0], c[1])) world.loadChunk(c[0], c[1], true);
                 }
-                if (idx[0] >= chunks.size()) this.cancel();
+                if (idx[0] >= chunks.size()) {
+                    if (uuid != null) chunkLoadTasks.remove(uuid);
+                    this.cancel();
+                }
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        }.runTaskTimer(plugin, 0L, 1L).getTaskId();
+        if (uuid != null) chunkLoadTasks.put(uuid, taskId);
     }
 }

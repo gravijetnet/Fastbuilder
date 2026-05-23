@@ -212,6 +212,10 @@ public class ConfigManager {
         return mainConfig.getInt("map-spacing", 2000);
     }
 
+    public long getMaxSchematicVolume() {
+        return mainConfig.getLong("max-schematic-volume", 16_000_000L);
+    }
+
     public int getDefaultY() {
         return mainConfig.getInt("default-y", 64);
     }

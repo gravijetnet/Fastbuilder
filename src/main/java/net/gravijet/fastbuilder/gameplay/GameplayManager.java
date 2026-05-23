@@ -1182,7 +1182,10 @@ public class GameplayManager {
     }
 
     private Class<?> getNMSClass(String name) throws ClassNotFoundException {
-        String version = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
+        String[] parts = Bukkit.getServer().getClass().getPackage().getName().split("\\.");
+        if (parts.length < 4) throw new ClassNotFoundException("Cannot determine NMS version from package: "
+                + Bukkit.getServer().getClass().getPackage().getName());
+        String version = parts[3];
         return Class.forName("net.minecraft.server." + version + "." + name);
     }
 

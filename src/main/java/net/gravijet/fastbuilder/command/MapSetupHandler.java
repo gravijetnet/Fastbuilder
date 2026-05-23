@@ -293,7 +293,8 @@ class MapSetupHandler {
                 }
                 int baseLen = session.getBaseCustomLength();
                 if (baseLen < 0) {
-                    msg.msg(player, "&cEnd Island must be placed to the &c+X &7(east) side of the Start Island. Base distance is " + baseLen + " — check placement.");
+                    msg.msg(player, "&cEnd Island must be placed to the east (+X) of the Start Island. "
+                            + "Currently it appears to be " + Math.abs(baseLen) + " block(s) to the west — fix placement and try again.");
                     return;
                 }
                 session.finalizeEndIsland();
@@ -347,7 +348,10 @@ class MapSetupHandler {
         String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
         java.io.File tempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), tempName + ".schematic");
         java.io.File finalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), name.toLowerCase() + ".schematic");
-        if (tempFile.exists()) tempFile.renameTo(finalFile);
+        if (tempFile.exists() && !tempFile.renameTo(finalFile)) {
+            plugin.getLogger().warning("Could not rename temp schematic to " + finalFile.getName()
+                    + " — map template may be missing!");
+        }
 
         MapData map = mm.createMap(session, name);
         map.setTemplateFile(name.toLowerCase());
@@ -563,8 +567,20 @@ class MapSetupHandler {
                 java.io.File tempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), tempName + ".schematic");
                 java.io.File finalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), map.getTemplateFile() + ".schematic");
                 if (tempFile.exists()) {
-                    finalFile.delete();
-                    tempFile.renameTo(finalFile);
+                    // Rename to final first; only delete the old file after the rename succeeds.
+                    // This prevents data loss if the process crashes between the two operations.
+                    boolean renamed = tempFile.renameTo(finalFile);
+                    if (!renamed) {
+                        // renameTo can fail cross-device — fall back to copy-then-delete
+                        try {
+                            java.nio.file.Files.copy(tempFile.toPath(), finalFile.toPath(),
+                                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            tempFile.delete();
+                        } catch (java.io.IOException ex) {
+                            plugin.getLogger().warning("Could not replace schematic " + finalFile.getName()
+                                    + ": " + ex.getMessage());
+                        }
+                    }
                 }
             }
         }

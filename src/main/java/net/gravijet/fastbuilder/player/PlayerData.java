@@ -432,19 +432,25 @@ public class PlayerData {
     public boolean hasOneClickPick() { return oneClickPickEnabled; }
     public void setOneClickPick(boolean enabled) { this.oneClickPickEnabled = enabled; }
 
-    public String getSelectedDesign(String mapName) { return selectedDesigns.get(mapName.toLowerCase()); }
+    public String getSelectedDesign(String mapName) {
+        if (mapName == null) return null;
+        return selectedDesigns.get(mapName.toLowerCase());
+    }
     public void setSelectedDesign(String mapName, String templateKey) {
+        if (mapName == null) return;
         if (templateKey == null) selectedDesigns.remove(mapName.toLowerCase());
         else selectedDesigns.put(mapName.toLowerCase(), templateKey);
     }
     public Map<String, String> getSelectedDesigns() { return selectedDesigns; }
 
     public boolean hasBeenNotifiedOfRank(String mapName, String rankName) {
+        if (mapName == null) return false;
         Set<String> ranks = notifiedRanks.get(mapName.toLowerCase());
         return ranks != null && ranks.contains(rankName);
     }
 
     public void markRankNotified(String mapName, String rankName) {
+        if (mapName == null) return;
         notifiedRanks.computeIfAbsent(mapName.toLowerCase(), k -> new HashSet<>()).add(rankName);
     }
 
@@ -533,6 +539,7 @@ public class PlayerData {
      * Returns the player's custom run length for the given map, or 0 if not set.
      */
     public int getCustomLength(String mapName) {
+        if (mapName == null) return 0;
         Integer val = customLengths.get(mapName.toLowerCase());
         return val != null ? val : 0;
     }
@@ -542,6 +549,7 @@ public class PlayerData {
      * Pass 0 to clear/reset to default. Automatically persists to savedCustomLengths.
      */
     public void setCustomLength(String mapName, int length) {
+        if (mapName == null) return;
         String key = mapName.toLowerCase();
         if (length <= 0) {
             customLengths.remove(key);

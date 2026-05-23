@@ -181,7 +181,7 @@ public class HotbarManager implements Listener {
         FileConfiguration items = plugin.getConfigManager().getItemsConfig();
 
         String leaveName = ColorUtil.translate(items.getString("leave-item", ""));
-        if (displayName.equals(leaveName)) {
+        if (!leaveName.isEmpty() && displayName.equals(leaveName)) {
             event.setCancelled(true);
             handleLeave(player);
             return;
@@ -290,13 +290,13 @@ public class HotbarManager implements Listener {
                 String cmd = plugin.getConfigManager().getLeaveCommand();
                 if (cmd != null && !cmd.isEmpty()) {
                     Bukkit.dispatchCommand(player, cmd);
-                } else {
+                } else if (!Bukkit.getWorlds().isEmpty()) {
                     player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 }
                 break;
             }
             default: // "SPAWN" or anything else
-                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                if (!Bukkit.getWorlds().isEmpty()) player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 break;
         }
     }

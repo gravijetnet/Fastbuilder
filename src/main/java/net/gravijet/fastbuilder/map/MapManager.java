@@ -280,14 +280,17 @@ public class MapManager {
         MapData data = maps.remove(oldName.toLowerCase());
         if (data == null) return false;
 
-        File oldFile = new File(mapsDir, oldName.toLowerCase() + ".yml");
-        if (oldFile.exists()) oldFile.delete();
-
         List<IslandInstance> islandList = islands.remove(oldName.toLowerCase());
         data.setName(newName);
         maps.put(newName.toLowerCase(), data);
         if (islandList != null) islands.put(newName.toLowerCase(), islandList);
+
+        // Save new file first, then delete old — prevents data loss if the process crashes between the two
         saveMap(data);
+        File oldFile = new File(mapsDir, oldName.toLowerCase() + ".yml");
+        if (oldFile.exists() && !oldFile.delete()) {
+            plugin.getLogger().warning("Could not delete old map file: " + oldFile.getName());
+        }
         return true;
     }
 
@@ -458,7 +461,7 @@ public class MapManager {
                     if (p != null && p.isOnline()) {
                         p.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                                 + "&eIsland layout is being updated, please wait..."));
-                        p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                        if (!Bukkit.getWorlds().isEmpty()) p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                     }
                 }
             }
@@ -563,7 +566,9 @@ public class MapManager {
             }
         }
 
-        player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        if (!Bukkit.getWorlds().isEmpty()) {
+            player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+        }
     }
 
     // --- Setup Sessions ---
@@ -587,7 +592,8 @@ public class MapManager {
     }
 
     public Location getNextMapOrigin(boolean infinite) {
-        World world = Bukkit.getWorlds().get(0);
+        World world = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        if (world == null) throw new IllegalStateException("No worlds are loaded — cannot determine map origin");
         int spacing = plugin.getConfigManager().getMapSpacing();
         int y = plugin.getConfigManager().getDefaultY();
         int x = GridCalculator.getNextMapX(maps.size(), spacing);

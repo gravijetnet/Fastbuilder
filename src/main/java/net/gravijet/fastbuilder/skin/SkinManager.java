@@ -194,9 +194,10 @@ public class SkinManager {
         Class<?> enumActionClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
         Class<?> entityPlayerCls = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
 
-        Object[] enumValues  = (Object[]) enumActionClass.getMethod("values").invoke(null);
-        Object addAction     = enumValues[0]; // ADD_PLAYER
-        Object removeAction  = enumValues[4]; // REMOVE_PLAYER
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Object addAction    = Enum.valueOf((Class<Enum>) enumActionClass, "ADD_PLAYER");
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Object removeAction = Enum.valueOf((Class<Enum>) enumActionClass, "REMOVE_PLAYER");
 
         Object entityArr = java.lang.reflect.Array.newInstance(entityPlayerCls, 1);
         java.lang.reflect.Array.set(entityArr, 0, nmsPlayer);

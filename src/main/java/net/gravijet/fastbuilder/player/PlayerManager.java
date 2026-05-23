@@ -217,11 +217,15 @@ public class PlayerManager {
         for (Map.Entry<UUID, PlayerData> entry : cache.entrySet()) {
             if (name.equalsIgnoreCase(entry.getValue().getName())) return entry.getKey();
         }
-        // Fall back to Bukkit's offline-player registry (works on online-mode servers)
-        @SuppressWarnings("deprecation")
-        org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(name);
-        UUID uuid = op.getUniqueId();
-        return uuid;
+        // Fall back to Bukkit's offline-player registry — only reliable on online-mode servers.
+        // On offline-mode servers getOfflinePlayer(name) generates a fake UUID that may not match
+        // any real player record, so only use it if the player has genuinely played before.
+        if (Bukkit.getOnlineMode()) {
+            @SuppressWarnings("deprecation")
+            org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(name);
+            if (op.hasPlayedBefore()) return op.getUniqueId();
+        }
+        return null;
     }
 
     public PlayerData loadOfflineData(UUID uuid) {

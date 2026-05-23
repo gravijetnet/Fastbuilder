@@ -91,35 +91,51 @@ public class FastBuilder extends JavaPlugin {
 
         // Register commands
         MapCommand mapCommand = new MapCommand(this);
-        getCommand("map").setExecutor(mapCommand);
-        getCommand("map").setTabCompleter(mapCommand);
+        if (getCommand("map") != null) {
+            getCommand("map").setExecutor(mapCommand);
+            getCommand("map").setTabCompleter(mapCommand);
+        }
 
         StatsCommand statsCommand = new StatsCommand(this);
-        getCommand("stats").setExecutor(statsCommand);
-        getCommand("stats").setTabCompleter(statsCommand);
+        if (getCommand("stats") != null) {
+            getCommand("stats").setExecutor(statsCommand);
+            getCommand("stats").setTabCompleter(statsCommand);
+        }
 
         FastBuilderCommand fbCommand = new FastBuilderCommand(this);
-        getCommand("fb").setExecutor(fbCommand);
-        getCommand("fb").setTabCompleter(fbCommand);
+        if (getCommand("fb") != null) {
+            getCommand("fb").setExecutor(fbCommand);
+            getCommand("fb").setTabCompleter(fbCommand);
+        }
 
         net.gravijet.fastbuilder.command.CoinsCommand coinsCmd = new net.gravijet.fastbuilder.command.CoinsCommand(this);
-        getCommand("coins").setExecutor(coinsCmd);
-        getCommand("coins").setTabCompleter(coinsCmd);
+        if (getCommand("coins") != null) {
+            getCommand("coins").setExecutor(coinsCmd);
+            getCommand("coins").setTabCompleter(coinsCmd);
+        }
 
         net.gravijet.fastbuilder.command.BuildCommand buildCmd = new net.gravijet.fastbuilder.command.BuildCommand(this);
-        getCommand("build").setExecutor(buildCmd);
+        if (getCommand("build") != null) {
+            getCommand("build").setExecutor(buildCmd);
+        }
 
         net.gravijet.fastbuilder.command.LengthCommand lengthCmd = new net.gravijet.fastbuilder.command.LengthCommand(this);
-        getCommand("length").setExecutor(lengthCmd);
-        getCommand("length").setTabCompleter(lengthCmd);
+        if (getCommand("length") != null) {
+            getCommand("length").setExecutor(lengthCmd);
+            getCommand("length").setTabCompleter(lengthCmd);
+        }
 
         BoosterCommand boosterCmd = new BoosterCommand(this);
-        getCommand("booster").setExecutor(boosterCmd);
-        getCommand("booster").setTabCompleter(boosterCmd);
+        if (getCommand("booster") != null) {
+            getCommand("booster").setExecutor(boosterCmd);
+            getCommand("booster").setTabCompleter(boosterCmd);
+        }
 
         LeaderboardCommand lbCmd = new LeaderboardCommand(this);
-        getCommand("leaderboard").setExecutor(lbCmd);
-        getCommand("leaderboard").setTabCompleter(lbCmd);
+        if (getCommand("leaderboard") != null) {
+            getCommand("leaderboard").setExecutor(lbCmd);
+            getCommand("leaderboard").setTabCompleter(lbCmd);
+        }
 
         // Register listeners
         Bukkit.getPluginManager().registerEvents(guiManager, this);

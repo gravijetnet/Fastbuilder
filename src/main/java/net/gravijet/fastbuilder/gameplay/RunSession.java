@@ -100,8 +100,10 @@ public class RunSession {
         if (isPractice) {
             practiceBlocks.add(clone);
         }
+        // Only record original block state on first placement — subsequent placements at the same
+        // location (player replacing their own block) must not overwrite the true pre-run state.
         String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
-        originalBlockStates.put(key, new int[]{origTypeId, origData});
+        originalBlockStates.putIfAbsent(key, new int[]{origTypeId, origData});
     }
 
     /**

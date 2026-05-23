@@ -297,13 +297,13 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 String cmd = plugin.getConfigManager().getLeaveCommand();
                 if (cmd != null && !cmd.isEmpty()) {
                     Bukkit.dispatchCommand(player, cmd);
-                } else {
+                } else if (!Bukkit.getWorlds().isEmpty()) {
                     player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 }
                 break;
             }
             default: // "SPAWN"
-                player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                if (!Bukkit.getWorlds().isEmpty()) player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 break;
         }
 

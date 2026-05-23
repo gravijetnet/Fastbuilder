@@ -103,8 +103,8 @@ public class NpcManager implements Listener {
                     Class<?> pktClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo");
                     Class<?> enumClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
                     Class<?> entityPlayerClass = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
-                    // REMOVE_PLAYER is the 5th value (index 4) in the enum
-                    Object removeAction = java.lang.reflect.Array.get(enumClass.getMethod("values").invoke(null), 4);
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object removeAction = Enum.valueOf((Class<Enum>) enumClass, "REMOVE_PLAYER");
                     Object entityPlayerArr = java.lang.reflect.Array.newInstance(entityPlayerClass, 1);
                     java.lang.reflect.Array.set(entityPlayerArr, 0, nmsNpcPlayer);
                     Object removePacket = pktClass.getDeclaredConstructors()[0].newInstance(removeAction, entityPlayerArr);

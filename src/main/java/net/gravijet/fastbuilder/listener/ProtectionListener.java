@@ -197,6 +197,17 @@ public class ProtectionListener implements Listener {
                     break;
                 }
             }
+            // Also allow breaking practice blocks with tools (not only via reset/toggle)
+            if (!playerPlaced) {
+                for (Location placed : session.getPracticeBlocks()) {
+                    if (placed.getBlockX() == blockLoc.getBlockX()
+                            && placed.getBlockY() == blockLoc.getBlockY()
+                            && placed.getBlockZ() == blockLoc.getBlockZ()) {
+                        playerPlaced = true;
+                        break;
+                    }
+                }
+            }
             if (!playerPlaced) {
                 event.setCancelled(true);
             }
@@ -339,6 +350,7 @@ public class ProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onMove(PlayerMoveEvent event) {
+        if (event.getTo() == null) return;
         if (event.getFrom().getBlockX() == event.getTo().getBlockX()
                 && event.getFrom().getBlockY() == event.getTo().getBlockY()
                 && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {

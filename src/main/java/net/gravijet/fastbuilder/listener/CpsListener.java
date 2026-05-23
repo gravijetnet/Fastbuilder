@@ -97,7 +97,7 @@ public class CpsListener implements Listener {
         if (!plugin.getConfigManager().isHologramsEnabled()) return;
 
         UUID uuid = player.getUniqueId();
-        String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
+        String holoId = HOLO_PREFIX + uuid.toString().replace("-", "");
         String text = net.gravijet.fastbuilder.util.ColorUtil.translate("&cClickspeed: &f" + cps);
 
         // Cancel any existing zero/removal tasks first
@@ -191,7 +191,7 @@ public class CpsListener implements Listener {
         if (taskId != null) {
             plugin.getServer().getScheduler().cancelTask(taskId);
         }
-        String holoId = HOLO_PREFIX + uuid.toString().substring(0, 8);
+        String holoId = HOLO_PREFIX + uuid.toString().replace("-", "");
         eu.decentsoftware.holograms.api.holograms.Hologram hologram = activeHolograms.remove(uuid);
         try { if (hologram != null) hologram.delete(); } catch (Exception ignored) {}
         try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
@@ -209,7 +209,7 @@ public class CpsListener implements Listener {
         }
         removalTasks.clear();
         for (Map.Entry<UUID, eu.decentsoftware.holograms.api.holograms.Hologram> entry : activeHolograms.entrySet()) {
-            String holoId = HOLO_PREFIX + entry.getKey().toString().substring(0, 8);
+            String holoId = HOLO_PREFIX + entry.getKey().toString().replace("-", "");
             try { if (entry.getValue() != null) entry.getValue().delete(); } catch (Exception ignored) {}
             try { eu.decentsoftware.holograms.api.DHAPI.removeHologram(holoId); } catch (Exception ignored) {}
         }

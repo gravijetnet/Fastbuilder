@@ -58,6 +58,8 @@ public class GameplayListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
+        // getTo() can return null on some Spigot/Bukkit versions for packet-level move events
+        if (event.getTo() == null) return;
         // Only check if player actually moved blocks (not just head rotation)
         if (event.getFrom().getBlockX() == event.getTo().getBlockX()
                 && event.getFrom().getBlockY() == event.getTo().getBlockY()
@@ -161,8 +163,8 @@ public class GameplayListener implements Listener {
             // End island is placed to the +X (east) side of the start island (1 block offset applied)
             int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
-            int endZ = map.getOriginZ() + islandIndex * map.getActualZStep()
-                    + map.getEndIslandZOffset();
+            int endZ = (int) (map.getOriginZ() + (long) islandIndex * map.getActualZStep()
+                    + map.getEndIslandZOffset());
 
             return bx >= endX && bx < endX + map.getEndIslandWidth()
                     && by >= endY && by <= endY + map.getEndIslandHeight() - 1 + heightTolerance
@@ -170,7 +172,7 @@ public class GameplayListener implements Listener {
         }
 
         // Standard / legacy maps — check for active design-profile finish-zone override
-        int offsetZ = islandIndex * map.getActualZStep();
+        int offsetZ = (int) ((long) islandIndex * map.getActualZStep());
         int fMinX, fMinY, fMinZ, fMaxX, fMaxY, fMaxZ;
 
         int[] finishOverride = pData != null ? pData.getActiveFinishZone(map.getName()) : null;

@@ -78,7 +78,7 @@ public class PlayerListener implements Listener {
 
         // 3. No free island found anywhere
         if (player.hasPermission("fastbuilder.admin") || player.hasPermission("fastbuilder.setup")) {
-            player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            if (!Bukkit.getWorlds().isEmpty()) player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
             player.setGameMode(GameMode.CREATIVE);
             player.setAllowFlight(true);
             player.setFlying(true);

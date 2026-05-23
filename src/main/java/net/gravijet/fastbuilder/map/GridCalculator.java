@@ -90,14 +90,14 @@ public final class GridCalculator {
 
         int baseX = map.getOriginX();
         int baseY = map.getOriginY();
-        long baseZ = map.getOriginZ() + (long) index * map.getActualZStep();
+        int baseZ = (int) (map.getOriginZ() + (long) index * map.getActualZStep());
 
         int fMinX = baseX + map.getFinishMinX();
         int fMinY = baseY + map.getFinishMinY();
-        int fMinZ = (int) baseZ + map.getFinishMinZ();
+        int fMinZ = baseZ + map.getFinishMinZ();
         int fMaxX = baseX + map.getFinishMaxX();
         int fMaxY = baseY + map.getFinishMaxY();
-        int fMaxZ = (int) baseZ + map.getFinishMaxZ();
+        int fMaxZ = baseZ + map.getFinishMaxZ();
 
         int bx = loc.getBlockX();
         int by = loc.getBlockY();

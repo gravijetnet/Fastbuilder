@@ -230,7 +230,8 @@ class BlockAnimator {
                     Class<?> pktClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo");
                     Class<?> enumClass = Class.forName("net.minecraft.server." + ver + ".PacketPlayOutPlayerInfo$EnumPlayerInfoAction");
                     Class<?> entityPlayerClass = Class.forName("net.minecraft.server." + ver + ".EntityPlayer");
-                    Object removeAction = java.lang.reflect.Array.get(enumClass.getMethod("values").invoke(null), 4);
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Object removeAction = Enum.valueOf((Class<Enum>) enumClass, "REMOVE_PLAYER");
                     Object entityPlayerArr = java.lang.reflect.Array.newInstance(entityPlayerClass, 1);
                     java.lang.reflect.Array.set(entityPlayerArr, 0, nmsPlayer);
                     Object removePacket = pktClass.getDeclaredConstructors()[0].newInstance(removeAction, entityPlayerArr);
@@ -258,13 +259,16 @@ class BlockAnimator {
                             e.teleport(loc.clone().add(0.5, 0, 0.5));
                             try {
                                 Object nmsEntity = e.getClass().getMethod("getHandle").invoke(e);
-                                Object packet = Class.forName(nmsEntity.getClass().getPackage().getName() + ".PacketPlayOutAnimation")
+                                // Build the NMS package from the server class, not from the CraftBukkit entity class
+                                String[] pkgParts = org.bukkit.Bukkit.getServer().getClass().getPackage().getName().split("\\.");
+                                String nmsBase = pkgParts.length >= 4 ? "net.minecraft.server." + pkgParts[3] : nmsEntity.getClass().getPackage().getName();
+                                Object packet = Class.forName(nmsBase + ".PacketPlayOutAnimation")
                                         .getConstructor(nmsEntity.getClass(), int.class).newInstance(nmsEntity, 0);
                                 for (org.bukkit.entity.Player viewer : e.getWorld().getPlayers()) {
                                     Object conn = viewer.getClass().getMethod("getHandle").invoke(viewer);
                                     Object playerConn = conn.getClass().getField("playerConnection").get(conn);
                                     playerConn.getClass().getMethod("sendPacket", Class.forName(
-                                            nmsEntity.getClass().getPackage().getName() + ".Packet")).invoke(playerConn, packet);
+                                            nmsBase + ".Packet")).invoke(playerConn, packet);
                                 }
                             } catch (Exception ignored) {}
                         } catch (Exception ignored) {}

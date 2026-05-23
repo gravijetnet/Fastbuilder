@@ -85,8 +85,11 @@ public class FawePaster {
         int l = maxZ - minZ + 1;
 
         long volume = (long) w * h * l;
-        if (volume <= 0 || volume > 16_000_000L) {
-            plugin.getLogger().severe("saveTemplate: region too large or invalid (" + w + "x" + h + "x" + l + "), aborting.");
+        long maxVolume = plugin.getConfigManager().getMaxSchematicVolume();
+        if (volume <= 0 || volume > maxVolume) {
+            plugin.getLogger().severe("saveTemplate: region too large or invalid (" + w + "x" + h + "x" + l
+                    + ", volume=" + volume + ", limit=" + maxVolume + "), aborting. "
+                    + "Increase max-schematic-volume in config.yml if this is a valid island.");
             return false;
         }
 

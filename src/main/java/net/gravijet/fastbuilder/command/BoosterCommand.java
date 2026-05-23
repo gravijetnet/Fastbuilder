@@ -299,7 +299,7 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
     }
 
     private static String formatMult(double mult) {
-        if (mult == Math.floor(mult)) return (int) mult + "xx";
-        return String.format("%.1fxx", mult);
+        if (mult == Math.floor(mult)) return (int) mult + "x";
+        return String.format("%.1fx", mult);
     }
 }

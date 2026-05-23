@@ -38,6 +38,7 @@ public class MySqlStorageProvider implements StorageProvider {
 
     private final Connection[] pool    = new Connection[POOL_SIZE];
     private final boolean[]    in_use  = new boolean[POOL_SIZE];
+    private String jdbcUrl;
 
     private final Map<String, long[]> bestTimesCache     = new java.util.concurrent.ConcurrentHashMap<String, long[]>();
     private final Map<String, Long>   bestTimesCacheTime = new java.util.concurrent.ConcurrentHashMap<String, Long>();
@@ -67,6 +68,7 @@ public class MySqlStorageProvider implements StorageProvider {
         String url = "jdbc:mysql://" + host + ":" + port + "/" + database
                 + "?useSSL=" + useSSL + "&autoReconnect=true&characterEncoding=utf8"
                 + "&serverTimezone=UTC";
+        this.jdbcUrl = url;
 
         synchronized (pool) {
             for (int i = 0; i < POOL_SIZE; i++) {
@@ -180,11 +182,23 @@ public class MySqlStorageProvider implements StorageProvider {
                 for (int i = 0; i < POOL_SIZE; i++) {
                     if (!in_use[i]) {
                         try {
-                            if (pool[i].isClosed() || !pool[i].isValid(2)) {
-                                String url = pool[i].getMetaData().getURL();
+                            if (pool[i] == null || pool[i].isClosed() || !pool[i].isValid(2)) {
+                                // Attempt to get the JDBC URL from the old connection; if that also fails,
+                                // fall back to the stored connection URL fields.
+                                String url;
+                                try {
+                                    url = pool[i] != null ? pool[i].getMetaData().getURL() : null;
+                                } catch (SQLException e) {
+                                    url = null;
+                                }
+                                if (url == null) url = this.jdbcUrl;
                                 pool[i] = DriverManager.getConnection(url, user, password);
                             }
-                        } catch (SQLException ignored) {}
+                        } catch (SQLException e) {
+                            // Connection is dead and reconnect failed — skip this slot
+                            plugin.getLogger().warning("[MySQL] Failed to reconnect pool slot " + i + ": " + e.getMessage());
+                            continue;
+                        }
                         in_use[i] = true;
                         return new PooledConnection(pool[i], i, in_use, pool);
                     }
