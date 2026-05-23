@@ -118,7 +118,7 @@ public class ReplaySession {
         int islandOriginX = map.getOriginX()
                 + (int) ((long) replayData.getIslandIndex() * map.getDiagonalStepX());
         int islandOriginY = map.getOriginY();
-        int islandOriginZ = map.getOriginZ() + replayData.getIslandIndex() * map.getActualZStep();
+        int islandOriginZ = map.getOriginZ() + (int) ((long) replayData.getIslandIndex() * map.getActualZStep());
 
         offsetX = replayAreaX - islandOriginX;
         offsetY = REPLAY_AREA_Y - islandOriginY;
@@ -331,6 +331,7 @@ public class ReplaySession {
             Block block = world.getBlockAt(bx, by, bz);
             block.setTypeIdAndData(bp.getBlockId(), bp.getBlockData(), false);
             placedBlocks.add(block.getLocation().clone());
+            if (bx > precomputedMaxX) precomputedMaxX = bx;
         }
     }
 
@@ -601,12 +602,8 @@ public class ReplaySession {
     public boolean isInNpcCamera()           { return inNpcCamera; }
 
     public boolean isOutsideReplayBounds(Location loc) {
-        int dynamicMaxX = precomputedMaxX;
-        for (Location placed : placedBlocks) {
-            if (placed.getBlockX() > dynamicMaxX) dynamicMaxX = placed.getBlockX();
-        }
         return loc.getX() < replayMinX - REPLAY_BOUNDARY_MARGIN
-            || loc.getX() > dynamicMaxX + REPLAY_BOUNDARY_MARGIN
+            || loc.getX() > precomputedMaxX + REPLAY_BOUNDARY_MARGIN
             || loc.getY() < replayMinY - REPLAY_BOUNDARY_MARGIN
             || loc.getY() > replayMaxY + REPLAY_BOUNDARY_MARGIN
             || loc.getZ() < replayMinZ - REPLAY_BOUNDARY_MARGIN

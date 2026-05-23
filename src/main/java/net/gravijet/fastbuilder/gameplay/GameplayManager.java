@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages active bridging runs: timer, finish detection, fall detection, session bests.
@@ -28,7 +29,7 @@ import java.util.UUID;
 public class GameplayManager {
 
     private final FastBuilder plugin;
-    private final Map<UUID, RunSession> activeSessions = new HashMap<>();
+    private final Map<UUID, RunSession> activeSessions = new ConcurrentHashMap<>();
 
     private static final int PRACTICE_BLOCK_ID = 159; // STAINED_CLAY
     private static final byte PRACTICE_BLOCK_DATA = 5; // Lime
@@ -82,14 +83,14 @@ public class GameplayManager {
         DEATH_SOUNDS.put("Chicken",        "CHICKEN_IDLE");   // chicken cluck        ~0.3s
     }
 
-    // Global session bests: per-player best time this session (unique per player)
-    private final java.util.LinkedHashMap<String, Long> globalSessionBests = new java.util.LinkedHashMap<>();
+    // Global session bests: per-player best time this session (keyed by UUID to survive renames)
+    private final java.util.LinkedHashMap<UUID, Long> globalSessionBests = new java.util.LinkedHashMap<>();
     // Kept for backward compat
     private long globalSessionBestTime = -1;
     private String globalSessionBestPlayer = null;
 
     // Infinite session bests: per-player best {distance, timeMs} this session
-    private final java.util.LinkedHashMap<String, long[]> infiniteSessionBests = new java.util.LinkedHashMap<>();
+    private final java.util.LinkedHashMap<UUID, long[]> infiniteSessionBests = new java.util.LinkedHashMap<>();
 
     // Last finished run data — shown on scoreboard/actionbar until the next run starts
     private final Map<UUID, Long>    lastFinishTimes  = new HashMap<>();
@@ -154,9 +155,9 @@ public class GameplayManager {
 
     public void removeSession(UUID uuid) {
         activeSessions.remove(uuid);
-        // lastFinishTimes and lastFinishBlocks are intentionally NOT cleared here.
-        // They persist on the scoreboard/actionbar until the player physically starts a new run.
-        // They are cleared in onBlockPlace() when the timer starts.
+        lastFinishTimes.remove(uuid);
+        lastFinishBlocks.remove(uuid);
+        finishCooldown.remove(uuid);
     }
 
     /** Time (ms) from the player's most recent completed run, or -1 if none this session. */
@@ -255,33 +256,41 @@ public class GameplayManager {
             return;
         }
 
-        long time = session.finish();
+        // Cache the map lookup once for use throughout onFinish
+        MapData map = plugin.getMapManager().getMap(session.getMapName());
 
-        // Anticheat: reject times below the configured minimum valid time
+        // Anticheat: reject times below the configured minimum valid time BEFORE committing finish
         long mapMinTime = -1;
-        MapData mapForMinTime = plugin.getMapManager().getMap(session.getMapName());
-        if (mapForMinTime != null && mapForMinTime.getMinValidTime() > 0) {
-            mapMinTime = mapForMinTime.getMinValidTime();
+        if (map != null && map.getMinValidTime() > 0) {
+            mapMinTime = map.getMinValidTime();
         }
         long globalMinTime = plugin.getConfigManager().getMinValidTime();
         long effectiveMin = mapMinTime > 0 ? mapMinTime : globalMinTime;
 
-        if (effectiveMin > 0 && time < effectiveMin) {
+        long rawElapsed = session.peekElapsed();
+        if (effectiveMin > 0 && rawElapsed < effectiveMin) {
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
             }
             finishCooldown.remove(uuid);
             String msg = plugin.getConfigManager().getMessage("min-time-not-recorded");
             if (msg == null || msg.isEmpty()) msg = "%prefix%&cTime too fast to be recorded &7(&f%time%&7).";
-            msg = msg.replace("%time%", net.gravijet.fastbuilder.util.TimeUtil.formatTime(time))
+            msg = msg.replace("%time%", net.gravijet.fastbuilder.util.TimeUtil.formatTime(rawElapsed))
                     .replace("%prefix%", plugin.getConfigManager().getPrefix());
             player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(msg));
-            // Reset without counting as attempt
+            // Reset without counting as attempt.
+            // Re-lookup player by UUID so a stale Player object never reaches resetRun.
+            UUID minTimeUuid = uuid;
             new BukkitRunnable() {
-                @Override public void run() { if (player.isOnline()) resetRun(player); }
+                @Override public void run() {
+                    Player mp = Bukkit.getPlayer(minTimeUuid);
+                    if (mp != null && mp.isOnline()) resetRun(mp);
+                }
             }.runTaskLater(plugin, 5L);
             return;
         }
+
+        long time = session.finish();
 
         if (plugin.getReplayManager() != null) {
             plugin.getReplayManager().stopRecording(player.getUniqueId(), true);
@@ -295,10 +304,10 @@ public class GameplayManager {
 
         session.addSessionBest(time);
 
-        // Update global session bests (unique per player)
-        Long existing = globalSessionBests.get(player.getName());
+        // Update global session bests (keyed by UUID — immune to player renames)
+        Long existing = globalSessionBests.get(uuid);
         if (existing == null || time < existing) {
-            globalSessionBests.put(player.getName(), time);
+            globalSessionBests.put(uuid, time);
         }
         if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
             globalSessionBestTime = time;
@@ -306,7 +315,7 @@ public class GameplayManager {
         }
 
         // Disable stats for Infinite mode and Custom Length mode (no record-keeping)
-        MapData statsMap = plugin.getMapManager().getMap(session.getMapName());
+        MapData statsMap = map;
         boolean playerCustomLengthActive = statsMap != null && statsMap.hasCustomLength()
                 && data.isCustomLengthEnabled(session.getMapName());
         boolean statsDisabled = session.isPracticeMode()
@@ -401,9 +410,8 @@ public class GameplayManager {
             }
 
             // Rank check: notify only the FIRST time a player achieves a specific rank
-            MapData rankMap = plugin.getMapManager().getMap(session.getMapName());
-            if (rankMap != null) {
-                String rank = rankMap.getPlayerRank(stats.bestTime);
+            if (map != null) {
+                String rank = map.getPlayerRank(stats.bestTime);
                 if (rank != null && !data.hasBeenNotifiedOfRank(session.getMapName(), rank)) {
                     data.markRankNotified(session.getMapName(), rank);
                     String rankMsg = plugin.getConfigManager().getMessage("rank-achieved");
@@ -463,12 +471,14 @@ public class GameplayManager {
         // Start the reset animation IMMEDIATELY (spec: "trigger instantly")
         startResetAnimation(player);
 
-        // Finalize reset (teleport + hotbar) after 2 seconds so player sees celebration
+        // Finalize reset (teleport + hotbar) after 2 seconds so player sees celebration.
+        // Re-lookup player by UUID so a stale Player object never reaches finalizeReset.
         new BukkitRunnable() {
             @Override
             public void run() {
                 finishCooldown.remove(uuid);
-                if (player.isOnline()) finalizeReset(player);
+                Player fp = Bukkit.getPlayer(uuid);
+                if (fp != null && fp.isOnline()) finalizeReset(fp);
             }
         }.runTaskLater(plugin, 40L);
     }
@@ -512,15 +522,16 @@ public class GameplayManager {
             if (fallMap != null && fallMap.isInfinite()) {
                 PlayerData infData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (infData != null) {
-                    int blockCount = session.getPlacedBlocks().size();
+                    // Exclude practice blocks: only count real bridging blocks toward distance
+                    int blockCount = session.getPlacedBlocks().size() - session.getPracticeBlocks().size();
                     long elapsed = session.getElapsed();
                     if (blockCount > 0) {
                         infData.updateInfiniteDistance(session.getMapName(), blockCount, elapsed);
                         // Update infinite session bests (highest distance, then lowest time on tie)
-                        long[] cur = infiniteSessionBests.get(player.getName());
+                        long[] cur = infiniteSessionBests.get(player.getUniqueId());
                         if (cur == null || blockCount > cur[0]
                                 || (blockCount == cur[0] && elapsed < cur[1])) {
-                            infiniteSessionBests.put(player.getName(), new long[]{blockCount, elapsed});
+                            infiniteSessionBests.put(player.getUniqueId(), new long[]{blockCount, elapsed});
                         }
                     }
                 }
@@ -542,8 +553,11 @@ public class GameplayManager {
         // Trigger animation instantly on death (spec requirement)
         startResetAnimation(player);
         // Teleport on the very next task slot — minimises post-death fall distance.
+        // Re-lookup player by UUID so a stale Player object never reaches finalizeReset.
+        UUID fallUuid = player.getUniqueId();
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) finalizeReset(player);
+            Player fp = Bukkit.getPlayer(fallUuid);
+            if (fp != null && fp.isOnline()) finalizeReset(fp);
         });
     }
 
@@ -730,7 +744,10 @@ public class GameplayManager {
 
         // Assign new island
         plugin.getMapManager().assignIsland(map.getName(), targetIsland, uuid, player.getName());
-        if (data != null) data.setLastIsland(targetIsland);
+        if (data != null) {
+            data.setLastIsland(targetIsland);
+            data.setLastMap(map.getName());
+        }
 
         // Teleport to new island spawn (design profile override if active) and ensure Survival
         player.teleport(getEffectiveSpawn(uuid, map, targetIsland));
@@ -1177,7 +1194,7 @@ public class GameplayManager {
             playerConnection.getClass().getMethod("sendPacket", getNMSClass("Packet"))
                     .invoke(playerConnection, packet);
         } catch (Exception e) {
-            plugin.getLogger().fine("sendActionBar failed for " + player.getName() + ": " + e.getMessage());
+            plugin.getLogger().warning("sendActionBar failed for " + player.getName() + ": " + e.getMessage());
         }
     }
 
@@ -1205,12 +1222,14 @@ public class GameplayManager {
      * Returns the top N unique-player session bests as [playerName, timeMillisStr] pairs, sorted best first.
      */
     public List<String[]> getGlobalSessionTop(int n) {
-        List<Map.Entry<String, Long>> sorted = new ArrayList<>(globalSessionBests.entrySet());
+        List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(globalSessionBests.entrySet());
         sorted.sort((a, b) -> Long.compare(a.getValue(), b.getValue()));
         List<String[]> result = new ArrayList<>();
         for (int i = 0; i < Math.min(n, sorted.size()); i++) {
-            Map.Entry<String, Long> entry = sorted.get(i);
-            result.add(new String[]{entry.getKey(), String.valueOf(entry.getValue())});
+            Map.Entry<UUID, Long> entry = sorted.get(i);
+            Player onlinePlayer = Bukkit.getPlayer(entry.getKey());
+            String name = onlinePlayer != null ? onlinePlayer.getName() : entry.getKey().toString();
+            result.add(new String[]{name, String.valueOf(entry.getValue())});
         }
         return result;
     }
@@ -1225,7 +1244,7 @@ public class GameplayManager {
      * sorted by distance descending, then time ascending on tie.
      */
     public List<String[]> getInfiniteSessionTop(int n) {
-        List<Map.Entry<String, long[]>> sorted = new ArrayList<>(infiniteSessionBests.entrySet());
+        List<Map.Entry<UUID, long[]>> sorted = new ArrayList<>(infiniteSessionBests.entrySet());
         sorted.sort((a, b) -> {
             int cmp = Long.compare(b.getValue()[0], a.getValue()[0]); // distance desc
             if (cmp != 0) return cmp;
@@ -1233,26 +1252,40 @@ public class GameplayManager {
         });
         List<String[]> result = new ArrayList<>();
         for (int i = 0; i < Math.min(n, sorted.size()); i++) {
-            Map.Entry<String, long[]> entry = sorted.get(i);
-            result.add(new String[]{entry.getKey(),
+            Map.Entry<UUID, long[]> entry = sorted.get(i);
+            Player onlinePlayer = Bukkit.getPlayer(entry.getKey());
+            String name = onlinePlayer != null ? onlinePlayer.getName() : entry.getKey().toString();
+            result.add(new String[]{name,
                     String.valueOf(entry.getValue()[0]),
                     String.valueOf(entry.getValue()[1])});
         }
         return result;
     }
 
-    public void removeGlobalSessionBest(String playerName) {
-        globalSessionBests.remove(playerName);
-        infiniteSessionBests.remove(playerName);
-        if (playerName.equals(globalSessionBestPlayer)) {
+    public void removeGlobalSessionBest(UUID playerUuid) {
+        globalSessionBests.remove(playerUuid);
+        infiniteSessionBests.remove(playerUuid);
+        // Rebuild the legacy scalar best if this player held it
+        Player wasPlayer = Bukkit.getPlayer(playerUuid);
+        String removedName = wasPlayer != null ? wasPlayer.getName() : null;
+        if (removedName != null && removedName.equals(globalSessionBestPlayer)) {
             globalSessionBestTime = -1;
             globalSessionBestPlayer = null;
-            for (Map.Entry<String, Long> e : globalSessionBests.entrySet()) {
+            for (Map.Entry<UUID, Long> e : globalSessionBests.entrySet()) {
                 if (globalSessionBestTime < 0 || e.getValue() < globalSessionBestTime) {
                     globalSessionBestTime = e.getValue();
-                    globalSessionBestPlayer = e.getKey();
+                    Player p = Bukkit.getPlayer(e.getKey());
+                    globalSessionBestPlayer = p != null ? p.getName() : e.getKey().toString();
                 }
             }
+        }
+    }
+
+    /** Legacy name-based overload — kept for callers that only have a player name. */
+    public void removeGlobalSessionBest(String playerName) {
+        Player online = Bukkit.getPlayerExact(playerName);
+        if (online != null) {
+            removeGlobalSessionBest(online.getUniqueId());
         }
     }
 
@@ -1265,6 +1298,8 @@ public class GameplayManager {
         buildModePlayers.clear();
         globalSessionBests.clear();
         infiniteSessionBests.clear();
+        lastFinishTimes.clear();
+        lastFinishBlocks.clear();
     }
 
     public Map<UUID, RunSession> getActiveSessions() { return activeSessions; }

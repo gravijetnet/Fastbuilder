@@ -121,7 +121,7 @@ public class MapSelectorGui {
                     plugin.getGameplayManager().revertIslandDesign(oldMap, existingData.getLastIsland());
                 }
             }
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
         if (existingData != null) existingData.clearCustomLengths();
 

@@ -240,7 +240,7 @@ public class HotbarManager implements Listener {
                 leaveData.clearCustomLengths();
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
 
         // Despawn NPC

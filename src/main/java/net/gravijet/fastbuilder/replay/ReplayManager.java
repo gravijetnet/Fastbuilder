@@ -30,10 +30,10 @@ public class ReplayManager {
     private final FastBuilder plugin;
     private final File replaysDir;
 
-    private final Map<UUID, ReplayRecorder> activeRecorders = new HashMap<>();
-    private final Map<UUID, ReplaySession>  activeSessions  = new HashMap<>();
+    private final Map<UUID, ReplayRecorder> activeRecorders = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<UUID, ReplaySession>  activeSessions  = new java.util.concurrent.ConcurrentHashMap<>();
     // Tracks which slot indices are currently in use
-    private final java.util.Set<Integer> usedReplaySlots = new java.util.HashSet<>();
+    private final java.util.Set<Integer> usedReplaySlots = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     private int recordingTaskId = -1;
 
@@ -166,18 +166,10 @@ public class ReplayManager {
 
         if (player.hasPermission("fastbuilder.replays.unlimited")) return Integer.MAX_VALUE;
 
-        // Check fastbuilder.replays.N (highest permission wins).
-        // Use a descending power-of-two probe to avoid 1000 permission checks per call.
+        // Check fastbuilder.replays.N (highest value wins); scan all values 1–1000.
         int best = configDefault;
-        for (int probe = 512; probe >= 1; probe >>= 1) {
-            for (int v = best + probe; v <= 1000; v += probe) {
-                if (player.hasPermission("fastbuilder.replays." + v)) { best = v; break; }
-            }
-        }
-        // Fine-scan around found value (handles non-power-of-two gaps)
-        for (int v = best + 1; v <= 1000; v++) {
-            if (!player.hasPermission("fastbuilder.replays." + v)) break;
-            best = v;
+        for (int v = 1; v <= 1000; v++) {
+            if (player.hasPermission("fastbuilder.replays." + v)) best = v;
         }
         return best;
     }
@@ -192,8 +184,8 @@ public class ReplayManager {
         // Clear any placed blocks on the player's current island before entering replay
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().clearAllPlacedBlocks(viewer.getUniqueId());
+            plugin.getGameplayManager().removeSession(viewer.getUniqueId());
         }
-        plugin.getGameplayManager().removeSession(viewer.getUniqueId());
 
         // Allocate a free replay slot (1000-block spaced areas)
         int slot = 0;
@@ -224,8 +216,12 @@ public class ReplayManager {
         Player player = Bukkit.getPlayer(viewerUuid);
         if (player != null && player.isOnline()) {
             PlayerData data = plugin.getPlayerManager().getCachedData(viewerUuid);
-            if (data != null && data.getLastMap() != null) {
-                String mapName = data.getLastMap();
+            String lastMap = data != null ? data.getLastMap() : null;
+            if (lastMap == null || lastMap.isEmpty()) {
+                lastMap = plugin.getConfigManager().getDefaultMap();
+            }
+            if (data != null && lastMap != null && !lastMap.isEmpty()) {
+                final String mapName = lastMap;
                 int island = data.getLastIsland();
                 net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(mapName);
                 if (mapData != null) {
@@ -237,7 +233,9 @@ public class ReplayManager {
                             data.setLastIsland(island);
                         }
                     }
-                    plugin.getGameplayManager().createSession(viewerUuid, mapName, island);
+                    if (plugin.getGameplayManager() != null) {
+                        plugin.getGameplayManager().createSession(viewerUuid, mapName, island);
+                    }
                 }
             }
         }
@@ -502,6 +500,45 @@ public class ReplayManager {
     }
 
     /**
+     * Read only the header fields needed for cleanup: success flag and run time.
+     * Returns {successful (0/1), runTimeMillis} or null on any read error.
+     * Much cheaper than a full loadReplay() since no frame data is parsed.
+     */
+    private long[] readReplayHeader(File f) {
+        try (FileInputStream raw = new FileInputStream(f)) {
+            int b1 = raw.read(), b2 = raw.read();
+            if (b1 < 0 || b2 < 0) return null;
+            InputStream decompressed;
+            if (b1 == 0x1f && b2 == 0x8b) {
+                byte[] prefix = new byte[]{(byte) b1, (byte) b2};
+                InputStream combined = new java.io.SequenceInputStream(
+                        new java.io.ByteArrayInputStream(prefix), raw);
+                decompressed = new GZIPInputStream(combined);
+            } else {
+                byte[] prefix = new byte[]{(byte) b1, (byte) b2};
+                decompressed = new java.io.SequenceInputStream(
+                        new java.io.ByteArrayInputStream(prefix), raw);
+            }
+            try (DataInputStream in = new DataInputStream(decompressed)) {
+                if (in.readInt() != MAGIC) return null;
+                int version = in.readInt();
+                if (version < 1 || version > VERSION) return null;
+                in.readUTF(); // uuid
+                in.readUTF(); // name
+                if (version >= 5) in.readUTF(); // displayTag
+                in.readUTF(); // mapName
+                in.readInt(); // islandIndex
+                in.readLong(); // timestamp
+                boolean success = in.readBoolean();
+                long runTime = in.readLong();
+                return new long[]{success ? 1 : 0, runTime};
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
      * Remove oldest replays beyond the player's limit.
      * Always protects:
      *  - The replay with the lowest run time (personal best)
@@ -514,21 +551,21 @@ public class ReplayManager {
                 name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
         if (files == null || files.length <= limit) return;
 
-        // Load metadata to find the PB file
+        // Use header-only reads to find the PB — avoids full GZIP decompression of every file.
         File pbFile = null;
         long pbTime = Long.MAX_VALUE;
 
         List<File> deleteCandidates = new ArrayList<>();
         for (File f : files) {
-            try {
-                ReplayData rd = loadReplay(f);
-                if (rd == null) continue;
-                if (rd.isSuccessful() && rd.getRunTimeMillis() > 0 && rd.getRunTimeMillis() < pbTime) {
-                    pbTime = rd.getRunTimeMillis();
-                    pbFile = f;
-                }
-                deleteCandidates.add(f);
-            } catch (Exception ignored) {}
+            long[] header = readReplayHeader(f);
+            if (header == null) continue;
+            boolean successful = header[0] == 1;
+            long runTime = header[1];
+            if (successful && runTime > 0 && runTime < pbTime) {
+                pbTime = runTime;
+                pbFile = f;
+            }
+            deleteCandidates.add(f);
         }
 
         // Sort candidates oldest-first (by last modified)
@@ -552,9 +589,12 @@ public class ReplayManager {
     // Utilities
     // -------------------------------------------------------------------------
 
+    private static final SimpleDateFormat TIMESTAMP_FMT = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+
     public static String formatTimestamp(long timestamp) {
-        SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
-        return sdf.format(new Date(timestamp));
+        synchronized (TIMESTAMP_FMT) {
+            return TIMESTAMP_FMT.format(new Date(timestamp));
+        }
     }
 
     public void shutdown() {

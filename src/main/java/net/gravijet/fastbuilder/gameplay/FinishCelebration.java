@@ -32,6 +32,7 @@ class FinishCelebration {
                 @Override
                 public void run() {
                     if (isPB) {
+                        if (!player.isOnline()) return;
                         spawnFirework(location, rand);
                         Location off1 = location.clone().add(
                                 (rand.nextDouble() - 0.5) * 6, 0, (rand.nextDouble() - 0.5) * 6);

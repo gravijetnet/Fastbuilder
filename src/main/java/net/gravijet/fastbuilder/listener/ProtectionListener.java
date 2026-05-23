@@ -38,6 +38,11 @@ public class ProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
+    public void cleanupPlayer(java.util.UUID uuid) {
+        fallCooldown.remove(uuid);
+        switchingPlayers.remove(uuid);
+    }
+
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
@@ -342,9 +347,15 @@ public class ProtectionListener implements Listener {
 
     @EventHandler
     public void onHunger(FoodLevelChangeEvent event) {
-        if (event.getEntity() instanceof Player) {
+        if (!(event.getEntity() instanceof Player)) return;
+        Player player = (Player) event.getEntity();
+        boolean inSession = plugin.getGameplayManager() != null
+                && plugin.getGameplayManager().getSession(player.getUniqueId()) != null;
+        boolean inReplay = plugin.getReplayManager() != null
+                && plugin.getReplayManager().isInPlayback(player.getUniqueId());
+        if (inSession || inReplay) {
             event.setCancelled(true);
-            ((Player) event.getEntity()).setFoodLevel(20);
+            player.setFoodLevel(20);
         }
     }
 
@@ -501,9 +512,10 @@ public class ProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
         Location epicenter = event.getLocation();
+        String explosionWorld = epicenter.getWorld().getName();
         for (MapData map : plugin.getMapManager().getAllMaps()) {
             if (!map.isEnabled()) continue;
-            if (!epicenter.getWorld().getName().equals(map.getWorldName())) continue;
+            if (!explosionWorld.equals(map.getWorldName())) continue;
             java.util.List<net.gravijet.fastbuilder.map.IslandInstance> islands =
                     plugin.getMapManager().getIslands(map.getName());
             if (islands == null) continue;
@@ -564,10 +576,8 @@ public class ProtectionListener implements Listener {
             int xFrontier = islandMax.getBlockX();
             RunSession buildSession = plugin.getGameplayManager() != null
                     ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
-            if (buildSession != null) {
-                for (Location pl : buildSession.getPlacedBlocks()) {
-                    if (pl.getBlockX() > xFrontier) xFrontier = pl.getBlockX();
-                }
+            if (buildSession != null && buildSession.getMaxPlacedX() > xFrontier) {
+                xFrontier = buildSession.getMaxPlacedX();
             }
             boolean xInBounds = bx >= islandMin.getBlockX()
                     && bx <= xFrontier + 30;
@@ -633,7 +643,7 @@ public class ProtectionListener implements Listener {
             if (blockIsland < 0) continue;
 
             int playerIsland = mm.getPlayerIsland(map.getName(), player.getUniqueId());
-            return blockIsland == playerIsland;
+            if (blockIsland == playerIsland) return true;
         }
 
         return player.hasPermission("fastbuilder.admin");

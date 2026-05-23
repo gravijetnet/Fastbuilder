@@ -147,7 +147,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 }
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
         if (prevData != null) prevData.clearCustomLengths();
         if (plugin.getCpsListener() != null) {
@@ -249,7 +249,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 leaveData.clearCustomLengths();
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
 
         // Despawn NPC
@@ -343,7 +343,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 leaveData.clearCustomLengths();
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
             plugin.getGameplayManager().enterBuildMode(player.getUniqueId());
         }
 

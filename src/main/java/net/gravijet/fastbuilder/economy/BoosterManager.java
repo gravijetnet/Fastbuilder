@@ -67,7 +67,7 @@ public class BoosterManager {
 
         if (!data.consumeBooster(typeId)) return false;
 
-        long durationMs = (long) type.durationMinutes * 60_000L;
+        long durationMs = (long) type.durationMinutes * 60L * 1000L;
         data.setBoosterExpiry(System.currentTimeMillis() + durationMs);
         data.setBoosterMultiplier(type.multiplier);
 

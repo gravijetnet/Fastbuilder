@@ -146,9 +146,8 @@ public class GameplayListener implements Listener {
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
 
         // Diagonal maps shift each island slot in +X by diagonalStepX per index.
-        // 0 for straight maps, so this is a no-op there.
-        long diagXLong = (long) islandIndex * map.getDiagonalStepX();
-        int diagX = (int) diagXLong;
+        // Compute as long first to avoid int overflow, then truncate to int for block coords.
+        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
 
         // End-island mode: derive finish zone from the live end-island position
         if (map.hasEndIsland()) {

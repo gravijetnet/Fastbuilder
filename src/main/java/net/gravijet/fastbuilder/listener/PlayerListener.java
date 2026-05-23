@@ -156,7 +156,7 @@ public class PlayerListener implements Listener {
                 qDesignData.clearCustomLengths();
             }
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
 
         // Despawn NPC
@@ -183,6 +183,11 @@ public class PlayerListener implements Listener {
         // Clean up CPS hologram
         if (plugin.getCpsListener() != null) {
             plugin.getCpsListener().cleanupPlayer(player.getUniqueId());
+        }
+
+        // Clean up protection listener state (fall cooldowns, switching flags)
+        if (plugin.getProtectionListener() != null) {
+            plugin.getProtectionListener().cleanupPlayer(player.getUniqueId());
         }
 
         // Free all islands
@@ -233,7 +238,7 @@ public class PlayerListener implements Listener {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
             plugin.getGameplayManager().removeSession(player.getUniqueId());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
         if (plugin.getCpsListener() != null) {
             plugin.getCpsListener().cleanupPlayer(player.getUniqueId());

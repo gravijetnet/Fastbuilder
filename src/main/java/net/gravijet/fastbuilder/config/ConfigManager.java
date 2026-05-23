@@ -59,8 +59,13 @@ public class ConfigManager {
     private void mergeMissingDefaults(FileConfiguration config, String resourceName, File file) {
         InputStream in = plugin.getResource(resourceName);
         if (in == null) return;
-        FileConfiguration defaults = YamlConfiguration.loadConfiguration(
-                new InputStreamReader(in, StandardCharsets.UTF_8));
+        FileConfiguration defaults;
+        try (InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+            defaults = YamlConfiguration.loadConfiguration(reader);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not read default " + resourceName + ": " + e.getMessage());
+            return;
+        }
         boolean changed = false;
         for (String key : defaults.getKeys(true)) {
             if (!config.isSet(key)) {
@@ -341,8 +346,8 @@ public class ConfigManager {
     // -------------------------------------------------------------------------
 
     /** Cache so we don't re-parse YAML on every GUI open. Cleared on reload. */
-    private List<BoosterType> boosterTypeCache = null;
-    private Map<String, BoosterType> boosterTypeMapCache = null;
+    private volatile List<BoosterType> boosterTypeCache = null;
+    private volatile Map<String, BoosterType> boosterTypeMapCache = null;
 
     /**
      * Returns all configured booster types in config order.

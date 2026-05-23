@@ -123,13 +123,12 @@ public class PlayerManager {
         return cache.get(uuid);
     }
 
-    /** Save a single player's data asynchronously. */
+    /** Save a single player's data asynchronously. Must be called from the main thread. */
     public void savePlayerData(UUID uuid) {
         PlayerData data = cache.get(uuid);
         if (data == null) return;
-        final PlayerData snapshot = data; // reference is safe — only fields mutated on main thread
         Bukkit.getScheduler().runTaskAsynchronously(plugin,
-                () -> provider.savePlayerData(snapshot));
+                () -> provider.savePlayerData(data));
     }
 
     /** Save all cached player data synchronously (called on plugin disable). */

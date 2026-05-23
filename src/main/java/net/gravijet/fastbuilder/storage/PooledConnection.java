@@ -15,6 +15,7 @@ class PooledConnection implements Connection {
     private final int        poolIndex;
     private final boolean[]  inUse;
     private final Object     poolLock;
+    private boolean          returned = false;
 
     PooledConnection(Connection delegate, int poolIndex, boolean[] inUse, Object poolLock) {
         this.delegate  = delegate;
@@ -26,7 +27,18 @@ class PooledConnection implements Connection {
     @Override
     public void close() {
         synchronized (poolLock) {
+            returned = true;
             inUse[poolIndex] = false;
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void finalize() {
+        // Safety net: if the caller never called close() (e.g., exception before try-with-resources
+        // assigned the variable), release the slot so the pool doesn't permanently lose a connection.
+        if (!returned) {
+            close();
         }
     }
 

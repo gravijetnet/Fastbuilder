@@ -46,6 +46,7 @@ public class FastBuilder extends JavaPlugin {
     private HotbarManager hotbarManager;
     private CpsListener cpsListener;
     private SkinManager skinManager;
+    private ProtectionListener protectionListener;
 
     @Override
     public void onEnable() {
@@ -141,7 +142,8 @@ public class FastBuilder extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(guiManager, this);
         Bukkit.getPluginManager().registerEvents(new SetupListener(this), this);
         Bukkit.getPluginManager().registerEvents(new PlayerListener(this), this);
-        Bukkit.getPluginManager().registerEvents(new ProtectionListener(this), this);
+        protectionListener = new ProtectionListener(this);
+        Bukkit.getPluginManager().registerEvents(protectionListener, this);
         Bukkit.getPluginManager().registerEvents(new GameplayListener(this), this);
         Bukkit.getPluginManager().registerEvents(new net.gravijet.fastbuilder.listener.TreeGrowthListener(), this);
 
@@ -203,4 +205,5 @@ public class FastBuilder extends JavaPlugin {
     public HotbarManager getHotbarManager() { return hotbarManager; }
     public CpsListener getCpsListener() { return cpsListener; }
     public SkinManager getSkinManager() { return skinManager; }
+    public ProtectionListener getProtectionListener() { return protectionListener; }
 }

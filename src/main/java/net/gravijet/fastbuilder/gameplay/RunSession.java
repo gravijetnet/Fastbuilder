@@ -24,6 +24,8 @@ public class RunSession {
 
     // All blocks placed during this run
     private final List<Location> placedBlocks = new ArrayList<>();
+    // Tracks the highest X coordinate of any placed block (updated in addPlacedBlock)
+    private int maxPlacedX = Integer.MIN_VALUE;
 
     // Practice blocks (lime STAINED_CLAY:5) placed while in practice mode
     private final List<Location> practiceBlocks = new ArrayList<>();
@@ -67,6 +69,7 @@ public class RunSession {
         resetting = false;
         placedBlocks.clear();
         originalBlockStates.clear();
+        maxPlacedX = Integer.MIN_VALUE;
         // Note: practiceBlocks is intentionally NOT cleared here.
         // It is cleared in GameplayManager.resetRun() selectively
         // and in handleSettingsClick when practice mode is toggled off.
@@ -83,8 +86,18 @@ public class RunSession {
         return 0;
     }
 
+    /** Return the rounded elapsed time without committing the finished state. */
+    public long peekElapsed() {
+        if (startTime < 0 || !running) return 0;
+        long rawMs = System.currentTimeMillis() - startTime;
+        if (rawMs < 0) rawMs = 0;
+        return net.gravijet.fastbuilder.util.TimeUtil.roundTo50(rawMs);
+    }
+
     public long getFinishTime() {
-        return finishTimeMs > 0 ? finishTimeMs : getElapsed();
+        if (finishTimeMs > 0) return finishTimeMs;
+        if (running) return getElapsed();
+        return -1;
     }
 
     /**
@@ -100,6 +113,7 @@ public class RunSession {
         if (isPractice) {
             practiceBlocks.add(clone);
         }
+        if (loc.getBlockX() > maxPlacedX) maxPlacedX = loc.getBlockX();
         // Only record original block state on first placement — subsequent placements at the same
         // location (player replacing their own block) must not overwrite the true pre-run state.
         String key = loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
@@ -129,9 +143,12 @@ public class RunSession {
         return originalBlockStates.get(key);
     }
 
+    /** Returns the highest X coordinate of any placed block, or Integer.MIN_VALUE if none placed. */
+    public int getMaxPlacedX() { return maxPlacedX; }
+
     public List<Location> getPlacedBlocks() { return placedBlocks; }
     public List<Location> getPracticeBlocks() { return practiceBlocks; }
-    public java.util.HashMap<String, int[]> getOriginalBlockStates() { return originalBlockStates; }
+    public java.util.Map<String, int[]> getOriginalBlockStates() { return java.util.Collections.unmodifiableMap(originalBlockStates); }
 
     public boolean hasPracticeBlocks() { return !practiceBlocks.isEmpty(); }
 

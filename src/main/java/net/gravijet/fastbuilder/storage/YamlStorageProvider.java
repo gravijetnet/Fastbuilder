@@ -81,24 +81,24 @@ public class YamlStorageProvider implements StorageProvider {
 
         List<Long> times = new ArrayList<>();
 
-        // Include currently-online players from the live cache first
+        // Snapshot live-cache UUIDs and times under the cache lock, then release it before file I/O.
+        java.util.Set<UUID> cachedUuids = new java.util.HashSet<>();
         synchronized (liveCache) {
-            for (PlayerData pd : liveCache.values()) {
-                PlayerData.MapStats s = pd.getStats(mapName);
+            for (java.util.Map.Entry<UUID, PlayerData> entry : liveCache.entrySet()) {
+                cachedUuids.add(entry.getKey());
+                PlayerData.MapStats s = entry.getValue().getStats(mapName);
                 if (s != null && s.hasBestTime()) times.add(s.bestTime);
             }
         }
 
-        // Scan all on-disk files, skipping UUIDs already in the live cache
+        // Scan all on-disk files, skipping UUIDs already captured from the live cache
         File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files != null) {
             for (File file : files) {
                 String fileName = file.getName().replace(".yml", "");
                 try {
                     UUID uuid = UUID.fromString(fileName);
-                    synchronized (liveCache) {
-                        if (liveCache.containsKey(uuid)) continue; // already counted above
-                    }
+                    if (cachedUuids.contains(uuid)) continue; // already counted above
                     YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
                     long t = cfg.getLong("stats." + mapName + ".best-time", -1);
                     if (t > 0) times.add(t);
@@ -129,9 +129,12 @@ public class YamlStorageProvider implements StorageProvider {
         // (name → best time) — deduplicates if a player appears in both cache and on disk
         java.util.Map<String, Long> best = new java.util.LinkedHashMap<>();
 
-        // Online players first (live cache is authoritative)
+        // Snapshot live-cache UUIDs and times; release lock before file I/O.
+        java.util.Set<UUID> topCachedUuids = new java.util.HashSet<>();
         synchronized (liveCache) {
-            for (PlayerData pd : liveCache.values()) {
+            for (java.util.Map.Entry<UUID, PlayerData> entry : liveCache.entrySet()) {
+                topCachedUuids.add(entry.getKey());
+                PlayerData pd = entry.getValue();
                 PlayerData.MapStats s = pd.getStats(mapName);
                 if (s != null && s.hasBestTime()) {
                     best.merge(pd.getName(), s.bestTime, Math::min);
@@ -139,16 +142,14 @@ public class YamlStorageProvider implements StorageProvider {
             }
         }
 
-        // Scan all on-disk files, skipping UUIDs already in the live cache
+        // Scan all on-disk files, skipping UUIDs already captured from the live cache
         File[] files = dataDir.listFiles((dir, n) -> n.endsWith(".yml"));
         if (files != null) {
             for (File file : files) {
                 String fileName = file.getName().replace(".yml", "");
                 try {
                     UUID uuid = UUID.fromString(fileName);
-                    synchronized (liveCache) {
-                        if (liveCache.containsKey(uuid)) continue;
-                    }
+                    if (topCachedUuids.contains(uuid)) continue;
                     YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
                     long t = cfg.getLong("stats." + mapName + ".best-time", -1);
                     if (t > 0) {
@@ -174,9 +175,12 @@ public class YamlStorageProvider implements StorageProvider {
         // Values: long[] { distance, time } — distance desc, time asc on tie
         java.util.Map<String, long[]> best = new java.util.LinkedHashMap<>();
 
-        // Online players first (live cache is authoritative)
+        // Snapshot live-cache entries; release lock before file I/O.
+        java.util.Set<UUID> infCachedUuids = new java.util.HashSet<>();
         synchronized (liveCache) {
-            for (PlayerData pd : liveCache.values()) {
+            for (java.util.Map.Entry<UUID, PlayerData> entry : liveCache.entrySet()) {
+                infCachedUuids.add(entry.getKey());
+                PlayerData pd = entry.getValue();
                 int dist = pd.getInfiniteDistance(mapName);
                 if (dist > 0) {
                     long t = pd.getInfiniteDistanceTime(mapName);
@@ -187,16 +191,14 @@ public class YamlStorageProvider implements StorageProvider {
             }
         }
 
-        // Scan on-disk files, skip UUIDs already in the live cache
+        // Scan on-disk files, skip UUIDs already captured from the live cache
         File[] files = dataDir.listFiles((dir, n) -> n.endsWith(".yml"));
         if (files != null) {
             for (File file : files) {
                 String fileName = file.getName().replace(".yml", "");
                 try {
                     UUID uuid = UUID.fromString(fileName);
-                    synchronized (liveCache) {
-                        if (liveCache.containsKey(uuid)) continue;
-                    }
+                    if (infCachedUuids.contains(uuid)) continue;
                     YamlConfiguration cfg = YamlConfiguration.loadConfiguration(file);
                     int dist = cfg.getInt("infinite-distances." + mapName.toLowerCase(), 0);
                     if (dist > 0) {

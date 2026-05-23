@@ -306,7 +306,7 @@ public class MapManager {
         return scalingMaps.contains(mapName.toLowerCase());
     }
 
-    public int assignFreeIsland(String mapName, UUID playerUuid, String playerName) {
+    public synchronized int assignFreeIsland(String mapName, UUID playerUuid, String playerName) {
         List<IslandInstance> list = islands.get(mapName.toLowerCase());
         if (list == null) return -1;
 
@@ -406,7 +406,7 @@ public class MapManager {
                                 plugin.getGameplayManager().clearEndPlatform(p.getUniqueId());
                                 plugin.getGameplayManager().revertIslandDesign(map, island.getIndex());
                                 plugin.getGameplayManager().removeSession(p.getUniqueId());
-                                plugin.getGameplayManager().removeGlobalSessionBest(p.getName());
+                                plugin.getGameplayManager().removeGlobalSessionBest(p.getUniqueId());
                             }
                             net.gravijet.fastbuilder.player.PlayerData pData =
                                     plugin.getPlayerManager().getCachedData(p.getUniqueId());
@@ -462,6 +462,10 @@ public class MapManager {
                         p.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
                                 + "&eIsland layout is being updated, please wait..."));
                         if (!Bukkit.getWorlds().isEmpty()) p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                        // Remove stale session so death-check doesn't fire at spawn
+                        if (plugin.getGameplayManager() != null) {
+                            plugin.getGameplayManager().removeSession(p.getUniqueId());
+                        }
                     }
                 }
             }
@@ -550,7 +554,7 @@ public class MapManager {
             if (def != null && def.isEnabled() && !isMapScaling(def.getName())) {
                 int island = assignFreeIsland(def.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
-                    player.teleport(def.getIslandSpawn(island));
+                    setupRelocatedPlayer(player, def, island);
                     return;
                 }
             }
@@ -560,15 +564,42 @@ public class MapManager {
             if (m.isEnabled() && !m.getName().equalsIgnoreCase(excludeMap) && !isMapScaling(m.getName())) {
                 int island = assignFreeIsland(m.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
-                    player.teleport(m.getIslandSpawn(island));
+                    setupRelocatedPlayer(player, m, island);
                     return;
                 }
             }
         }
 
+        // No free island anywhere — put the player into spectator so they can't place blocks
+        // without a session, and notify them.
         if (!Bukkit.getWorlds().isEmpty()) {
             player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
         }
+        player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        String noIslands = plugin.getConfigManager().getMessage("no-free-islands");
+        if (noIslands == null || noIslands.isEmpty()) noIslands = "%prefix%&cNo free island available right now.";
+        player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(
+                noIslands.replace("%prefix%", plugin.getConfigManager().getPrefix())));
+    }
+
+    private void setupRelocatedPlayer(org.bukkit.entity.Player player, MapData map, int island) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(player.getUniqueId());
+        if (pData != null) {
+            pData.setLastMap(map.getName());
+            pData.setLastIsland(island);
+        }
+        org.bukkit.Location spawn = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getEffectiveSpawn(player.getUniqueId(), map, island)
+                : map.getIslandSpawn(island);
+        player.teleport(spawn);
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
+        }
+        if (plugin.getHotbarManager() != null) {
+            plugin.getHotbarManager().giveItems(player);
+        }
+        plugin.getScoreboardManager().updateScoreboard(player);
     }
 
     // --- Setup Sessions ---

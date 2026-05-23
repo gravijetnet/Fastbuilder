@@ -343,7 +343,11 @@ public class FastScoreboard {
                         // entry[1] = distance (blocks), entry[2] = timeMs
                         line = line.replace(timePh, rankColor + entry[1] + " blocks");
                     } else {
-                        line = line.replace(timePh, rankColor + TimeUtil.formatTime(Long.parseLong(entry[1])));
+                        try {
+                            line = line.replace(timePh, rankColor + TimeUtil.formatTime(Long.parseLong(entry[1])));
+                        } catch (NumberFormatException ignored) {
+                            line = line.replace(timePh, rankColor + TimeUtil.EMPTY_RAW);
+                        }
                     }
                 } else {
                     // Empty entry: if this line references either placeholder, replace the

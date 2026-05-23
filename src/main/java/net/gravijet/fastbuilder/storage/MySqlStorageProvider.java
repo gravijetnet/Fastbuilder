@@ -465,8 +465,16 @@ public class MySqlStorageProvider implements StorageProvider {
         }
     }
 
+    private static final java.util.Set<String> ALLOWED_SYNC_TABLES = new java.util.HashSet<>(
+            java.util.Arrays.asList("player_purchased_blocks", "player_favorites", "player_purchased_designs"));
+    private static final java.util.Set<String> ALLOWED_SYNC_COLS = new java.util.HashSet<>(
+            java.util.Arrays.asList("block_key", "replay_file", "design_key"));
+
     private void syncTable(Connection c, String uuid, String table, String valueCol, Set<String> values)
             throws SQLException {
+        if (!ALLOWED_SYNC_TABLES.contains(table) || !ALLOWED_SYNC_COLS.contains(valueCol)) {
+            throw new SQLException("Rejected unsafe table/column in syncTable: " + table + "/" + valueCol);
+        }
         try (PreparedStatement del = c.prepareStatement(
                 "DELETE FROM " + table + " WHERE uuid = ?")) {
             del.setString(1, uuid);

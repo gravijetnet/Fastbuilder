@@ -204,7 +204,7 @@ public class IslandSelectorGui {
             plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
             plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
             plugin.getGameplayManager().revertIslandDesign(map, data.getLastIsland());
-            plugin.getGameplayManager().removeGlobalSessionBest(player.getName());
+            plugin.getGameplayManager().removeGlobalSessionBest(player.getUniqueId());
         }
         data.clearCustomLengths();
 
