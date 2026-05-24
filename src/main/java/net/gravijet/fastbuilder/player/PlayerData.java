@@ -307,8 +307,9 @@ public class PlayerData {
     }
 
     public MapStats getStats(String mapName) {
+        if (mapName == null) return null;
         MapStats exact = mapStats.get(mapName);
-        if (exact != null || mapName == null) return exact;
+        if (exact != null) return exact;
         // Stats keys are stored with the map's original casing. Fall back to a
         // case-insensitive match so a differently-cased lookup still resolves
         // (no stored-format change, so no data migration is required).
@@ -395,8 +396,8 @@ public class PlayerData {
     public int getCoins() { return coins; }
     public void setCoins(int coins) { this.coins = coins; }
     public void addCoins(int amount) {
-        // Hard cap at Integer.MAX_VALUE to prevent overflow
-        this.coins = (int) Math.min((long) this.coins + amount, Integer.MAX_VALUE);
+        // Clamp to [0, Integer.MAX_VALUE] to prevent overflow and negative balances
+        this.coins = (int) Math.max(0L, Math.min((long) this.coins + amount, Integer.MAX_VALUE));
     }
     public boolean removeCoins(int amount) {
         if (coins >= amount) { coins -= amount; return true; }

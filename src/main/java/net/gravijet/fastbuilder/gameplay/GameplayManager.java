@@ -249,15 +249,14 @@ public class GameplayManager {
             return;
         }
 
+        // Cache the map lookup once for use throughout onFinish
+        MapData map = plugin.getMapManager().getMap(session.getMapName());
+
         // Infinite mode maps have no finish condition
-        MapData infiniteCheck = plugin.getMapManager().getMap(session.getMapName());
-        if (infiniteCheck != null && infiniteCheck.isInfinite()) {
+        if (map != null && map.isInfinite()) {
             finishCooldown.remove(uuid);
             return;
         }
-
-        // Cache the map lookup once for use throughout onFinish
-        MapData map = plugin.getMapManager().getMap(session.getMapName());
 
         // Anticheat: reject times below the configured minimum valid time BEFORE committing finish
         long mapMinTime = -1;
@@ -656,9 +655,9 @@ public class GameplayManager {
         if (session == null) return;
         if (session.isResetting()) return;
         startResetAnimation(player);
-        // For synchronous callers (e.g. island switch), finalize immediately
-        session = activeSessions.get(player.getUniqueId());
-        if (session == null) return;
+        // startResetAnimation marks the session as resetting but does not remove it —
+        // use the already-captured reference to avoid a redundant lookup.
+        if (!activeSessions.containsKey(player.getUniqueId())) return;
 
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null) return;
@@ -1122,9 +1121,8 @@ public class GameplayManager {
                             }
                             PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                             if (pData != null) {
-                                MapData timerMap = plugin.getMapManager().getMap(session.getMapName());
                                 boolean timerStatsOk = !session.isPracticeMode()
-                                        && (timerMap == null || (!timerMap.isInfinite() && !timerMap.hasCustomLength()));
+                                        && !mapData.isInfinite() && !mapData.hasCustomLength();
                                 if (timerStatsOk) {
                                     PlayerData.MapStats stats = pData.getOrCreateStats(session.getMapName());
                                     stats.totalAttempts++;

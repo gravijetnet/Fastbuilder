@@ -91,6 +91,10 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ColorUtil.translate(prefix + "&cInvalid amount: &f" + args[2]));
             return true;
         }
+        if (amount < 0) {
+            sender.sendMessage(ColorUtil.translate(prefix + "&cAmount must be non-negative."));
+            return true;
+        }
 
         boolean wildcard = args[1].equals("*");
         List<Player> targets = new ArrayList<>();
