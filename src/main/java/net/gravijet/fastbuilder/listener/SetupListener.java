@@ -39,14 +39,18 @@ public class SetupListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockDamage(BlockDamageEvent event) {
-        if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
+        Player player = event.getPlayer();
+        if (plugin.getMapManager().getSetupSession(player.getUniqueId()) != null
+                && !player.hasPermission("fastbuilder.admin")) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (plugin.getMapManager().getSetupSession(event.getPlayer().getUniqueId()) != null) {
+        Player player = event.getPlayer();
+        if (plugin.getMapManager().getSetupSession(player.getUniqueId()) != null
+                && !player.hasPermission("fastbuilder.admin")) {
             event.setCancelled(true);
         }
     }
