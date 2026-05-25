@@ -215,6 +215,21 @@ public class ProtectionListener implements Listener {
             }
             if (!playerPlaced) {
                 event.setCancelled(true);
+                return;
+            }
+            // Infinite blocks: the player's hotbar stack never depletes, so a dropped
+            // item from the broken block would just clutter the world. Suppress drops
+            // by cancelling the event and clearing the block manually.
+            net.gravijet.fastbuilder.player.PlayerData pd =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            if (pd != null && pd.hasInfiniteBlocks()) {
+                org.bukkit.block.Block broken = event.getBlock();
+                int brokenTypeId = broken.getTypeId();
+                event.setCancelled(true);
+                broken.setType(org.bukkit.Material.AIR);
+                try {
+                    broken.getWorld().playEffect(blockLoc, org.bukkit.Effect.STEP_SOUND, brokenTypeId);
+                } catch (Exception ignored) {}
             }
         }
     }

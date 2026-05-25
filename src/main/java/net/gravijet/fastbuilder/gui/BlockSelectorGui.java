@@ -188,10 +188,10 @@ public class BlockSelectorGui {
                 }
                 String blockName = pageSection.getString(blockIndex + ".name", "Block");
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&fBlock purchased and selected: &c" + blockName + " &7(&f" + price + " coins&7)"));
+                        + "&aUnlocked &f" + blockName + " &7&o(-" + price + " coins)"));
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                        + "&cNot enough coins &8» &7need &6" + price + "&7."));
             }
             return;
         }
@@ -208,7 +208,7 @@ public class BlockSelectorGui {
         }
         String blockName = pageSection.getString(blockIndex + ".name", "Block");
         player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fSelected block: &c" + blockName));
+                + "&7Block &8» &f" + blockName));
     }
 
     static boolean isWallOrFence(String materialString) {

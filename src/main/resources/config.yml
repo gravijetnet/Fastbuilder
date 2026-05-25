@@ -160,28 +160,33 @@ npcs:
   name: "&cMap Selector"
 
 # Scoreboard
-# Placeholders: %map%, %pb%, %current_time%, %coins%, %blocks%
-#   Granular top-10: %top_name_N% (name), %top_time_N% (time), N = 1..10
+# Placeholders:
+#   %pb%               — personal best time
+#   %current_time%     — current run time
+#   %coins%            — player's coin balance
+#   %blocks%           — blocks placed in current run
+#   %top_name_N% / %top_time_N%  — granular top 1..10
+#   %top_color%        — per-line rank color (gold/silver/red), only valid on a %top_*% line
 #   PlaceholderAPI: any %papi_placeholder% is supported
-# update-interval: ticks between scoreboard refreshes (20 = 1 second)
+# update-interval: ticks between scoreboard refreshes (1 = 50 ms, 20 = 1 second)
 scoreboard:
-  title: "&c&lFastbuilder"
+  title: "&c&lFASTBUILDER"
   update-interval: 1
   lines:
-    - "&7&m-------------------"
-    - "&cPersonal Best:"
-    - "&8» &f%pb%"
+    - "&8&m              "
+    - "&7Best &8» &f%pb%"
+    - "&7Time &8» &f%current_time%"
     - ""
-    - "&cSession-Top:"
-    - "&8» %phoenix_player_rank_color%%top_name_1%&7: &f%top_time_1%"
-    - "&8» %phoenix_player_rank_color%%top_name_2%&7: &f%top_time_2%"
-    - "&8» %phoenix_player_rank_color%%top_name_3%&7: &f%top_time_3%"
+    - "&cSession Top"
+    - "&8» %top_color%%top_name_1%&8: &f%top_time_1%"
+    - "&8» %top_color%%top_name_2%&8: &f%top_time_2%"
+    - "&8» %top_color%%top_name_3%&8: &f%top_time_3%"
     - ""
-    - "&cBlocks:"
-    - "&8» &f%blocks%"
+    - "&7Blocks &8» &f%blocks%"
+    - "&7Coins  &8» &6%coins%"
     - ""
-    - "&7&oexample.invalid"
-    - "&7&m-------------------"
+    - "&8example.invalid"
+    - "&8&m              "
 
 # Action bar settings
 actionbar:

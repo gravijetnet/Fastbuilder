@@ -310,9 +310,9 @@ public class ShopGui {
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-                player.sendMessage(ColorUtil.translate(prefix + "&fTool purchased and selected: &c" + name + " &7(&f" + price + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(prefix + "&aUnlocked &f" + name + " &7&o(-" + price + " coins)"));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
             }
             return;
         }
@@ -324,7 +324,7 @@ public class ShopGui {
         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-        player.sendMessage(ColorUtil.translate(prefix + "&fSelected tool: &c" + name));
+        player.sendMessage(ColorUtil.translate(prefix + "&7Tool &8» &f" + name));
     }
 
     private void handleOneClickPickClick(Player player) {
@@ -343,15 +343,15 @@ public class ShopGui {
                 data.setOneClickPick(true);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-                player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick &apurchased and enabled! &7(&f" + price + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(prefix + "&aOne-Click Pick unlocked &7&o(-" + price + " coins)"));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
             }
         } else {
             data.setOneClickPick(!data.hasOneClickPick());
             plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-            player.sendMessage(ColorUtil.translate(prefix + "&fOne-Click Pick " + (data.hasOneClickPick() ? "&aenabled" : "&cdisabled") + "&f."));
+            player.sendMessage(ColorUtil.translate(prefix + "&7One-Click Pick &8» " + (data.hasOneClickPick() ? "&aon" : "&coff")));
         }
         int ocpPage = plugin.getConfigManager().getGuisConfig().getInt("one-click-pick.page", 1);
         openPickaxeSelector(player, ocpPage);
@@ -443,9 +443,9 @@ public class ShopGui {
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String aName = slotsSection.getString(configKey + ".name", "Animation");
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fAnimation purchased and selected: &c" + aName + " &7(&f" + price + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&aUnlocked &f" + aName + " &7&o(-" + price + " coins)"));
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins &8» &7need &6" + price + "&7."));
             }
             return;
         }
@@ -455,7 +455,7 @@ public class ShopGui {
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String aName = slotsSection.getString(configKey + ".name", "Animation");
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fSelected animation: &c" + aName));
+        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7Animation &8» &f" + aName));
     }
 
     // ===== Death Sound Selector =====
@@ -550,9 +550,9 @@ public class ShopGui {
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String sName = slotsSection.getString(configKey + ".name", "Sound");
-                player.sendMessage(ColorUtil.translate(prefix + "&fDeath sound purchased and selected: &c" + sName + " &7(&f" + price + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(prefix + "&aUnlocked &f" + sName + " &7&o(-" + price + " coins)"));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins! You need &f" + price + " &ccoins."));
+                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
             }
             return;
         }
@@ -562,7 +562,7 @@ public class ShopGui {
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String sName = slotsSection.getString(configKey + ".name", "Sound");
-        player.sendMessage(ColorUtil.translate(prefix + "&fSelected death sound: &c" + sName));
+        player.sendMessage(ColorUtil.translate(prefix + "&7Death sound &8» &f" + sName));
     }
 
     // ===== Design Selector =====
@@ -642,7 +642,7 @@ public class ShopGui {
         String defaultKey2 = map.getTemplateFile();
         if (currentlySelected == null) currentlySelected = defaultKey2;
         if (templateKey.equalsIgnoreCase(currentlySelected)) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cThis design is already active."));
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7That design is already active."));
             return;
         }
 
@@ -660,7 +660,7 @@ public class ShopGui {
                 pData.removeCoins(designPrice);
                 pData.purchaseDesign(templateKey);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
-                player.sendMessage(ColorUtil.translate(prefix + "&fDesign unlocked: &c" + templateKey + " &7(&f" + designPrice + " coins&7)"));
+                player.sendMessage(ColorUtil.translate(prefix + "&aDesign unlocked &8» &f" + templateKey + " &7&o(-" + designPrice + " coins)"));
             } else {
                 String msg = guis.getString("island-designs.lore-cannot-afford",
                         "&cNot enough coins &7(&f%coins% / %price%&7)")

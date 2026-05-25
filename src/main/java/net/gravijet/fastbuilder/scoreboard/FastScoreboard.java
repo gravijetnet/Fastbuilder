@@ -327,20 +327,26 @@ public class FastScoreboard {
                     .replace("%custom_best%",           customBest)
                     .replace("%custom_session_best%",   customSessionBest);
 
-            // top_name_N / top_time_N (N = 1..10)  — cleared in custom length mode
+            // top_name_N / top_time_N (N = 1..10)  — cleared in custom length mode.
+            // Determine which top-N this line refers to (if any) by inspecting the placeholders
+            // present on the line — this avoids the cross-line clobber of %phoenix_player_rank_color%.
+            int lineTopN = -1;
             for (int n = 1; n <= 10; n++) {
-                String namePh = "%top_name_" + n + "%";
-                String timePh = "%top_time_" + n + "%";
-                if (!inCustomLength && topList.size() >= n) {
-                    String[] entry = topList.get(n - 1);
-                    String rankColor = n == 1 ? "§6" : n == 2 ? "§7" : n == 3 ? "§c" : "";
+                if (line.contains("%top_name_" + n + "%") || line.contains("%top_time_" + n + "%")) {
+                    lineTopN = n;
+                    break;
+                }
+            }
+            if (lineTopN > 0) {
+                String namePh = "%top_name_" + lineTopN + "%";
+                String timePh = "%top_time_" + lineTopN + "%";
+                String rankColor = lineTopN == 1 ? "§6" : lineTopN == 2 ? "§7" : lineTopN == 3 ? "§c" : "§f";
+                if (!inCustomLength && topList.size() >= lineTopN) {
+                    String[] entry = topList.get(lineTopN - 1);
                     line = line.replace(namePh, rankColor + entry[0]);
-                    // Replace common rank-color PAPI placeholders with the position-based
-                    // color so each top-N line shows its own rank colour instead of the
-                    // viewing player's colour across all three lines.
                     line = line.replace("%phoenix_player_rank_color%", rankColor);
+                    line = line.replace("%top_color%", rankColor);
                     if (isInfiniteMap) {
-                        // entry[1] = distance (blocks), entry[2] = timeMs
                         line = line.replace(timePh, rankColor + entry[1] + " blocks");
                     } else {
                         try {
@@ -350,17 +356,15 @@ public class FastScoreboard {
                         }
                     }
                 } else {
-                    // Empty entry: if this line references either placeholder, replace the
-                    // ENTIRE line with a single "-,---" so no colon ever appears.
-                    if (line.contains(namePh) || line.contains(timePh)) {
-                        line = "§8-,---" + invisPad(n);
-                        break; // done processing placeholders for this line
-                    }
+                    // Empty slot: render a clean dash so colons never appear next to empty data.
+                    line = "§8» §7---" + invisPad(lineTopN);
                 }
             }
 
             // PlaceholderAPI (applied before colour translation so PAPI values can contain &codes)
             line = applyPapi(player, line);
+            // Strip any remaining unresolved %xxx% tokens so raw placeholders never reach the player.
+            line = PLACEHOLDER_PATTERN.matcher(line).replaceAll("");
             line = ColorUtil.translate(line);
 
             result.add(line);

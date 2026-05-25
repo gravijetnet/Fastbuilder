@@ -192,7 +192,7 @@ public class GameplayManager {
             // Block the timer start if there are un-cleared practice blocks
             if (!session.isPracticeMode() && session.hasPracticeBlocks()) {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cClear your practice blocks before starting a real run."));
+                        + "&cClear practice blocks before starting a real run."));
                 return;
             }
             // New run starting — clear the persistent last-finish display
@@ -425,7 +425,7 @@ public class GameplayManager {
             }
         } else {
             // Practice or stats-disabled mode: show time but note it's not saved
-            String modeLabel = session.isPracticeMode() ? "&6&lPractice: " : "&a&lFinish: ";
+            String modeLabel = session.isPracticeMode() ? "&6Practice &8» &f" : "&aFinish &8» &f";
             String noteSuffix;
             if (statsMap != null && statsMap.isInfinite()) {
                 noteSuffix = "&7Infinite mode";
@@ -445,7 +445,7 @@ public class GameplayManager {
             } else {
                 noteSuffix = "";
             }
-            player.sendTitle(ColorUtil.translate(modeLabel + "&f" + TimeUtil.formatTime(time)),
+            player.sendTitle(ColorUtil.translate(modeLabel + TimeUtil.formatTime(time)),
                     ColorUtil.translate(noteSuffix));
         }
 

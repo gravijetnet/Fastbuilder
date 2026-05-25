@@ -80,19 +80,19 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
     }
 
     private void printStatsToChat(CommandSender sender, PlayerData data) {
-        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
-        sender.sendMessage(ColorUtil.translate("  &c&lFastbuilder &7| &fStats: &c" + data.getName()));
-        sender.sendMessage(ColorUtil.translate("  &7Coins: &f" + data.getCoins()));
-        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
+        sender.sendMessage("");
+        sender.sendMessage(ColorUtil.translate("  &c&lSTATS &8» &f" + data.getName()));
+        sender.sendMessage(ColorUtil.translate("  &7Coins &8» &6" + data.getCoins()));
+        sender.sendMessage("");
 
         Map<String, PlayerData.MapStats> allStats = data.getAllStats();
         if (allStats.isEmpty()) {
-            sender.sendMessage(ColorUtil.translate("  &7No statistics recorded yet."));
+            sender.sendMessage(ColorUtil.translate("  &7No runs recorded yet."));
         } else {
             for (Map.Entry<String, PlayerData.MapStats> entry : allStats.entrySet()) {
                 PlayerData.MapStats stats = entry.getValue();
-                String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "N/A";
-                String avgTime = stats.getAverageTime() >= 0 ? TimeUtil.formatTime(stats.getAverageTime()) : "N/A";
+                String bestTime = stats.hasBestTime() ? TimeUtil.formatTime(stats.bestTime) : "&8—";
+                String avgTime = stats.getAverageTime() >= 0 ? TimeUtil.formatTime(stats.getAverageTime()) : "&8—";
                 int successRate = stats.totalAttempts > 0
                         ? (int) ((double) stats.successfulAttempts / stats.totalAttempts * 100) : 0;
 
@@ -101,12 +101,11 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
                     topPercent = plugin.getHologramManager().calculateTopPercent(entry.getKey(), stats.bestTime);
                 }
                 sender.sendMessage(ColorUtil.translate("  &c" + entry.getKey()));
-                sender.sendMessage(ColorUtil.translate("  &7Best Time: &f" + bestTime
-                        + (topPercent.isEmpty() ? "" : " &7" + topPercent)));
-                sender.sendMessage(ColorUtil.translate("  &7Average Time: &f" + avgTime));
-                sender.sendMessage(ColorUtil.translate("  &7Total Attempts: &f" + stats.totalAttempts));
-                sender.sendMessage(ColorUtil.translate("  &7Successful: &f" + stats.successfulAttempts));
-                sender.sendMessage(ColorUtil.translate("  &7Success Rate: &f" + successRate + "%"));
+                sender.sendMessage(ColorUtil.translate("    &7Best  &8» &f" + bestTime
+                        + (topPercent.isEmpty() ? "" : " &8" + topPercent)));
+                sender.sendMessage(ColorUtil.translate("    &7Avg   &8» &f" + avgTime));
+                sender.sendMessage(ColorUtil.translate("    &7Runs  &8» &f" + stats.successfulAttempts
+                        + " &8/ &f" + stats.totalAttempts + " &8(" + successRate + "%)"));
 
                 net.gravijet.fastbuilder.map.MapData mapData = plugin.getMapManager().getMap(entry.getKey());
                 if (mapData != null) {
@@ -116,22 +115,13 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
                             String color = rank.equals("Diamond") ? "&b"
                                     : rank.equals("Gold") ? "&6"
                                     : rank.equals("Silver") ? "&7" : "&c";
-                            sender.sendMessage(ColorUtil.translate("  &7Rank: " + color + rank));
+                            sender.sendMessage(ColorUtil.translate("    &7Rank  &8» " + color + rank));
                         }
-                    }
-                    if (mapData.getDiamondTime() > 0 || mapData.getGoldTime() > 0
-                            || mapData.getSilverTime() > 0 || mapData.getBronzeTime() > 0) {
-                        sender.sendMessage(ColorUtil.translate("  &7Rank Requirements:"));
-                        if (mapData.getDiamondTime() > 0) sender.sendMessage(ColorUtil.translate("    &bDiamond: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getDiamondTime())));
-                        if (mapData.getGoldTime() > 0) sender.sendMessage(ColorUtil.translate("    &6Gold: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getGoldTime())));
-                        if (mapData.getSilverTime() > 0) sender.sendMessage(ColorUtil.translate("    &7Silver: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getSilverTime())));
-                        if (mapData.getBronzeTime() > 0) sender.sendMessage(ColorUtil.translate("    &cBronze: &f" + net.gravijet.fastbuilder.util.TimeUtil.formatTime(mapData.getBronzeTime())));
                     }
                 }
                 sender.sendMessage("");
             }
         }
-        sender.sendMessage(ColorUtil.translate("&7&m                                  "));
     }
 
     @Override

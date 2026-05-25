@@ -69,7 +69,7 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
             if (targetMap != null) {
                 MapData map = plugin.getMapManager().getMap(targetMap);
                 if (map == null) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cMap '&f" + targetMap + "&c' not found."));
+                    player.sendMessage(ColorUtil.translate(prefix + "&cNo map called &f" + targetMap + "&c."));
                     return true;
                 }
                 plugin.getGuiManager().openLeaderboardGui(player, map.getName());
@@ -84,7 +84,7 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
             final String mapName = targetMap;
             MapData map = plugin.getMapManager().getMap(mapName);
             if (map == null) {
-                sender.sendMessage(ColorUtil.translate(prefix + "&cMap '&f" + mapName + "&c' not found."));
+                sender.sendMessage(ColorUtil.translate(prefix + "&cNo map called &f" + mapName + "&c."));
                 return true;
             }
             showLeaderboardForMap(sender, map, limit, prefix);
@@ -113,23 +113,23 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
                     plugin.getPlayerManager().getTopPlayerTimesForMap(mapName, limit);
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                sender.sendMessage(ColorUtil.translate(
-                        "&c&lFastBuilder &7- &fLeaderboard: &c" + mapName));
-                sender.sendMessage(ColorUtil.translate("&8" + repeat("-", 36)));
+                sender.sendMessage("");
+                sender.sendMessage(ColorUtil.translate("  &c&lLEADERBOARD &8» &f" + mapName));
+                sender.sendMessage("");
 
                 if (top.isEmpty()) {
-                    sender.sendMessage(ColorUtil.translate("&7  No times recorded yet."));
+                    sender.sendMessage(ColorUtil.translate("  &7No times recorded yet."));
                 } else {
                     int pos = 1;
                     for (Map.Entry<String, Long> entry : top) {
                         String rank = rankPrefix(pos);
                         sender.sendMessage(ColorUtil.translate(
-                                rank + " &f" + entry.getKey()
-                                        + " &7- &c" + TimeUtil.formatTime(entry.getValue())));
+                                "  " + rank + " &f" + entry.getKey()
+                                        + "  &8" + TimeUtil.formatTime(entry.getValue())));
                         pos++;
                     }
                 }
-                sender.sendMessage(ColorUtil.translate("&8" + repeat("-", 36)));
+                sender.sendMessage("");
             });
         });
     }

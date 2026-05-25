@@ -125,7 +125,9 @@ class MapSetupHandler {
         player.setGameMode(GameMode.CREATIVE);
         player.setAllowFlight(true);
         player.setFlying(true);
+        player.closeInventory();
         player.getInventory().clear();
+        player.getInventory().setHeldItemSlot(0);
 
         ItemStack rod = new ItemStack(Material.BLAZE_ROD);
         ItemMeta meta = rod.getItemMeta();
@@ -136,10 +138,11 @@ class MapSetupHandler {
         ));
         rod.setItemMeta(meta);
         player.getInventory().setItem(0, rod);
+        player.updateInventory();
 
         String prefix = plugin.getConfigManager().getPrefix();
         String modeTag = infinite ? " &7(Infinite)" : customLength ? " &7(Custom Length)" : diagonal ? " &7(Diagonal)" : "";
-        player.sendMessage(ColorUtil.translate(prefix + "&fSetup started." + modeTag));
+        player.sendMessage(ColorUtil.translate(prefix + "&aSetup started." + modeTag));
         if (customLength) {
             player.sendMessage(ColorUtil.translate("&7Build your &cStart Island &7and &cEnd Island &7in this area."));
         }
@@ -512,7 +515,9 @@ class MapSetupHandler {
         player.setGameMode(GameMode.CREATIVE);
         player.setAllowFlight(true);
         player.setFlying(true);
+        player.closeInventory();
         player.getInventory().clear();
+        player.getInventory().setHeldItemSlot(0);
 
         ItemStack rod = new ItemStack(Material.BLAZE_ROD);
         ItemMeta meta = rod.getItemMeta();
@@ -523,6 +528,7 @@ class MapSetupHandler {
         ));
         rod.setItemMeta(meta);
         player.getInventory().setItem(0, rod);
+        player.updateInventory();
 
         // Paste the existing map template into the setup area so the admin can see and modify it
         if (map.getTemplateFile() != null && !map.getTemplateFile().isEmpty()) {

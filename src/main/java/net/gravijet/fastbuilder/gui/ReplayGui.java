@@ -39,7 +39,7 @@ public class ReplayGui {
 
     public void open(Player player, String mapName, boolean showFavorites) {
         if (plugin.getReplayManager() == null) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cReplay system is not available."));
+            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cReplays aren't available right now."));
             return;
         }
 
@@ -275,7 +275,7 @@ public class ReplayGui {
             player.closeInventory();
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().startPlayback(player, replay);
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&fStarting replay..."));
+                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7Loading replay&8..."));
             }
         }
     }

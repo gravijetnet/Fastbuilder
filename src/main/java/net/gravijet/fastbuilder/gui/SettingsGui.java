@@ -204,7 +204,7 @@ public class SettingsGui {
                         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                     } else {
                         player.sendMessage(ColorUtil.translate(prefix
-                                + "&cNot enough coins! Infinite Blocks costs &f" + unlockCost + " &ccoins."));
+                                + "&cNot enough coins &8» &7Infinite Blocks costs &6" + unlockCost + "&7."));
                     }
                 } else {
                     boolean newState = !iData.hasInfiniteBlocks();
@@ -384,7 +384,7 @@ public class SettingsGui {
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             } else {
                 player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cNot enough coins! You need &f" + cost + " &ccoins."));
+                        + "&cNot enough coins &8» &7need &6" + cost + "&7."));
             }
             player.closeInventory();
         } else if (slot == 15) {

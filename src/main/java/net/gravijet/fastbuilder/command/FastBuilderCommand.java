@@ -285,12 +285,12 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                     player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
                 } catch (IOException e) {
                     plugin.getLogger().warning("Failed to send player to lobby via BungeeCord.");
-                    player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
+                    player.kickPlayer(ColorUtil.translate("&7You left &cFastbuilder&7."));
                 }
                 break;
             }
             case "KICK": {
-                player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
+                player.kickPlayer(ColorUtil.translate("&7You left &cFastbuilder&7."));
                 break;
             }
             case "COMMAND": {
@@ -309,7 +309,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
         // Only send the message for non-kick actions (kick reason serves as the message)
         if (!action.equals("KICK") && !action.equals("BUNGEE")) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&fYou left the game.");
+            msg(player, plugin.getConfigManager().getPrefix() + "&7See you next time.");
         }
     }
 
@@ -358,7 +358,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         player.setGameMode(org.bukkit.GameMode.CREATIVE);
-        msg(player, plugin.getConfigManager().getPrefix() + "&fYou left your island. Build mode active.");
+        msg(player, plugin.getConfigManager().getPrefix() + "&7Left your island &8» &abuild mode active");
     }
 
     // --- /fb reset ---
@@ -381,7 +381,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         }
 
         if (currentMap == null) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&cYou are not on any island.");
+            msg(player, plugin.getConfigManager().getPrefix() + "&cYou're not on an island.");
             return;
         }
 
@@ -410,7 +410,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                 }
         );
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&fYour island has been reset.");
+        msg(player, plugin.getConfigManager().getPrefix() + "&7Island reset.");
     }
 
     // --- /fb reload ---
@@ -432,7 +432,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             plugin.getGameplayManager().reloadActionbar();
         }
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&fConfiguration reloaded. Active sessions preserved.");
+        msg(player, plugin.getConfigManager().getPrefix() + "&aConfig reloaded. &7Active sessions preserved.");
     }
 
     // --- /fb dump ---
@@ -443,7 +443,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&7Generating diagnostic dump...");
+        msg(player, plugin.getConfigManager().getPrefix() + "&7Generating diagnostics&8...");
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
@@ -637,16 +637,18 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- Help ---
 
     private void sendHelp(Player player) {
-        player.sendMessage(ColorUtil.translate("&c&lFastBuilder &8» &fCommands"));
-        player.sendMessage(ColorUtil.translate("&c● /fb join &f<map> &7» &fJoin a map."));
-        player.sendMessage(ColorUtil.translate("&c● /fb leave &7» &fLeave to lobby."));
-        player.sendMessage(ColorUtil.translate("&c● /fb reset &7» &fReset your island."));
+        player.sendMessage("");
+        player.sendMessage(ColorUtil.translate("  &c&lFASTBUILDER"));
+        player.sendMessage(ColorUtil.translate("  &7/fb join &f<map>   &8— &7switch to a map"));
+        player.sendMessage(ColorUtil.translate("  &7/fb leave          &8— &7back to lobby"));
+        player.sendMessage(ColorUtil.translate("  &7/fb reset          &8— &7restart your island"));
         if (player.hasPermission("fastbuilder.command.fb.reload")) {
-            player.sendMessage(ColorUtil.translate("&c● /fb reload &8» &fReload configuration."));
+            player.sendMessage(ColorUtil.translate("  &7/fb reload         &8— &7reload config"));
         }
         if (player.hasPermission("fastbuilder.command.fb.dump")) {
-            player.sendMessage(ColorUtil.translate("&c● /fb dump &8» &fUpload diagnostic report."));
+            player.sendMessage(ColorUtil.translate("  &7/fb dump           &8— &7upload diagnostics"));
         }
+        player.sendMessage("");
     }
 
     // --- Tab Completion ---

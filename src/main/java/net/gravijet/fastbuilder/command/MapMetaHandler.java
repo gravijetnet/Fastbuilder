@@ -42,7 +42,9 @@ class MapMetaHandler {
         String prefix = plugin.getConfigManager().getPrefix();
         int occupied = mm.getOccupiedCount(map.getName());
         int total = mm.getIslands(map.getName()).size();
-        player.sendMessage(ColorUtil.translate(prefix + "&c" + map.getName() + " &7» &fMap Info"));
+        player.sendMessage("");
+        player.sendMessage(ColorUtil.translate("  &c&l" + map.getName().toUpperCase() + " &8» &7map info"));
+        player.sendMessage("");
         player.sendMessage(ColorUtil.translate("  &7» &cEnabled: &f" + (map.isEnabled() ? "&aYes" : "&cNo")));
         player.sendMessage(ColorUtil.translate("  &7» &cWorld: &f" + map.getWorldName()));
         player.sendMessage(ColorUtil.translate("  &7» &cOrigin: &f"
