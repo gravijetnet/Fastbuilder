@@ -191,8 +191,7 @@ public class GameplayManager {
         if (!session.isRunning()) {
             // Block the timer start if there are un-cleared practice blocks
             if (!session.isPracticeMode() && session.hasPracticeBlocks()) {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cClear practice blocks before starting a real run."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "practice-blocks-required-clear");
                 return;
             }
             // New run starting — clear the persistent last-finish display

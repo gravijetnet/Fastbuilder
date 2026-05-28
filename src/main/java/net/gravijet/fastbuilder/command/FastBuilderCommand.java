@@ -389,7 +389,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         }
 
         if (currentMap == null) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&cYou're not on an island.");
+            net.gravijet.fastbuilder.util.Messages.send(player, "not-on-island");
             return;
         }
 
@@ -429,7 +429,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
                     min.getBlockX(), min.getBlockY(), min.getBlockZ(), null);
         }
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&7Island reset.");
+        net.gravijet.fastbuilder.util.Messages.send(player, "island-reset");
     }
 
     // --- /fb reload ---
@@ -451,7 +451,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             plugin.getGameplayManager().reloadActionbar();
         }
 
-        msg(player, plugin.getConfigManager().getPrefix() + "&aConfig reloaded. &7Active sessions preserved.");
+        net.gravijet.fastbuilder.util.Messages.send(player, "config-reloaded");
     }
 
     // --- /fb dump ---

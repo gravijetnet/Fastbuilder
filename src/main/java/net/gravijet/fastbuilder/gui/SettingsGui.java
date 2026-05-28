@@ -197,8 +197,7 @@ public class SettingsGui {
                     iData.setInfiniteBlocksUnlocked(true);
                     boolean newState = !iData.hasInfiniteBlocks();
                     iData.setInfiniteBlocks(newState);
-                    player.sendMessage(ColorUtil.translate(prefix + "&7Infinite Blocks &8» "
-                            + (newState ? "&aon" : "&coff")));
+                    Messages.send(player, newState ? "infinite-blocks-on" : "infinite-blocks-off");
                     openSettings(player);
                     break;
                 }
@@ -207,18 +206,16 @@ public class SettingsGui {
                     if (iData.removeCoins(unlockCost)) {
                         iData.setInfiniteBlocksUnlocked(true);
                         iData.setInfiniteBlocks(true);
-                        player.sendMessage(ColorUtil.translate(prefix
-                                + "&7Infinite Blocks unlocked &8» &6-" + unlockCost + " coins"));
+                        Messages.send(player, "infinite-blocks-unlocked",
+                                "amount", String.valueOf(unlockCost));
                         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                     } else {
-                        player.sendMessage(ColorUtil.translate(prefix
-                                + "&cNot enough coins &8» &7need &6" + unlockCost));
+                        Messages.send(player, "coins-not-enough");
                     }
                 } else {
                     boolean newState = !iData.hasInfiniteBlocks();
                     iData.setInfiniteBlocks(newState);
-                    player.sendMessage(ColorUtil.translate(prefix + "&7Infinite Blocks &8» "
-                            + (newState ? "&aon" : "&coff")));
+                    Messages.send(player, newState ? "infinite-blocks-on" : "infinite-blocks-off");
                 }
                 openSettings(player);
                 break;
@@ -235,18 +232,18 @@ public class SettingsGui {
                 break;
             case "custom_length": {
                 if (!player.hasPermission("fastbuilder.feature.custom_length")) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cNo permission for custom length."));
+                    Messages.send(player, "custom-length-no-permission");
                     break;
                 }
                 net.gravijet.fastbuilder.gameplay.RunSession clRun = plugin.getGameplayManager() != null
                         ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
                 if (clRun == null) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cYou're not on an island."));
+                    Messages.send(player, "not-on-island");
                     break;
                 }
                 MapData clMap = plugin.getMapManager().getMap(clRun.getMapName());
                 if (clMap == null || !clMap.hasCustomLength()) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cCustom length isn't available on this map."));
+                    Messages.send(player, "custom-length-unavailable");
                     break;
                 }
                 openCustomLengthMenu(player);
@@ -254,7 +251,7 @@ public class SettingsGui {
             }
             case "practice_mode":
                 if (!player.hasPermission("fastbuilder.feature.practice_mode")) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cNo permission for practice mode."));
+                    Messages.send(player, "practice-no-permission");
                     break;
                 }
                 net.gravijet.fastbuilder.gameplay.RunSession run = plugin.getGameplayManager() != null
@@ -269,10 +266,9 @@ public class SettingsGui {
                         }
                         run.getPlacedBlocks().removeAll(run.getPracticeBlocks());
                         run.getPracticeBlocks().clear();
-                        player.sendMessage(ColorUtil.translate(prefix + "&7Practice blocks cleared."));
+                        Messages.send(player, "practice-blocks-cleared");
                     }
-                    player.sendMessage(ColorUtil.translate(prefix + "&7Practice mode &8» "
-                            + (newState ? "&aon" : "&coff")));
+                    Messages.send(player, newState ? "practice-mode-on" : "practice-mode-off");
                 }
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 openSettings(player);
@@ -285,10 +281,9 @@ public class SettingsGui {
     void handleCustomLengthMenuClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
-        String prefix = plugin.getConfigManager().getPrefix();
 
         if (!player.hasPermission("fastbuilder.feature.custom_length")) {
-            player.sendMessage(ColorUtil.translate(prefix + "&cNo permission for custom length."));
+            Messages.send(player, "custom-length-no-permission");
             player.closeInventory();
             return;
         }
@@ -318,7 +313,7 @@ public class SettingsGui {
             if (plugin.getGameplayManager() != null) {
                 plugin.getGameplayManager().placeEndPlatform(player, map, run, defaultX);
             }
-            player.sendMessage(ColorUtil.translate(prefix + "&7Distance and height reset to defaults."));
+            Messages.send(player, "custom-length-defaults-reset");
             openCustomLengthMenu(player);
             return;
         }
@@ -338,10 +333,13 @@ public class SettingsGui {
             int newVal = Math.max(map.getEffectiveMinCustomLength(),
                     Math.min(map.getEffectiveMaxCustomLength(), current + delta));
             if (newVal == current) {
-                String limitMsg = delta > 0
-                        ? "&cAt max distance &8(&f" + map.getEffectiveMaxCustomLength() + " blocks&8)"
-                        : "&cAt min distance &8(&f" + map.getEffectiveMinCustomLength() + " blocks&8)";
-                player.sendMessage(ColorUtil.translate(prefix + limitMsg));
+                if (delta > 0) {
+                    Messages.send(player, "custom-length-at-max-distance",
+                            "max", String.valueOf(map.getEffectiveMaxCustomLength()));
+                } else {
+                    Messages.send(player, "custom-length-at-min-distance",
+                            "min", String.valueOf(map.getEffectiveMinCustomLength()));
+                }
             } else {
                 pData.setCustomLength(run.getMapName(), newVal);
                 if (plugin.getGameplayManager() != null) {
@@ -359,10 +357,13 @@ public class SettingsGui {
             int current = pData.getCustomLengthY(run.getMapName());
             int newVal = Math.max(minY, Math.min(maxY, current + yDelta));
             if (newVal == current) {
-                String limitMsg = yDelta > 0
-                        ? "&cAt max height &8(&f+" + maxY + "&8)"
-                        : "&cAt min height &8(&f" + minY + "&8)";
-                player.sendMessage(ColorUtil.translate(prefix + limitMsg));
+                if (yDelta > 0) {
+                    Messages.send(player, "custom-length-at-max-height",
+                            "max", String.valueOf(maxY));
+                } else {
+                    Messages.send(player, "custom-length-at-min-height",
+                            "min", String.valueOf(minY));
+                }
             } else {
                 pData.setCustomLengthY(run.getMapName(), newVal);
                 int currentX = pData.getCustomLength(run.getMapName());
@@ -386,8 +387,7 @@ public class SettingsGui {
             int cost = plugin.getConfigManager().getResetStatsCost();
             if (data.removeCoins(cost)) {
                 data.getAllStats().clear();
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&7Stats reset."));
+                Messages.send(player, "stats-reset");
                 plugin.getScoreboardManager().updateScoreboard(player);
                 if (plugin.getHologramManager() != null) {
                     PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
@@ -397,8 +397,7 @@ public class SettingsGui {
                 }
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cNot enough coins &8» &7need &6" + cost));
+                Messages.send(player, "coins-not-enough");
             }
             player.closeInventory();
         } else if (slot == 15) {
