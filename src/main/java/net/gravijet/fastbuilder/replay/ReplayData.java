@@ -27,25 +27,29 @@ public class ReplayData {
     // Skin texture captured at recording time — Base64 encoded. Empty on old replays.
     private final String skinValue;
     private final String skinSignature;
+    // True when the run used practice mode (or placed practice blocks). Such runs
+    // must not be considered for personal-best ranking even though they're saved
+    // and watchable. Set on replays from format version 8 onward.
+    private final boolean practice;
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, new ArrayList<>(), 0, "", "");
+                frames, new ArrayList<>(), 0, "", "", false);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String mapName, int islandIndex,
                       long timestamp, boolean successful, long runTimeMillis, List<ReplayFrame> frames,
                       List<ReplayFrame.BlockPlacement> initialBlocks) {
         this(playerUuid, playerName, "", mapName, islandIndex, timestamp, successful, runTimeMillis,
-                frames, initialBlocks, 0, "", "");
+                frames, initialBlocks, 0, "", "", false);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
                       int islandIndex, long timestamp, boolean successful, long runTimeMillis,
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks) {
         this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
-                runTimeMillis, frames, initialBlocks, 0, "", "");
+                runTimeMillis, frames, initialBlocks, 0, "", "", false);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
@@ -53,13 +57,21 @@ public class ReplayData {
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
                       int customLength) {
         this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
-                runTimeMillis, frames, initialBlocks, customLength, "", "");
+                runTimeMillis, frames, initialBlocks, customLength, "", "", false);
     }
 
     public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
                       int islandIndex, long timestamp, boolean successful, long runTimeMillis,
                       List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
                       int customLength, String skinValue, String skinSignature) {
+        this(playerUuid, playerName, playerDisplayTag, mapName, islandIndex, timestamp, successful,
+                runTimeMillis, frames, initialBlocks, customLength, skinValue, skinSignature, false);
+    }
+
+    public ReplayData(UUID playerUuid, String playerName, String playerDisplayTag, String mapName,
+                      int islandIndex, long timestamp, boolean successful, long runTimeMillis,
+                      List<ReplayFrame> frames, List<ReplayFrame.BlockPlacement> initialBlocks,
+                      int customLength, String skinValue, String skinSignature, boolean practice) {
         this.playerUuid = playerUuid;
         this.playerName = playerName;
         this.playerDisplayTag = playerDisplayTag != null ? playerDisplayTag : "";
@@ -73,6 +85,7 @@ public class ReplayData {
         this.customLength = customLength;
         this.skinValue     = skinValue     != null ? skinValue     : "";
         this.skinSignature = skinSignature != null ? skinSignature : "";
+        this.practice = practice;
     }
 
     public UUID getPlayerUuid() { return playerUuid; }
@@ -88,6 +101,7 @@ public class ReplayData {
     public int getCustomLength() { return customLength; }
     public String getSkinValue() { return skinValue; }
     public String getSkinSignature() { return skinSignature; }
+    public boolean isPractice() { return practice; }
     public int getTotalTicks() { return frames.isEmpty() ? 0 : frames.get(frames.size() - 1).getTick(); }
 
     public int getBlocksPlaced() {

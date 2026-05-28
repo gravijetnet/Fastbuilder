@@ -57,6 +57,38 @@ messages:
   build-mode-exit: "%prefix%&7Build mode off."
   build-mode-not-on-island: "%prefix%&cYou need to be on an island for build mode."
 
+  # Custom length
+  custom-length-unavailable: "%prefix%&cCustom length isn't available on this map."
+  custom-length-no-permission: "%prefix%&cYou don't have permission to use custom length."
+  custom-length-set: "%prefix%&7Length &8» &f%length% blocks"
+  custom-length-reset: "%prefix%&7Length reset &8» &f%length% blocks"
+  custom-length-defaults-reset: "%prefix%&7Distance and height reset to defaults."
+  custom-length-range: "%prefix%&cLength must be between &f%min% &cand &f%max% &cblocks."
+  custom-length-at-max-distance: "%prefix%&cAt max distance &8(&f%max% blocks&8)"
+  custom-length-at-min-distance: "%prefix%&cAt min distance &8(&f%min% blocks&8)"
+  custom-length-at-max-height: "%prefix%&cAt max height &8(&f+%max%&8)"
+  custom-length-at-min-height: "%prefix%&cAt min height &8(&f%min%&8)"
+  custom-length-current: "%prefix%&7Length &8» &f%current% &8(&7%min%-%max%&8)"
+  custom-length-usage: "%prefix%&7Usage &8» &f/length <blocks> &7or &f/length reset"
+
+  # Practice mode
+  practice-no-permission: "%prefix%&cYou don't have permission for practice mode."
+  practice-mode-on: "%prefix%&7Practice mode &8» &aon"
+  practice-mode-off: "%prefix%&7Practice mode &8» &coff"
+  practice-blocks-required-clear: "%prefix%&cClear practice blocks before starting a real run."
+
+  # Infinite blocks
+  infinite-blocks-on: "%prefix%&7Infinite Blocks &8» &aon"
+  infinite-blocks-off: "%prefix%&7Infinite Blocks &8» &coff"
+  infinite-blocks-unlocked: "%prefix%&7Infinite Blocks unlocked &8» &6-%amount% coins"
+
+  # Generic UI feedback
+  not-on-island: "%prefix%&cYou're not on an island."
+  players-only: "%prefix%&cOnly players can use this."
+  island-reset: "%prefix%&7Island reset."
+  stats-reset: "%prefix%&7Stats reset."
+  config-reloaded: "%prefix%&aConfig reloaded."
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Completion title / subtitle shown above the hotbar
 # Placeholders: %time%, %coins%, %booster%

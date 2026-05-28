@@ -254,15 +254,21 @@ public class PlayerListener implements Listener {
             net.gravijet.fastbuilder.gameplay.RunSession sess =
                     plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
             PlayerData pJoinData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
-            // Place end island / platform on join
+            // Place end island / platform on join, honoring any saved custom length.
+            // Legacy (no end-island) maps also receive a platform at the player's preferred
+            // length, or at the legacy min length when no preference is saved — without this
+            // the player has no visible finish target on first join.
             if (map.hasEndIsland()) {
-                // Custom lengths are session-only; always start at base distance on join
+                int desiredLen = pJoinData != null ? pJoinData.getCustomLength(map.getName()) : 0;
+                if (desiredLen <= 0) desiredLen = map.getBaseCustomLength();
                 plugin.getGameplayManager().placeEndPlatform(
-                        player, map, sess, map.getBaseCustomLength());
-            } else if (pJoinData != null && map.hasCustomLength()
-                    && pJoinData.getCustomLength(map.getName()) > 0) {
-                plugin.getGameplayManager().placeEndPlatform(
-                        player, map, sess, pJoinData.getCustomLength(map.getName()));
+                        player, map, sess, desiredLen);
+            } else if (map.hasCustomLength()) {
+                int desiredLen = pJoinData != null ? pJoinData.getCustomLength(map.getName()) : 0;
+                if (desiredLen <= 0) desiredLen = map.getEffectiveMinCustomLength();
+                if (desiredLen > 0) {
+                    plugin.getGameplayManager().placeEndPlatform(player, map, sess, desiredLen);
+                }
             }
             // Apply the player's selected island design (does nothing if default)
             plugin.getGameplayManager().applyPlayerDesign(player, map, island);

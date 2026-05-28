@@ -38,7 +38,7 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             // View own balance
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ColorUtil.translate("&cPlayers only."));
+                sender.sendMessage(ColorUtil.translate(prefix + "&cPlayers only."));
                 return true;
             }
             Player player = (Player) sender;
@@ -80,7 +80,7 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cUsage: /coins " + sub + " <player|*> <amount>"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/coins " + sub + " <player|*> <amount>"));
             return true;
         }
 
@@ -141,7 +141,7 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         }
 
         if (wildcard) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&fApplied to &c" + targets.size() + " &fonline players."));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Applied to &f" + targets.size() + " &7online players."));
         }
 
         return true;

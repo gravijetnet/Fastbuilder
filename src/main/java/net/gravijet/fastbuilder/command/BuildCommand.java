@@ -24,13 +24,13 @@ public class BuildCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        String prefix = plugin.getConfigManager().getPrefix();
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ColorUtil.translate("&cOnly players can use this command."));
+            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayers only."));
             return true;
         }
 
         Player player = (Player) sender;
-        String prefix = plugin.getConfigManager().getPrefix();
 
         if (!player.hasPermission("fastbuilder.admin")) {
             String msg = plugin.getConfigManager().getMessage("no-permission");

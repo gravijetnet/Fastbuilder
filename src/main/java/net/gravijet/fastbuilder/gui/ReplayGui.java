@@ -132,7 +132,10 @@ public class ReplayGui {
             boolean isPb  = replay == pbReplayEntry;
 
             Material icon;
-            if (isPb) icon = Material.NETHER_STAR;
+            // Practice replays use a lime-stained-clay icon (matches the practice block itself)
+            // and a clearly different name prefix so they can't be mistaken for ranked runs.
+            if (replay.isPractice()) icon = Material.STAINED_CLAY;
+            else if (isPb) icon = Material.NETHER_STAR;
             else if (isFav) icon = Material.GOLD_INGOT;
             else icon = replay.isSuccessful() ? Material.EMERALD : Material.REDSTONE;
 
@@ -147,6 +150,9 @@ public class ReplayGui {
 
             java.util.List<String> loreList = new java.util.ArrayList<>();
             loreList.add(ColorUtil.translate(status));
+            if (replay.isPractice()) {
+                loreList.add(ColorUtil.translate("&aPractice run &7(does not count toward PB)"));
+            }
             if (isInfiniteReplay) {
                 loreList.add(ColorUtil.translate("&7Distance: &f" + replay.getBlocksPlaced() + " blocks"));
                 if (replay.getRunTimeMillis() > 0)
@@ -162,8 +168,9 @@ public class ReplayGui {
             loreList.add(ColorUtil.translate("&eLeft-click to watch"));
             loreList.add(ColorUtil.translate(favLine));
 
+            String namePrefix = replay.isPractice() ? "&a[Practice] &f" : "&f";
             ItemStack item = new ItemBuilder(icon)
-                    .name("&f" + ReplayManager.formatTimestamp(replay.getTimestamp()))
+                    .name(namePrefix + ReplayManager.formatTimestamp(replay.getTimestamp()))
                     .lore(loreList.toArray(new String[0]))
                     .build();
 
@@ -196,6 +203,8 @@ public class ReplayGui {
         long bestTime = Long.MAX_VALUE;
         for (ReplayData rd : replays) {
             if (!rd.isSuccessful()) continue;
+            // Practice runs never qualify as a personal best.
+            if (rd.isPractice()) continue;
             if (infinite) {
                 int blocks = rd.getBlocksPlaced();
                 if (blocks > bestBlocks || (blocks == bestBlocks && rd.getRunTimeMillis() < bestTime)) {

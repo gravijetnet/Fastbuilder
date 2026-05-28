@@ -162,6 +162,36 @@ public class FawePaster {
         return null;
     }
 
+    /**
+     * Returns {width, height, length} of a schematic by scanning its non-air blocks,
+     * or null if the schematic cannot be loaded. Used by the design-replacement logic
+     * to size the clear region correctly even when the admin hasn't set a profile.
+     * Result is cached internally to avoid repeated disk I/O.
+     */
+    public int[] getSchematicSize(String name) {
+        int[] cached = schematicSizeCache.get(name.toLowerCase());
+        if (cached != null) return cached;
+        List<BlockEntry> entries = loadTemplate(name);
+        if (entries == null || entries.isEmpty()) return null;
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockEntry e : entries) {
+            if (e.relX < minX) minX = e.relX;
+            if (e.relX > maxX) maxX = e.relX;
+            if (e.relY < minY) minY = e.relY;
+            if (e.relY > maxY) maxY = e.relY;
+            if (e.relZ < minZ) minZ = e.relZ;
+            if (e.relZ > maxZ) maxZ = e.relZ;
+        }
+        int[] size = new int[]{maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1};
+        schematicSizeCache.put(name.toLowerCase(), size);
+        return size;
+    }
+
+    private final java.util.concurrent.ConcurrentMap<String, int[]> schematicSizeCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     // =========================================================================
     // Public API — paste / clear
     // =========================================================================

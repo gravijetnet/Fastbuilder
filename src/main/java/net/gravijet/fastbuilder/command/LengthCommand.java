@@ -4,7 +4,7 @@ import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.RunSession;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.player.PlayerData;
-import net.gravijet.fastbuilder.util.ColorUtil;
+import net.gravijet.fastbuilder.util.Messages;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,11 +17,8 @@ import java.util.List;
 /**
  * /length [blocks|reset] — Set or reset the player's custom run length for their current map.
  *
- * The admin must first enable custom length on the map with:
- *   /map setcustomlength <map> <min> <max>
- *
- * Players then use /length <blocks> to set their preferred distance to the finish island.
- * The end island repositions dynamically based on their setting.
+ * Admin enables custom length per-map either by using the --customlength setup mode
+ * (end-island system) or by setting min/max bounds via /map commands.
  */
 public class LengthCommand implements CommandExecutor, TabCompleter {
 
@@ -34,84 +31,73 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ColorUtil.translate("&cOnly players can use this command."));
+            Messages.send(sender, "players-only");
             return true;
         }
 
         Player player = (Player) sender;
-        String prefix = plugin.getConfigManager().getPrefix();
 
-        // Must be on an island
         RunSession session = plugin.getGameplayManager() != null
                 ? plugin.getGameplayManager().getSession(player.getUniqueId()) : null;
         if (session == null) {
-            player.sendMessage(ColorUtil.translate(prefix + "&cYou must be on an island to use this command."));
+            Messages.send(player, "not-on-island");
             return true;
         }
 
         MapData map = plugin.getMapManager().getMap(session.getMapName());
         if (map == null || !map.hasCustomLength()) {
-            player.sendMessage(ColorUtil.translate(prefix + "&cCustom length is not enabled on this map."));
+            Messages.send(player, "custom-length-unavailable");
             return true;
         }
 
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (pData == null) return true;
 
-        // /length with no args — show current setting and limits
         if (args.length == 0) {
             int current = pData.getCustomLength(map.getName());
-            String currentStr = current > 0 ? current + " blocks"
-                    : (map.getBaseCustomLength() > 0
-                    ? "base (" + map.getBaseCustomLength() + " blocks)" : "default");
-            player.sendMessage(ColorUtil.translate(prefix
-                    + "&fCurrent length: &c" + currentStr
-                    + "  &7(allowed: &f" + map.getEffectiveMinCustomLength()
-                    + " - " + map.getEffectiveMaxCustomLength() + " blocks&7)"));
-            player.sendMessage(ColorUtil.translate("&7Use &f/length <blocks> &7to set, or &f/length reset &7to restore base distance."));
+            int display = current > 0 ? current
+                    : (map.getBaseCustomLength() > 0 ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength());
+            Messages.send(player, "custom-length-current",
+                    "current", String.valueOf(display),
+                    "min", String.valueOf(map.getEffectiveMinCustomLength()),
+                    "max", String.valueOf(map.getEffectiveMaxCustomLength()));
+            Messages.send(player, "custom-length-usage");
             return true;
         }
 
         String arg = args[0].toLowerCase();
 
-        // /length reset
         if (arg.equals("reset")) {
             pData.setCustomLength(map.getName(), 0);
+            pData.setCustomLengthY(map.getName(), 0);
             int resetTo = map.getBaseCustomLength() > 0 ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
-            // Move the end island back to base distance
             if (plugin.getGameplayManager() != null) {
                 plugin.getGameplayManager().placeEndPlatform(player, map, session, resetTo);
             }
-            String resetLabel = map.getBaseCustomLength() > 0
-                    ? "base distance (" + resetTo + " blocks)" : "default";
-            player.sendMessage(ColorUtil.translate(prefix + "&fRun length reset to " + resetLabel
-                    + " for &c" + map.getName() + "&f."));
+            Messages.send(player, "custom-length-reset", "length", String.valueOf(resetTo));
             return true;
         }
 
-        // /length <blocks>
         int length;
         try {
             length = Integer.parseInt(arg);
         } catch (NumberFormatException e) {
-            player.sendMessage(ColorUtil.translate(prefix + "&cUsage: &f/length <blocks> &7or &f/length reset"));
+            Messages.send(player, "custom-length-usage");
             return true;
         }
 
         if (length < map.getEffectiveMinCustomLength() || length > map.getEffectiveMaxCustomLength()) {
-            player.sendMessage(ColorUtil.translate(prefix
-                    + "&cLength must be between &f" + map.getEffectiveMinCustomLength()
-                    + " &cand &f" + map.getEffectiveMaxCustomLength() + " &cblocks."));
+            Messages.send(player, "custom-length-range",
+                    "min", String.valueOf(map.getEffectiveMinCustomLength()),
+                    "max", String.valueOf(map.getEffectiveMaxCustomLength()));
             return true;
         }
 
         pData.setCustomLength(map.getName(), length);
-        // Move the end island to the new position
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().placeEndPlatform(player, map, session, length);
         }
-        player.sendMessage(ColorUtil.translate(prefix
-                + "&fRun length set to &c" + length + " blocks &ffor &c" + map.getName() + "&f."));
+        Messages.send(player, "custom-length-set", "length", String.valueOf(length));
         return true;
     }
 

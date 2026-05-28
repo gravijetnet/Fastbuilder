@@ -432,7 +432,22 @@ class MapSetupHandler {
             java.io.File endTempFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endTempName + ".schematic");
             String endFinalKey = name.toLowerCase() + "_end";
             java.io.File endFinalFile = new java.io.File(plugin.getFawePaster().getTemplatesDir(), endFinalKey + ".schematic");
-            if (endTempFile.exists()) endTempFile.renameTo(endFinalFile);
+            if (endTempFile.exists()) {
+                // Use copy+delete fallback when renameTo fails (cross-device move on some setups).
+                // Without this the end-island schematic stays at its temp name and the live paste
+                // can't find it — leaving the end island invisible.
+                boolean renamed = endTempFile.renameTo(endFinalFile);
+                if (!renamed) {
+                    try {
+                        java.nio.file.Files.copy(endTempFile.toPath(), endFinalFile.toPath(),
+                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        endTempFile.delete();
+                    } catch (java.io.IOException ex) {
+                        plugin.getLogger().warning("Could not move end-island schematic to "
+                                + endFinalFile.getName() + ": " + ex.getMessage());
+                    }
+                }
+            }
 
             map.setEndIslandTemplateFile(endFinalKey);
             map.setEndIslandWidth(session.getEndIslandWidth());

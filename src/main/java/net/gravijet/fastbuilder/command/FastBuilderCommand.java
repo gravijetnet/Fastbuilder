@@ -180,7 +180,15 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             net.gravijet.fastbuilder.gameplay.RunSession fbSess =
                     plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
             if (map.hasEndIsland()) {
-                plugin.getGameplayManager().placeEndPlatform(player, map, fbSess, map.getBaseCustomLength());
+                int desiredLen = data.getCustomLength(map.getName());
+                if (desiredLen <= 0) desiredLen = map.getBaseCustomLength();
+                plugin.getGameplayManager().placeEndPlatform(player, map, fbSess, desiredLen);
+            } else if (map.hasCustomLength()) {
+                int desiredLen = data.getCustomLength(map.getName());
+                if (desiredLen <= 0) desiredLen = map.getEffectiveMinCustomLength();
+                if (desiredLen > 0) {
+                    plugin.getGameplayManager().placeEndPlatform(player, map, fbSess, desiredLen);
+                }
             }
             plugin.getGameplayManager().applyPlayerDesign(player, map, island);
         }
@@ -388,27 +396,38 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         MapData map = mm.getMap(currentMap);
         if (map == null) return;
 
-        org.bukkit.Location min = map.getIslandMin(currentIsland);
-        org.bukkit.Location max = map.getIslandMax(currentIsland);
-
-        player.teleport(map.getIslandSpawn(currentIsland));
-
-        plugin.getFawePaster().clearRegion(
-                map.getWorld(),
-                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
-                max.getBlockX(), max.getBlockY(), max.getBlockZ(),
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        plugin.getFawePaster().pasteTemplate(
-                                map.getWorld(),
-                                map.getTemplateFile(),
-                                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
-                                null
-                        );
-                    }
-                }
-        );
+        // Use the gameplay manager's full reset path: it clears placed blocks, re-applies
+        // the player's selected design (default or alternative), restores the end-island
+        // at the player's preferred custom length, and teleports to the design-aware spawn.
+        if (plugin.getGameplayManager() != null) {
+            plugin.getGameplayManager().clearAllPlacedBlocks(player.getUniqueId());
+            plugin.getGameplayManager().clearEndPlatform(player.getUniqueId());
+            net.gravijet.fastbuilder.player.PlayerData pData =
+                    plugin.getPlayerManager().getCachedData(player.getUniqueId());
+            String selDesign = pData != null ? pData.getSelectedDesign(map.getName()) : null;
+            boolean usesDefault = selDesign == null || selDesign.equals(map.getTemplateFile());
+            if (usesDefault) {
+                plugin.getGameplayManager().revertIslandDesign(map, currentIsland);
+            } else {
+                plugin.getGameplayManager().applyPlayerDesign(player, map, currentIsland);
+            }
+            player.teleport(plugin.getGameplayManager().getEffectiveSpawn(
+                    player.getUniqueId(), map, currentIsland));
+            net.gravijet.fastbuilder.gameplay.RunSession resetSess =
+                    plugin.getGameplayManager().getSession(player.getUniqueId());
+            if (resetSess != null && map.hasCustomLength()) {
+                int len = pData != null ? pData.getCustomLength(map.getName()) : 0;
+                if (len <= 0) len = map.getBaseCustomLength();
+                if (len > 0) plugin.getGameplayManager().placeEndPlatform(player, map, resetSess, len);
+            }
+        } else {
+            // Fallback path if GameplayManager is unavailable
+            org.bukkit.Location min = map.getIslandMin(currentIsland);
+            player.teleport(map.getIslandSpawn(currentIsland));
+            plugin.getFawePaster().pasteTemplate(
+                    map.getWorld(), map.getTemplateFile(),
+                    min.getBlockX(), min.getBlockY(), min.getBlockZ(), null);
+        }
 
         msg(player, plugin.getConfigManager().getPrefix() + "&7Island reset.");
     }
@@ -607,7 +626,13 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             if (status == 201 || status == 200) {
                 // Read the key from the response
                 try (InputStream is = conn.getInputStream()) {
-                    byte[] resp = is.readAllBytes();
+                    // Use a manual buffered copy — InputStream.readAllBytes is JDK 9+ and
+                    // this project compiles with -target 1.8.
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[4096];
+                    int n;
+                    while ((n = is.read(buf)) > 0) baos.write(buf, 0, n);
+                    byte[] resp = baos.toByteArray();
                     String json = new String(resp, StandardCharsets.UTF_8);
                     // Response is {"key":"XXXX"}
                     int keyStart = json.indexOf("\"key\":");

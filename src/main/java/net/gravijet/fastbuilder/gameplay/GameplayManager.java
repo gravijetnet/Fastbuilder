@@ -302,19 +302,25 @@ public class GameplayManager {
         }
 
         // Disable stats for practice mode, Infinite mode and Custom Length mode.
-        // Practice runs (including any run that used practice blocks) must NEVER
-        // contribute to session top-3 or the global leaderboard.
+        // Practice runs (including any run that used practice blocks at any point)
+        // must NEVER contribute to session top-3 or the global leaderboard.
+        // practiceUsedThisRun() is sticky — survives the "toggle practice off mid-run" cheat.
         MapData statsMap = map;
         boolean playerCustomLengthActive = statsMap != null && statsMap.hasCustomLength()
                 && data.isCustomLengthEnabled(session.getMapName());
         boolean statsDisabled = session.isPracticeMode()
+                || session.hasPracticeBlocks()
+                || session.practiceUsedThisRun()
                 || (statsMap != null && statsMap.isInfinite())
                 || playerCustomLengthActive;
 
         // Session top-3 (scoreboard) and global session bests must reflect only
-        // legitimate, ranked runs — exclude practice (which also covers any run
-        // that placed practice blocks, since those only exist in practice mode).
-        if (!session.isPracticeMode()) {
+        // legitimate, ranked runs — exclude practice (mode on OR practice blocks placed)
+        // so a player who toggled practice mid-run can't sneak a PB onto the leaderboard.
+        boolean wasPractice = session.isPracticeMode()
+                || session.hasPracticeBlocks()
+                || session.practiceUsedThisRun();
+        if (!wasPractice) {
             session.addSessionBest(time);
 
             // Update global session bests (keyed by UUID — immune to player renames)
@@ -776,7 +782,7 @@ public class GameplayManager {
                 data.setCustomLengthY(map.getName(), savedCustomLengthY);
                 placeEndPlatform(player, map, newSession, savedCustomLength);
             } else {
-                int len = map.hasEndIsland() ? map.getBaseCustomLength() : map.getMinCustomLength();
+                int len = map.hasEndIsland() ? map.getBaseCustomLength() : map.getEffectiveMinCustomLength();
                 if (len > 0) placeEndPlatform(player, map, newSession, len);
             }
         }
@@ -839,23 +845,58 @@ public class GameplayManager {
         org.bukkit.Location max = map.getIslandMax(islandIndex);
         if (min == null || map.getWorld() == null) return;
 
+        // Compute a clear region large enough to cover the default island AND any
+        // alternative design's full footprint. If the previous design was wider/longer/taller
+        // than the default, its blocks would otherwise survive the revert.
+        // Iterate ALL known templates (across modes) so a design added for one mode
+        // still gets cleared when the player toggles back. Fall back to the raw
+        // schematic dimensions when no DesignProfile has been saved for a design,
+        // so the clear region still covers admin-added designs without /map setdesignmeta.
+        int maxDesignWidth  = map.getIslandWidth();
         int maxDesignHeight = map.getIslandHeight();
+        int maxDesignLength = map.getIslandLength();
         int maxDesignShiftUp = 0;
-        for (String templateKey : map.getTemplatesForMode()) {
+        int maxDesignShiftDown = 0;
+        java.util.Set<String> allTemplates = new java.util.HashSet<>();
+        allTemplates.addAll(map.getAlternativeTemplates());
+        allTemplates.addAll(map.getCustomLengthTemplates());
+        allTemplates.addAll(map.getInfiniteTemplates());
+        for (String templateKey : allTemplates) {
             net.gravijet.fastbuilder.map.MapData.DesignProfile prof = map.getDesignProfile(templateKey);
-            if (prof == null) continue;
-            if (prof.islandHeight > maxDesignHeight) maxDesignHeight = prof.islandHeight;
+            int pw, ph, pl;
+            if (prof != null && (prof.islandWidth > 0 || prof.islandHeight > 0 || prof.islandLength > 0)) {
+                pw = prof.islandWidth;
+                ph = prof.islandHeight;
+                pl = prof.islandLength;
+            } else {
+                int[] schemSize = plugin.getFawePaster().getSchematicSize(templateKey);
+                if (schemSize == null) continue;
+                pw = schemSize[0]; ph = schemSize[1]; pl = schemSize[2];
+            }
+            if (pw > maxDesignWidth)  maxDesignWidth  = pw;
+            if (ph > maxDesignHeight) maxDesignHeight = ph;
+            if (pl > maxDesignLength) maxDesignLength = pl;
             int shift = computeDesignYShift(map, prof);
             if (shift > maxDesignShiftUp) maxDesignShiftUp = shift;
+            if (shift < maxDesignShiftDown) maxDesignShiftDown = shift;
         }
+        int clearMaxX = min.getBlockX() + maxDesignWidth - 1;
+        if (clearMaxX < max.getBlockX()) clearMaxX = max.getBlockX();
         int clearMaxY = min.getBlockY() + maxDesignShiftUp + maxDesignHeight - 1;
         if (clearMaxY < max.getBlockY()) clearMaxY = max.getBlockY();
+        int clearMinY = min.getBlockY() + maxDesignShiftDown;
+        if (clearMinY > min.getBlockY()) clearMinY = min.getBlockY();
+        int clearMaxZ = min.getBlockZ() + maxDesignLength - 1;
+        if (clearMaxZ < max.getBlockZ()) clearMaxZ = max.getBlockZ();
 
+        final int finalClearMinY = clearMinY;
+        final int finalClearMaxX = clearMaxX;
         final int finalClearMaxY = clearMaxY;
+        final int finalClearMaxZ = clearMaxZ;
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
-                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
-                max.getBlockX(), finalClearMaxY, max.getBlockZ(),
+                min.getBlockX(), finalClearMinY, min.getBlockZ(),
+                finalClearMaxX, finalClearMaxY, finalClearMaxZ,
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), map.getTemplateFile(),
                         min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
@@ -905,17 +946,65 @@ public class GameplayManager {
                 map.getDesignProfile(selectedDesign);
         int designYShift = computeDesignYShift(map, profile);
         int pasteY = min.getBlockY() + designYShift;
-        // Use the design's own captured height when available so the clear region
-        // covers both the default island AND the (possibly taller) design footprint.
-        int designHeight = profile != null && profile.islandHeight > 0
-                ? profile.islandHeight : map.getIslandHeight();
-        int clearMaxY = Math.max(max.getBlockY(), pasteY + designHeight - 1);
-        int clearMinY = Math.min(min.getBlockY(), pasteY);
+        // Clear region must cover the union of: the default island, this design's footprint,
+        // AND every other design's footprint (incl. their Y-shift). Otherwise leftover blocks
+        // from a previously applied longer/taller/wider design survive the repaint.
+        // Use the raw schematic dimensions as a fallback when a design has no profile.
+        int clearW = map.getIslandWidth();
+        int clearH = map.getIslandHeight();
+        int clearL = map.getIslandLength();
+        int maxShiftUp = 0;
+        int maxShiftDown = 0;
+        if (profile != null && (profile.islandWidth > 0 || profile.islandHeight > 0 || profile.islandLength > 0)) {
+            if (profile.islandWidth  > clearW) clearW = profile.islandWidth;
+            if (profile.islandHeight > clearH) clearH = profile.islandHeight;
+            if (profile.islandLength > clearL) clearL = profile.islandLength;
+            if (designYShift > maxShiftUp)   maxShiftUp   = designYShift;
+            if (designYShift < maxShiftDown) maxShiftDown = designYShift;
+        } else {
+            int[] selSize = plugin.getFawePaster().getSchematicSize(selectedDesign);
+            if (selSize != null) {
+                if (selSize[0] > clearW) clearW = selSize[0];
+                if (selSize[1] > clearH) clearH = selSize[1];
+                if (selSize[2] > clearL) clearL = selSize[2];
+            }
+        }
+        java.util.Set<String> allDesignKeys = new java.util.HashSet<>();
+        allDesignKeys.addAll(map.getAlternativeTemplates());
+        allDesignKeys.addAll(map.getCustomLengthTemplates());
+        allDesignKeys.addAll(map.getInfiniteTemplates());
+        for (String templateKey : allDesignKeys) {
+            net.gravijet.fastbuilder.map.MapData.DesignProfile other = map.getDesignProfile(templateKey);
+            int ow, oh, ol;
+            if (other != null && (other.islandWidth > 0 || other.islandHeight > 0 || other.islandLength > 0)) {
+                ow = other.islandWidth; oh = other.islandHeight; ol = other.islandLength;
+            } else {
+                int[] sz = plugin.getFawePaster().getSchematicSize(templateKey);
+                if (sz == null) continue;
+                ow = sz[0]; oh = sz[1]; ol = sz[2];
+            }
+            if (ow > clearW) clearW = ow;
+            if (oh > clearH) clearH = oh;
+            if (ol > clearL) clearL = ol;
+            int shift = computeDesignYShift(map, other);
+            if (shift > maxShiftUp)   maxShiftUp   = shift;
+            if (shift < maxShiftDown) maxShiftDown = shift;
+        }
+        int clearMaxX = min.getBlockX() + clearW - 1;
+        int clearMaxY = Math.max(max.getBlockY(),
+                min.getBlockY() + maxShiftUp + clearH - 1);
+        int clearMaxZ = min.getBlockZ() + clearL - 1;
+        int clearMinY = Math.min(min.getBlockY(), min.getBlockY() + maxShiftDown);
+        if (clearMaxX < max.getBlockX()) clearMaxX = max.getBlockX();
+        if (clearMaxZ < max.getBlockZ()) clearMaxZ = max.getBlockZ();
         final int finalPasteY = pasteY;
+        final int finalClearMaxX = clearMaxX;
+        final int finalClearMaxY = clearMaxY;
+        final int finalClearMaxZ = clearMaxZ;
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
                 min.getBlockX(), clearMinY, min.getBlockZ(),
-                max.getBlockX(), clearMaxY, max.getBlockZ(),
+                finalClearMaxX, finalClearMaxY, finalClearMaxZ,
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), selectedDesign,
                         min.getBlockX(), finalPasteY, min.getBlockZ(), null)

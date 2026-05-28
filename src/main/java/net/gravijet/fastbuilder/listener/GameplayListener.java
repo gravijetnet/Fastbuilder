@@ -195,11 +195,15 @@ public class GameplayListener implements Listener {
         if (map.hasCustomLength()) {
             int customLength = pData != null ? pData.getCustomLength(map.getName()) : 0;
             if (customLength > 0) {
-                customLength = Math.max(map.getMinCustomLength(),
-                        Math.min(map.getMaxCustomLength(), customLength));
+                customLength = Math.max(map.getEffectiveMinCustomLength(),
+                        Math.min(map.getEffectiveMaxCustomLength(), customLength));
                 int finishZoneWidth = fMaxX - fMinX;
+                int finishZoneHeight = fMaxY - fMinY;
+                int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
                 fMinX = map.getOriginX() + diagX + (int) map.getSpawnOffsetX() + customLength;
                 fMaxX = fMinX + finishZoneWidth;
+                fMinY = fMinY + yAdjust;
+                fMaxY = fMinY + finishZoneHeight;
             }
         }
 

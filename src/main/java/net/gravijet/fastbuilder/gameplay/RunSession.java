@@ -39,6 +39,11 @@ public class RunSession {
     // Practice mode - no stats recorded, practice blocks persist across resets
     private boolean practiceMode = false;
 
+    // Sticky flag: set to true the first time a practice block is placed during this run.
+    // Cleared only by reset(). Prevents the "toggle practice off mid-run" loophole that
+    // would otherwise let a practice-aided run count as a real PB.
+    private boolean practiceUsedThisRun = false;
+
     public RunSession(UUID playerUuid, String mapName, int islandIndex) {
         this.playerUuid = playerUuid;
         this.mapName = mapName;
@@ -67,6 +72,7 @@ public class RunSession {
         running = false;
         finished = false;
         resetting = false;
+        practiceUsedThisRun = false;
         placedBlocks.clear();
         originalBlockStates.clear();
         maxPlacedX = Integer.MIN_VALUE;
@@ -112,6 +118,7 @@ public class RunSession {
         placedBlocks.add(clone);
         if (isPractice) {
             practiceBlocks.add(clone);
+            practiceUsedThisRun = true;
         }
         if (loc.getBlockX() > maxPlacedX) maxPlacedX = loc.getBlockX();
         // Only record original block state on first placement — subsequent placements at the same
@@ -151,6 +158,13 @@ public class RunSession {
     public java.util.Map<String, int[]> getOriginalBlockStates() { return java.util.Collections.unmodifiableMap(originalBlockStates); }
 
     public boolean hasPracticeBlocks() { return !practiceBlocks.isEmpty(); }
+
+    /**
+     * Sticky: returns true if any practice block was placed during the current run,
+     * even if those blocks were later cleared (e.g. by toggling practice mode off).
+     * Used to disqualify the run from personal-best ranking.
+     */
+    public boolean practiceUsedThisRun() { return practiceUsedThisRun; }
 
     public void addSessionBest(long time) {
         sessionBests.add(time);

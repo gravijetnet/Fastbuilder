@@ -178,17 +178,20 @@ public class MapManager {
 
         // Clear all pasted island schematics from the world
         if (map.getWorld() != null && map.getScale() > 0) {
+            int dW = map.getMaxDesignWidth();
+            int dH = map.getMaxDesignHeight();
+            int dL = map.getMaxDesignLength();
             if (map.isDiagonal()) {
                 plugin.getFawePaster().clearIslandsDiagonal(
                         map.getWorld(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        dW, dH, dL,
                         map.getActualZStep(), map.getDiagonalStepX(), 0, map.getScale(), null);
             } else {
                 plugin.getFawePaster().clearIslands(
                         map.getWorld(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        dW, dH, dL,
                         map.getActualZStep(), 0, map.getScale(), null);
             }
         }
@@ -422,17 +425,20 @@ public class MapManager {
                 while (list.size() > newScale) list.remove(list.size() - 1);
             }
 
+            int clW = map.getMaxDesignWidth();
+            int clH = map.getMaxDesignHeight();
+            int clL = map.getMaxDesignLength();
             if (map.isDiagonal()) {
                 plugin.getFawePaster().clearIslandsDiagonal(
                         map.getWorld(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        clW, clH, clL,
                         map.getActualZStep(), map.getDiagonalStepX(), newScale, oldScale, null);
             } else {
                 plugin.getFawePaster().clearIslands(
                         map.getWorld(),
                         map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                        map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                        clW, clH, clL,
                         map.getActualZStep(), newScale, oldScale, null);
             }
         }
@@ -515,17 +521,22 @@ public class MapManager {
             }
         };
 
+        // Clear using the maximum dimensions across all design profiles so a previously
+        // pasted longer/wider/taller design's blocks are removed before regeneration.
+        int clearW = map.getMaxDesignWidth();
+        int clearH = map.getMaxDesignHeight();
+        int clearL = map.getMaxDesignLength();
         if (map.isDiagonal()) {
             plugin.getFawePaster().clearIslandsDiagonal(
                     map.getWorld(),
                     map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                    clearW, clearH, clearL,
                     oldActualStep, map.getDiagonalStepX(), 0, scale, onClearComplete);
         } else {
             plugin.getFawePaster().clearIslands(
                     map.getWorld(),
                     map.getOriginX(), map.getOriginY(), map.getOriginZ(),
-                    map.getIslandWidth(), map.getIslandHeight(), map.getIslandLength(),
+                    clearW, clearH, clearL,
                     oldActualStep, 0, scale, onClearComplete);
         }
     }

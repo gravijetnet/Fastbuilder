@@ -41,7 +41,7 @@ public class ReplayManager {
     private static final int MAX_REPLAYS_PER_MAP = 20;
 
     private static final int MAGIC   = 0x46425250; // "FBRP"
-    private static final int VERSION = 7; // v7 adds skin texture (value + signature)
+    private static final int VERSION = 8; // v8 adds practice flag
 
     public ReplayManager(FastBuilder plugin) {
         this.plugin = plugin;
@@ -146,7 +146,14 @@ public class ReplayManager {
             }
         }
 
-        ReplayData data = recorder.build(successful, runTime, customLength);
+        // Mark practice runs so they don't count toward the personal best.
+        // practiceUsedThisRun() is sticky — covers the case where the player toggles
+        // practice off mid-run (which clears practiceBlocks but leaves the flag set).
+        boolean practice = run != null && (run.isPracticeMode()
+                || run.hasPracticeBlocks()
+                || run.practiceUsedThisRun());
+
+        ReplayData data = recorder.build(successful, runTime, customLength, practice);
 
         // Gather permission-based limit and favorites on the main thread before going async
         int limit = getReplayLimit(playerUuid);
@@ -262,6 +269,7 @@ public class ReplayManager {
             try {
                 ReplayData rd = loadReplay(f);
                 if (rd == null || !rd.isSuccessful() || rd.getRunTimeMillis() <= 0) continue;
+                if (rd.isPractice()) continue; // practice runs never count for personal best
                 if (rd.getRunTimeMillis() < bestTime) {
                     bestTime = rd.getRunTimeMillis();
                     best = rd;
@@ -352,6 +360,7 @@ public class ReplayManager {
             out.writeInt(data.getCustomLength());   // v6
             out.writeUTF(data.getSkinValue());      // v7
             out.writeUTF(data.getSkinSignature());  // v7
+            out.writeBoolean(data.isPractice());    // v8
 
             // Initial blocks (v2)
             out.writeInt(data.getInitialBlocks().size());
@@ -434,6 +443,7 @@ public class ReplayManager {
             int customLength   = version >= 6 ? in.readInt() : 0;
             String skinValue   = version >= 7 ? in.readUTF() : "";
             String skinSig     = version >= 7 ? in.readUTF() : "";
+            boolean practice   = version >= 8 && in.readBoolean();
 
             // Read initial blocks (v2 only; v1 files have none)
             List<ReplayFrame.BlockPlacement> initialBlocks = new ArrayList<>();
@@ -495,13 +505,13 @@ public class ReplayManager {
                         sneaking, sprinting, swingArm, handItemId, handItemData, placement));
             }
 
-            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks, customLength, skinValue, skinSig);
+            return new ReplayData(uuid, name, displayTag, mapName, islandIndex, timestamp, success, runTime, frames, initialBlocks, customLength, skinValue, skinSig, practice);
         }
     }
 
     /**
-     * Read only the header fields needed for cleanup: success flag and run time.
-     * Returns {successful (0/1), runTimeMillis} or null on any read error.
+     * Read only the header fields needed for cleanup: success flag, run time, and practice flag.
+     * Returns {successful (0/1), runTimeMillis, practice (0/1)} or null on any read error.
      * Much cheaper than a full loadReplay() since no frame data is parsed.
      */
     private long[] readReplayHeader(File f) {
@@ -531,7 +541,13 @@ public class ReplayManager {
                 in.readLong(); // timestamp
                 boolean success = in.readBoolean();
                 long runTime = in.readLong();
-                return new long[]{success ? 1 : 0, runTime};
+                boolean practice = false;
+                if (version >= 8) {
+                    if (version >= 6) in.readInt();   // customLength
+                    if (version >= 7) { in.readUTF(); in.readUTF(); } // skinValue, skinSig
+                    practice = in.readBoolean();
+                }
+                return new long[]{success ? 1 : 0, runTime, practice ? 1 : 0};
             }
         } catch (Exception ignored) {
             return null;
@@ -561,7 +577,9 @@ public class ReplayManager {
             if (header == null) continue;
             boolean successful = header[0] == 1;
             long runTime = header[1];
-            if (successful && runTime > 0 && runTime < pbTime) {
+            boolean practice = header.length > 2 && header[2] == 1;
+            // Practice runs are never the PB regardless of time.
+            if (successful && !practice && runTime > 0 && runTime < pbTime) {
                 pbTime = runTime;
                 pbFile = f;
             }

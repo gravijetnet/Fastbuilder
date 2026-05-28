@@ -33,7 +33,7 @@ class MapMetaHandler {
             return;
         }
         if (args.length < 2) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map info <map>");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map info <map>");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -225,7 +225,7 @@ class MapMetaHandler {
             return;
         }
         if (args.length < 2) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map delete <map>");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map delete <map>");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -350,7 +350,7 @@ class MapMetaHandler {
 
     void handleSetMinTime(Player player, String[] args, MapManager mm) {
         if (args.length < 3) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setmintime <map> <ms> &7(0 to use global)");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map setmintime <map> <ms> &7(0 = global)");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -368,7 +368,7 @@ class MapMetaHandler {
 
     void handleSetMaxTime(Player player, String[] args, MapManager mm) {
         if (args.length < 3) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setmaxtime <map> <ms> &7(0 to disable)");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map setmaxtime <map> <ms> &7(0 = off)");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -386,7 +386,7 @@ class MapMetaHandler {
 
     void handleSetRank(Player player, String[] args, MapManager mm) {
         if (args.length < 4) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setrank <map> <diamond|gold|silver|bronze> <ms> &7(-1 to remove)");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map setrank <map> <diamond|gold|silver|bronze> <ms> &7(-1 = off)");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -472,7 +472,7 @@ class MapMetaHandler {
 
     void handleRemoveDesign(Player player, String[] args, MapManager mm) {
         if (args.length < 3) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map removedesign <map> <templateKey>");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map removedesign <map> <templateKey>");
             return;
         }
         MapData map = mm.getMap(args[1]);
@@ -497,7 +497,7 @@ class MapMetaHandler {
             return;
         }
         if (args.length < 3) {
-            msg.msg(player, plugin.getConfigManager().getPrefix() + "&cUsage: &f/map setdesignmeta <map> <template>");
+            msg.msg(player, plugin.getConfigManager().getPrefix() + "&7Usage &8» &f/map setdesignmeta <map> <template>");
             return;
         }
         MapData map = mm.getMap(args[1]);

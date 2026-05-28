@@ -133,14 +133,18 @@ public class ReplayRecorder {
      * Build the final ReplayData.
      */
     public ReplayData build(boolean successful, long runTimeMillis) {
-        return build(successful, runTimeMillis, 0);
+        return build(successful, runTimeMillis, 0, false);
     }
 
     public ReplayData build(boolean successful, long runTimeMillis, int customLength) {
+        return build(successful, runTimeMillis, customLength, false);
+    }
+
+    public ReplayData build(boolean successful, long runTimeMillis, int customLength, boolean practice) {
         return new ReplayData(
                 playerUuid, playerName, playerDisplayTag, mapName, islandIndex,
                 startTimestamp, successful, runTimeMillis, new ArrayList<>(frames),
-                new ArrayList<>(initialBlocks), customLength, skinValue, skinSignature
+                new ArrayList<>(initialBlocks), customLength, skinValue, skinSignature, practice
         );
     }
 

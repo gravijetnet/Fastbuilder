@@ -43,8 +43,14 @@ public final class GridCalculator {
     public static int getIslandIndex(MapData map, Location loc) {
         if (!loc.getWorld().getName().equals(map.getWorldName())) return -1;
 
+        // Use the maximum dimension across all known design profiles so a player
+        // standing on a taller/longer/wider alternative design still counts as "on island."
+        int maxH = map.getMaxDesignHeight();
+        int maxL = map.getMaxDesignLength();
+        int maxW = map.getMaxDesignWidth();
+
         double relY = loc.getY() - map.getOriginY();
-        if (relY < -1 || relY > map.getIslandHeight() + 1) return -1;
+        if (relY < -1 || relY > maxH + 1) return -1;
 
         double relZ = loc.getZ() - map.getOriginZ();
         if (relZ < 0) return -1;
@@ -57,12 +63,12 @@ public final class GridCalculator {
 
         // Not in island Z area (in the gap between islands)
         double posInSlot = relZ - (long) index * step;
-        if (posInSlot >= map.getIslandLength()) return -1;
+        if (posInSlot >= maxL) return -1;
 
         // Verify X is within this slot's X range (diagonal maps shift X per slot)
         double slotMinX = map.getOriginX() + (long) index * map.getDiagonalStepX();
         double relX = loc.getX() - slotMinX;
-        if (relX < -1 || relX > map.getIslandWidth()) return -1;
+        if (relX < -1 || relX > maxW) return -1;
 
         return index;
     }
@@ -116,9 +122,11 @@ public final class GridCalculator {
         int minX = (int)(map.getOriginX() + (long) index * map.getDiagonalStepX());
         int minY = map.getOriginY();
         int minZ = (int)(map.getOriginZ() + (long) index * map.getActualZStep());
-        int maxX = minX + map.getIslandWidth() - 1;
-        int maxY = minY + map.getIslandHeight() - 1;
-        int maxZ = minZ + map.getIslandLength() - 1;
+        // Use the maximum dimension across all known design profiles so the bounds
+        // include taller/longer/wider alternative designs that may have been pasted.
+        int maxX = minX + map.getMaxDesignWidth()  - 1;
+        int maxY = minY + map.getMaxDesignHeight() - 1;
+        int maxZ = minZ + map.getMaxDesignLength() - 1;
         return new int[]{minX, minY, minZ, maxX, maxY, maxZ};
     }
 

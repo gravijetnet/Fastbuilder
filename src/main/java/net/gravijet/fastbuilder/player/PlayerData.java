@@ -538,11 +538,15 @@ public class PlayerData {
 
     /**
      * Returns the player's custom run length for the given map, or 0 if not set.
+     * Falls back to the persistent saved length so the preference survives map switches.
      */
     public int getCustomLength(String mapName) {
         if (mapName == null) return 0;
-        Integer val = customLengths.get(mapName.toLowerCase());
-        return val != null ? val : 0;
+        String key = mapName.toLowerCase();
+        Integer val = customLengths.get(key);
+        if (val != null) return val;
+        Integer saved = savedCustomLengths.get(key);
+        return saved != null ? saved : 0;
     }
 
     /**

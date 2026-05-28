@@ -231,7 +231,15 @@ public class IslandSelectorGui {
             net.gravijet.fastbuilder.gameplay.RunSession newSess =
                     plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), islandIndex);
             if (map.hasEndIsland()) {
-                plugin.getGameplayManager().placeEndPlatform(player, map, newSess, map.getBaseCustomLength());
+                int desiredLen = data.getCustomLength(map.getName());
+                if (desiredLen <= 0) desiredLen = map.getBaseCustomLength();
+                plugin.getGameplayManager().placeEndPlatform(player, map, newSess, desiredLen);
+            } else if (map.hasCustomLength()) {
+                int desiredLen = data.getCustomLength(map.getName());
+                if (desiredLen <= 0) desiredLen = map.getEffectiveMinCustomLength();
+                if (desiredLen > 0) {
+                    plugin.getGameplayManager().placeEndPlatform(player, map, newSess, desiredLen);
+                }
             }
             plugin.getGameplayManager().applyPlayerDesign(player, map, islandIndex);
         }

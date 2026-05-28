@@ -391,6 +391,33 @@ public class MapData {
         return (long) index * diagonalStepX;
     }
 
+    /** Maximum islandWidth across the base map AND all known design profiles. */
+    public int getMaxDesignWidth() {
+        int max = islandWidth;
+        for (DesignProfile p : designProfiles.values()) {
+            if (p.islandWidth > max) max = p.islandWidth;
+        }
+        return max;
+    }
+
+    /** Maximum islandHeight across the base map AND all known design profiles. */
+    public int getMaxDesignHeight() {
+        int max = islandHeight;
+        for (DesignProfile p : designProfiles.values()) {
+            if (p.islandHeight > max) max = p.islandHeight;
+        }
+        return max;
+    }
+
+    /** Maximum islandLength across the base map AND all known design profiles. */
+    public int getMaxDesignLength() {
+        int max = islandLength;
+        for (DesignProfile p : designProfiles.values()) {
+            if (p.islandLength > max) max = p.islandLength;
+        }
+        return max;
+    }
+
     /**
      * Get the absolute spawn location for a specific island instance.
      */

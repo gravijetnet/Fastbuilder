@@ -136,9 +136,13 @@ class EndPlatformManager {
 
     @SuppressWarnings("deprecation")
     private void placeEndPlatformLegacy(UUID uuid, MapData map, RunSession session, int customLength) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
+
         int diagX = (int) ((long) session.getIslandIndex() * map.getDiagonalStepX());
         int platformX = map.getOriginX() + diagX + (int) map.getSpawnOffsetX() + customLength;
-        int platformY = map.getOriginY() + map.getFinishMinY();
+        int platformY = map.getOriginY() + map.getFinishMinY() + yAdjust;
         int islandBaseZ = map.getOriginZ() + session.getIslandIndex() * map.getActualZStep();
         int minZ = islandBaseZ + map.getFinishMinZ();
         int maxZ = islandBaseZ + map.getFinishMaxZ();

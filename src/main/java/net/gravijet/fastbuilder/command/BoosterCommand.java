@@ -75,7 +75,7 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleInfo(CommandSender sender, String prefix, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster info <player>"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/booster info <player>"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
@@ -122,7 +122,7 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleGive(CommandSender sender, String prefix, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster give <player> <type> [amount]"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/booster give <player> <type> [amount]"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
@@ -166,7 +166,7 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleTake(CommandSender sender, String prefix, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster take <player> <type> [amount]"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/booster take <player> <type> [amount]"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
@@ -212,7 +212,7 @@ public class BoosterCommand implements CommandExecutor, TabCompleter {
 
     private boolean handleClear(CommandSender sender, String prefix, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&c● Usage: &f/booster clear <player>"));
+            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/booster clear <player>"));
             return true;
         }
         Player target = Bukkit.getPlayer(args[1]);
