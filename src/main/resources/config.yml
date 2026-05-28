@@ -87,7 +87,7 @@ booster-types:
     potion-data: 8193
   NORMAL:
     name: "&f2x Coin Booster"
-    description: "Double all coin rewards for 30 minutes."
+    description: "100% extra coins for 30 minutes."
     multiplier: 2.0
     duration-minutes: 30
     price: 400
@@ -101,35 +101,35 @@ booster-types:
     potion-data: 8195
   EXTENDED_PLUS:
     name: "&f2x Coin Booster"
-    description: "Double coins for a full hour of play."
+    description: "100% extra coins for a full hour."
     multiplier: 2.0
     duration-minutes: 60
     price: 700
     potion-data: 8196
   MEGA:
     name: "&f2.5x Coin Booster"
-    description: "2.5x coins for serious farming sessions."
+    description: "150% extra coins for 45 minutes."
     multiplier: 2.5
     duration-minutes: 45
     price: 600
     potion-data: 8197
   LARGE:
     name: "&f3x Coin Booster"
-    description: "Triple all coin rewards for 30 minutes."
+    description: "200% extra coins for 30 minutes."
     multiplier: 3.0
     duration-minutes: 30
     price: 750
     potion-data: 8200
   ULTRA:
     name: "&f4x Coin Booster"
-    description: "4x coins for 20 minutes."
+    description: "300% extra coins for 20 minutes."
     multiplier: 4.0
     duration-minutes: 20
     price: 900
     potion-data: 8204
   SUPREME:
     name: "&f5x Coin Booster"
-    description: "Maximum power — 5x coins for 15 minutes."
+    description: "400% extra coins for 15 minutes."
     multiplier: 5.0
     duration-minutes: 15
     price: 1500

@@ -1650,8 +1650,9 @@ one-click-pick:
 # Island Design selector settings
 island-designs:
   # Coin cost to unlock each alternative (non-default) design. 0 = free for everyone.
-  default-price: 0
+  default-price: 2500
   lore-selected: "&a&l» Currently selected"
+  lore-owned: "&aAlready owned &8- &7Click to select"
   lore-unlocked: "&eClick to select this design"
   lore-locked: "&cLocked &8- &e%price% coins to unlock"
   lore-cannot-afford: "&cNot enough coins &7(&f%coins% / %price%&7)"

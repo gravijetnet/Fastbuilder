@@ -392,8 +392,13 @@ public class ShopGui {
                 List<String> loreTemplate = slotsSection.getStringList(slotKey + ".lore");
                 List<String> lore = new ArrayList<>();
                 for (String line : loreTemplate) lore.add(line.replace("%price%", price == 0 ? "Free" : String.valueOf(price)));
-                if (!owned) lore.add(ColorUtil.translate("&cNot purchased"));
-                if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                if (selected) {
+                    lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                } else if (owned && price > 0) {
+                    lore.add(ColorUtil.translate("&aAlready owned &8- &7Click to select"));
+                } else if (!owned) {
+                    lore.add(ColorUtil.translate("&cNot purchased"));
+                }
 
                 ItemStack item = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
                 boolean canGlow = !mat.toUpperCase().startsWith("CHEST") && !isNoneOption;
@@ -498,8 +503,13 @@ public class ShopGui {
                 List<String> loreTemplate = soundsSection.getStringList(slotKey + ".lore");
                 List<String> lore = new ArrayList<>();
                 for (String line : loreTemplate) lore.add(line.replace("%price%", price == 0 ? "Free" : String.valueOf(price)));
-                if (!owned) lore.add(ColorUtil.translate("&cNot purchased"));
-                if (selected) lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                if (selected) {
+                    lore.add(ColorUtil.translate("&a&lCurrently selected"));
+                } else if (owned && price > 0) {
+                    lore.add(ColorUtil.translate("&aAlready owned &8- &7Click to select"));
+                } else if (!owned) {
+                    lore.add(ColorUtil.translate("&cNot purchased"));
+                }
 
                 ItemStack it = ItemBuilder.fromString(mat).name("&r" + name).lore(lore.toArray(new String[0])).build();
                 boolean canGlow = !mat.toUpperCase().startsWith("FIREWORK") && !isNoneOption;
@@ -586,6 +596,7 @@ public class ShopGui {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         int designPrice = guis.getInt("island-designs.default-price", 0);
         String loreSelected = guis.getString("island-designs.lore-selected", "&a&l» Currently selected");
+        String loreOwned    = guis.getString("island-designs.lore-owned",    "&aAlready owned &8- &7Click to select");
         String loreUnlocked = guis.getString("island-designs.lore-unlocked", "&eClick to select this design");
         String loreLocked   = guis.getString("island-designs.lore-locked",   "&cLocked &8- &e%price% coins to unlock");
         String loreNoCoins  = guis.getString("island-designs.lore-cannot-afford", "&cNot enough coins &7(&f%coins% / %price%&7)");
@@ -595,17 +606,24 @@ public class ShopGui {
             String key = templates.get(i);
             boolean isDefault = key.equals(defaultKey);
             boolean selected = key.equalsIgnoreCase(selectedDesign);
-            boolean unlocked = isDefault || designPrice == 0 || pData.hasPurchasedDesign(key)
-                    || player.hasPermission("fastbuilder.design.*")
+            boolean hasPermission = player.hasPermission("fastbuilder.design.*")
                     || player.hasPermission("fastbuilder.design." + key.toLowerCase());
+            boolean unlocked = isDefault || designPrice == 0 || pData.hasPurchasedDesign(key)
+                    || hasPermission;
             String displayName = "&a" + (isDefault ? "Default Design" : key);
 
             List<String> lore = new ArrayList<>();
-            if (selected) lore.add(ColorUtil.translate(loreSelected));
-            else if (unlocked) lore.add(ColorUtil.translate(loreUnlocked));
-            else {
+            if (selected) {
+                lore.add(ColorUtil.translate(loreSelected));
+            } else if (unlocked && !isDefault && designPrice > 0) {
+                lore.add(ColorUtil.translate(loreOwned));
+            } else if (unlocked) {
+                lore.add(ColorUtil.translate(loreUnlocked));
+            } else {
                 lore.add(ColorUtil.translate(loreLocked.replace("%price%", String.valueOf(designPrice))));
-                lore.add(ColorUtil.translate(loreNoCoins.replace("%coins%", String.valueOf(pData.getCoins())).replace("%price%", String.valueOf(designPrice))));
+                if (pData.getCoins() < designPrice) {
+                    lore.add(ColorUtil.translate(loreNoCoins.replace("%coins%", String.valueOf(pData.getCoins())).replace("%price%", String.valueOf(designPrice))));
+                }
             }
 
             inv.setItem(i, new ItemBuilder(Material.PAPER).name(displayName).lore(lore.toArray(new String[0])).build());

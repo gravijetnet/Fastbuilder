@@ -4,6 +4,8 @@ zeiten, die man mit practice blöcken erzielt hat, sollen nicht zu den session t
 wenn man mit island jumping zu einer anderen insel springt, soll diese wie beim normalen island switching auch resettet bzw. das eigene island design angewandt werden.
 die island designs funktionieren nicht gut. die höhe passt nicht, die spawn. npc und hologramlocation passen nicht. es soll der spawnpunhkt des designs auf der gleichen y-höhe wie der spawnpunkt der restlichen default designs sein. der spawnpunkt, npclocation, hologrammlocation und die finish plates werden aber vom custom design genommen und nicht vom default design. gehe bitte das ganz ganz genau durch!
 bitte beim map setup alle nachrichten und alle aktionen, commands, etc. logischer, einheitlicher und übersichtlicher gestalten. besonders bei den special setups wie customlength, diagonal und infinite.
+
+
 bei den island designs bei den replacements und so soll auch alles entfernt bzw geplacet werden und nicht dann ein teil der alten insel noch da gelassen werden, wenn er z.b. länger ist wie die default insel.
 bei custom length funktioniert die insel nicht korrekt zum verschieben. das was auf den items steht, macht was anderes wie wirklich passiert.
 bei der custom length sieht man keine endinsel. 

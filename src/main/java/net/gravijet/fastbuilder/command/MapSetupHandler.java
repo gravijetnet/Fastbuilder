@@ -133,23 +133,17 @@ class MapSetupHandler {
         ItemMeta meta = rod.getItemMeta();
         meta.setDisplayName(ColorUtil.translate("&c&lSelection Tool"));
         meta.setLore(Arrays.asList(
-                ColorUtil.translate("&7Left-click: &fSet Position 1"),
-                ColorUtil.translate("&7Right-click: &fSet Position 2 / Spawn")
+                ColorUtil.translate("&7Left-click  &8» &fPos 1"),
+                ColorUtil.translate("&7Right-click &8» &fPos 2 / spawn / NPC / hologram")
         ));
         rod.setItemMeta(meta);
         player.getInventory().setItem(0, rod);
         player.updateInventory();
 
-        String prefix = plugin.getConfigManager().getPrefix();
-        String modeTag = infinite ? " &7(Infinite)" : customLength ? " &7(Custom Length)" : diagonal ? " &7(Diagonal)" : "";
-        player.sendMessage(ColorUtil.translate(prefix + "&aSetup started." + modeTag));
-        if (customLength) {
-            player.sendMessage(ColorUtil.translate("&7Build your &cStart Island &7and &cEnd Island &7in this area."));
-        }
-        player.sendMessage(ColorUtil.translate("&cStep 1: &fSelect your island area."));
-        player.sendMessage(ColorUtil.translate("&7Left-click the blaze rod: &fPos 1 &7(corner 1)"));
-        player.sendMessage(ColorUtil.translate("&7Right-click the blaze rod: &fPos 2 &7(corner 2)"));
-        player.sendMessage(ColorUtil.translate("&7Build your island here, then:"));
+        sendSetupHeader(player, session);
+        sendStep(player, 1, totalSteps(session), "Select the island area",
+                "Left-click corner 1, right-click corner 2.",
+                customLength ? "Build the &cstart island &7here (the end island is selected later)." : null);
         msg.sendClickableContinue(player);
     }
 
@@ -169,20 +163,25 @@ class MapSetupHandler {
             if ("--force".equalsIgnoreCase(a)) { forceSpawnLoc = true; break; }
         }
 
-        String prefix = plugin.getConfigManager().getPrefix();
+        int total = totalSteps(session);
+        // For diagonal maps, every step after island selection is shifted by +1
+        // (because step 2 is "Set diagonal step"). Pre-compute the offset here.
+        int d = session.isDiagonalMode() ? 1 : 0;
 
         switch (session.getState()) {
             case SELECTING_ISLAND:
                 if (session.isDiagonalMode()) {
                     session.advanceToDiagonal();
-                    player.sendMessage(ColorUtil.translate(prefix + "&fIsland area saved."));
-                    player.sendMessage(ColorUtil.translate("&cStep 2 (Diagonal): &fSet X direction."));
-                    player.sendMessage(ColorUtil.translate("&7Right-click a block at the X position where island slot 1 starts."));
+                    sendSavedConfirm(player, "Island area");
+                    sendStep(player, 2, total, "Set the diagonal step",
+                            "Right-click a block at the X position where island slot &c#2 &7starts.",
+                            null);
                 } else {
                     session.advanceToSpawn();
-                    player.sendMessage(ColorUtil.translate(prefix + "&fIsland area saved."));
-                    player.sendMessage(ColorUtil.translate("&cStep 2: &fSet spawn point."));
-                    player.sendMessage(ColorUtil.translate("&7Stand where players spawn, face East, then right-click the blaze rod."));
+                    sendSavedConfirm(player, "Island area");
+                    sendStep(player, 2, total, "Set the spawn point",
+                            "Stand where players should spawn, face &cEast&7, then right-click the rod.",
+                            null);
                     msg.sendClickableContinue(player);
                 }
                 break;
@@ -203,16 +202,18 @@ class MapSetupHandler {
                     }
                 }
                 session.advanceToNpc();
-                player.sendMessage(ColorUtil.translate(prefix + "&fSpawn point saved."));
-                player.sendMessage(ColorUtil.translate("&cStep 3: &fSet NPC location."));
-                player.sendMessage(ColorUtil.translate("&7Go to the NPC position and right-click the blaze rod."));
+                sendSavedConfirm(player, "Spawn point");
+                sendStep(player, 3 + d, total, "Set the NPC location",
+                        "Stand where the map-selector NPC should appear, then right-click the rod.",
+                        null);
                 msg.sendClickableContinue(player);
                 break;
             case SELECTING_NPC:
                 session.advanceToHologram();
-                player.sendMessage(ColorUtil.translate(prefix + "&fNPC location saved."));
-                player.sendMessage(ColorUtil.translate("&cStep 4: &fSet hologram location."));
-                player.sendMessage(ColorUtil.translate("&7Go to where the stats hologram should float and right-click the blaze rod."));
+                sendSavedConfirm(player, "NPC location");
+                sendStep(player, 4 + d, total, "Set the hologram location",
+                        "Stand where the stats hologram should float, then right-click the rod.",
+                        null);
                 msg.sendClickableContinue(player);
                 break;
             case SELECTING_HOLOGRAM: {
@@ -227,7 +228,7 @@ class MapSetupHandler {
                     Location setupMin = session.getIslandMin();
                     Location setupMax = session.getIslandMax();
                     if (setupMin == null || setupMax == null) {
-                        msg.msg(player, "&cIsland selection is missing. Restart setup.");
+                        sendSetupError(player, "Island selection is missing — restart the setup.");
                         return;
                     }
                     String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
@@ -237,19 +238,21 @@ class MapSetupHandler {
                             setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
                             tempName);
                     if (!saved) {
-                        msg.msg(player, "&cFailed to save island template. Check console for errors.");
+                        sendSetupError(player, "Failed to save the island template — see the console.");
                         return;
                     }
                     session.advanceToName();
-                    player.sendMessage(ColorUtil.translate(prefix + "&fHologram saved. Infinite mode &7— no finish zone needed."));
-                    player.sendMessage(ColorUtil.translate("&cFinal step: &fName your map."));
+                    sendSavedConfirm(player, "Hologram location");
+                    sendStep(player, 5 + d, total, "Name your map",
+                            "Infinite mode skips the finish zone — pick a name to finish setup.",
+                            null);
                     msg.sendClickableFinish(player);
 
                 } else if (isCLMode) {
                     Location setupMin = session.getIslandMin();
                     Location setupMax = session.getIslandMax();
                     if (setupMin == null || setupMax == null) {
-                        msg.msg(player, "&cIsland selection is missing. Restart setup.");
+                        sendSetupError(player, "Island selection is missing — restart the setup.");
                         return;
                     }
                     String tempName = "setup_" + player.getUniqueId().toString().substring(0, 8);
@@ -259,20 +262,22 @@ class MapSetupHandler {
                             setupMax.getBlockX(), setupMax.getBlockY(), setupMax.getBlockZ(),
                             tempName);
                     if (!saved) {
-                        msg.msg(player, "&cFailed to save start island template. Check console for errors.");
+                        sendSetupError(player, "Failed to save the start-island template — see the console.");
                         return;
                     }
                     session.advanceToEndIsland();
-                    player.sendMessage(ColorUtil.translate(prefix + "&fHologram saved."));
-                    player.sendMessage(ColorUtil.translate("&cStep 5 (Custom Length): &fSelect the End Island region."));
-                    player.sendMessage(ColorUtil.translate("&7Build the end island to the &c+X &7(east) side, then select it with the blaze rod."));
+                    sendSavedConfirm(player, "Hologram location");
+                    sendStep(player, 5 + d, total, "Select the end-island area",
+                            "Build the end island east of the start (&c+X&7), then mark both corners.",
+                            "Left-click corner 1, right-click corner 2.");
                     msg.sendClickableContinue(player);
 
                 } else {
                     session.advanceToFinish();
-                    player.sendMessage(ColorUtil.translate(prefix + "&fHologram saved."));
-                    player.sendMessage(ColorUtil.translate("&cStep 5: &fSelect the finish zone."));
-                    player.sendMessage(ColorUtil.translate("&7Left-click: Finish Pos 1 &f| &7Right-click: Finish Pos 2"));
+                    sendSavedConfirm(player, "Hologram location");
+                    sendStep(player, 5 + d, total, "Select the finish zone",
+                            "Left-click corner 1, right-click corner 2 (where players win).",
+                            null);
                     msg.sendClickableFinish(player);
                 }
                 break;
@@ -291,18 +296,20 @@ class MapSetupHandler {
                         endMax.getBlockX(), endMax.getBlockY(), endMax.getBlockZ(),
                         endTempName);
                 if (!savedEnd) {
-                    msg.msg(player, "&cFailed to save end island template. Check console for errors.");
+                    sendSetupError(player, "Failed to save the end-island template — see the console.");
                     return;
                 }
                 int baseLen = session.getBaseCustomLength();
                 if (baseLen < 0) {
-                    msg.msg(player, "&cEnd Island must be placed to the east (+X) of the Start Island. "
-                            + "Currently it appears to be " + Math.abs(baseLen) + " block(s) to the west — fix placement and try again.");
+                    sendSetupError(player, "End Island must be placed east (&c+X&c) of the Start Island — currently &f"
+                            + Math.abs(baseLen) + " &cblock(s) west. Re-select corner positions.");
                     return;
                 }
                 session.finalizeEndIsland();
-                player.sendMessage(ColorUtil.translate(prefix + "&fEnd island saved. Base distance: &c" + baseLen + " &fblocks."));
-                player.sendMessage(ColorUtil.translate("&cFinal step: &fName your map."));
+                sendSavedConfirm(player, "End island &7(base distance: &f" + baseLen + " blocks&7)");
+                sendStep(player, 6 + d, total, "Name your map",
+                        "Pick a name to finish setup.",
+                        null);
                 msg.sendClickableFinish(player);
                 break;
             }
@@ -310,6 +317,56 @@ class MapSetupHandler {
                 msg.msgAdmin(player, "setup-not-ready");
                 break;
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Setup UI helpers
+    // -------------------------------------------------------------------------
+
+    /** Returns the total number of steps for the current session's mode. */
+    private static int totalSteps(SetupSession session) {
+        // Diagonal inserts an extra "set diagonal step" between island and spawn.
+        if (session.isDiagonalMode())     return 7; // 1 area, 2 diagonal, 3 spawn, 4 NPC, 5 holo, 6 finish, 7 name
+        if (session.isCustomLengthMode()) return 6; // 1 area, 2 spawn, 3 NPC, 4 holo, 5 end-island, 6 name
+        if (session.isInfinite())         return 5; // 1 area, 2 spawn, 3 NPC, 4 holo, 5 name
+        return 6;                                    // 1 area, 2 spawn, 3 NPC, 4 holo, 5 finish, 6 name
+    }
+
+    /** Returns a short tag like " &7(Infinite)" for the active mode. */
+    private static String modeTag(SetupSession session) {
+        if (session.isInfinite())         return " &7(Infinite)";
+        if (session.isCustomLengthMode()) return " &7(Custom Length)";
+        if (session.isDiagonalMode())     return " &7(Diagonal)";
+        return "";
+    }
+
+    /** Pretty header sent once at setup start. */
+    private void sendSetupHeader(Player player, SetupSession session) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&a&lSetup started" + modeTag(session)));
+        player.sendMessage(ColorUtil.translate("&7Use the &cblaze rod &7to mark positions. Type &c/map setup cancel &7to abort."));
+    }
+
+    /**
+     * Sends a uniform step header + body. Hint is optional (use null to skip).
+     */
+    private void sendStep(Player player, int step, int total, String title, String body, String hint) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&cStep " + step + "&8/&c" + total + " &8» &f" + title));
+        if (body != null) player.sendMessage(ColorUtil.translate("  &7" + body));
+        if (hint != null) player.sendMessage(ColorUtil.translate("  &7" + hint));
+    }
+
+    /** "✓ <Label> saved" confirmation, prefixed and color-consistent. */
+    private void sendSavedConfirm(Player player, String label) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&a✓ " + label + " &asaved."));
+    }
+
+    /** Consistent error line for setup-flow errors. */
+    private void sendSetupError(Player player, String body) {
+        String prefix = plugin.getConfigManager().getPrefix();
+        player.sendMessage(ColorUtil.translate(prefix + "&c" + body));
     }
 
     void handleSetupFinishWithName(Player player, String name, MapManager mm) {

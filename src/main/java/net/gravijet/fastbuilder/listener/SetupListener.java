@@ -142,8 +142,8 @@ public class SetupListener implements Listener {
         if (session.finalizeDiagonal(clickedX)) {
             stopParticleTask(player.getUniqueId());
             player.sendMessage(ColorUtil.translate(prefix
-                    + "&aDiagonal step set: &fX+" + session.getDiagonalStepX()
-                    + " per island. &7Now right-click to set the spawn point."));
+                    + "&aDiagonal step set &8» &fX+" + session.getDiagonalStepX() + " per island"));
+            player.sendMessage(ColorUtil.translate("  &7Next: stand on the spawn point (facing &cEast&7) and right-click the rod."));
         }
     }
 
@@ -180,8 +180,8 @@ public class SetupListener implements Listener {
             session.setHologramPoint(loc);
             String prefix = plugin.getConfigManager().getPrefix();
             player.sendMessage(ColorUtil.translate(
-                    prefix + "&fHologram location saved at &c" +
-                    loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&f."));
+                    prefix + "&aHologram saved &8» &f"
+                    + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ()));
             sendClickableContinue(player);
         }
     }
@@ -224,18 +224,20 @@ public class SetupListener implements Listener {
         String prefix = plugin.getConfigManager().getPrefix();
         if (action == Action.LEFT_CLICK_BLOCK) {
             session.setEndIslandPos1(loc);
-            player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island Pos 1 set at &c"
-                    + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&a."));
+            player.sendMessage(ColorUtil.translate(prefix + "&7End-island corner 1 &8» &f"
+                    + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ()));
         } else if (action == Action.RIGHT_CLICK_BLOCK) {
             session.setEndIslandPos2(loc);
-            player.sendMessage(ColorUtil.translate(prefix + "&aEnd Island Pos 2 set at &c"
-                    + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "&a."));
+            player.sendMessage(ColorUtil.translate(prefix + "&7End-island corner 2 &8» &f"
+                    + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ()));
         }
 
         if (session.getEndIslandPos1() != null && session.getEndIslandPos2() != null) {
             int baseLen = session.getBaseCustomLength();
-            player.sendMessage(ColorUtil.translate(prefix + "&aBoth corners set! "
-                    + "&7Base distance: &f" + baseLen + " blocks."));
+            String baseHint = baseLen >= 0
+                    ? "&7Base distance: &f" + baseLen + " &7blocks (start → end)."
+                    : "&cEnd Island is &f" + Math.abs(baseLen) + " &cblock(s) WEST of the start — must be EAST (&c+X&c).";
+            player.sendMessage(ColorUtil.translate(prefix + "&aBoth corners set. " + baseHint));
             sendClickableContinue(player);
         }
     }

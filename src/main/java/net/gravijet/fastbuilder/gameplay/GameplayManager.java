@@ -301,25 +301,32 @@ public class GameplayManager {
             return;
         }
 
-        session.addSessionBest(time);
-
-        // Update global session bests (keyed by UUID — immune to player renames)
-        Long existing = globalSessionBests.get(uuid);
-        if (existing == null || time < existing) {
-            globalSessionBests.put(uuid, time);
-        }
-        if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
-            globalSessionBestTime = time;
-            globalSessionBestPlayer = player.getName();
-        }
-
-        // Disable stats for Infinite mode and Custom Length mode (no record-keeping)
+        // Disable stats for practice mode, Infinite mode and Custom Length mode.
+        // Practice runs (including any run that used practice blocks) must NEVER
+        // contribute to session top-3 or the global leaderboard.
         MapData statsMap = map;
         boolean playerCustomLengthActive = statsMap != null && statsMap.hasCustomLength()
                 && data.isCustomLengthEnabled(session.getMapName());
         boolean statsDisabled = session.isPracticeMode()
                 || (statsMap != null && statsMap.isInfinite())
                 || playerCustomLengthActive;
+
+        // Session top-3 (scoreboard) and global session bests must reflect only
+        // legitimate, ranked runs — exclude practice (which also covers any run
+        // that placed practice blocks, since those only exist in practice mode).
+        if (!session.isPracticeMode()) {
+            session.addSessionBest(time);
+
+            // Update global session bests (keyed by UUID — immune to player renames)
+            Long existing = globalSessionBests.get(uuid);
+            if (existing == null || time < existing) {
+                globalSessionBests.put(uuid, time);
+            }
+            if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
+                globalSessionBestTime = time;
+                globalSessionBestPlayer = player.getName();
+            }
+        }
 
         boolean isNewPB = false;  // hoisted — set below if stats are tracked
         if (!statsDisabled) {
@@ -774,8 +781,17 @@ public class GameplayManager {
             }
         }
 
-        // Apply the player's selected design on the new island
-        applyPlayerDesign(player, map, targetIsland);
+        // Reset/redesign the new island so the jumping player always starts on a clean slate
+        // (same behaviour as the Map Selector → switch flow).
+        String targetDesign = data != null ? data.getSelectedDesign(map.getName()) : null;
+        boolean usesDefaultDesign = targetDesign == null || targetDesign.equals(map.getTemplateFile());
+        if (usesDefaultDesign) {
+            // Default design: simply repaint the default template over the new island slot.
+            revertIslandDesign(map, targetIsland);
+        } else {
+            // Non-default design: applyPlayerDesign already does its own clear-and-paste of the chosen schematic.
+            applyPlayerDesign(player, map, targetIsland);
+        }
 
         // Spawn NPC at new island — skip default spawn when the design profile
         // already placed it at a custom position (done inside applyPlayerDesign).
@@ -813,6 +829,9 @@ public class GameplayManager {
      * Re-paste the default island template at island slot {@code islandIndex}, erasing any
      * custom design the previous player had applied. Called before a player leaves or switches.
      * The operation is async-batched so it does not freeze the server.
+     *
+     * Clear region grows upward to the tallest known design height so leftover blocks
+     * from a previous (taller) design don't survive the revert.
      */
     public void revertIslandDesign(net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
         if (map.getTemplateFile() == null) return;
@@ -820,10 +839,23 @@ public class GameplayManager {
         org.bukkit.Location max = map.getIslandMax(islandIndex);
         if (min == null || map.getWorld() == null) return;
 
+        int maxDesignHeight = map.getIslandHeight();
+        int maxDesignShiftUp = 0;
+        for (String templateKey : map.getTemplatesForMode()) {
+            net.gravijet.fastbuilder.map.MapData.DesignProfile prof = map.getDesignProfile(templateKey);
+            if (prof == null) continue;
+            if (prof.islandHeight > maxDesignHeight) maxDesignHeight = prof.islandHeight;
+            int shift = computeDesignYShift(map, prof);
+            if (shift > maxDesignShiftUp) maxDesignShiftUp = shift;
+        }
+        int clearMaxY = min.getBlockY() + maxDesignShiftUp + maxDesignHeight - 1;
+        if (clearMaxY < max.getBlockY()) clearMaxY = max.getBlockY();
+
+        final int finalClearMaxY = clearMaxY;
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
                 min.getBlockX(), min.getBlockY(), min.getBlockZ(),
-                max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                max.getBlockX(), finalClearMaxY, max.getBlockZ(),
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), map.getTemplateFile(),
                         min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
@@ -864,18 +896,32 @@ public class GameplayManager {
         org.bukkit.Location max = map.getIslandMax(islandIndex);
         if (min == null || map.getWorld() == null) return;
 
+        // Compute the vertical correction so the design's spawn level lines up
+        // with the default island's spawn level. designYShift is non-zero only
+        // when the admin saved the design at a different setup Y than the map origin.
+        // This anchors the spawn floor for the player while leaving the design's
+        // own NPC/hologram/finish offsets (relative to its spawn floor) intact.
+        net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
+                map.getDesignProfile(selectedDesign);
+        int designYShift = computeDesignYShift(map, profile);
+        int pasteY = min.getBlockY() + designYShift;
+        // Use the design's own captured height when available so the clear region
+        // covers both the default island AND the (possibly taller) design footprint.
+        int designHeight = profile != null && profile.islandHeight > 0
+                ? profile.islandHeight : map.getIslandHeight();
+        int clearMaxY = Math.max(max.getBlockY(), pasteY + designHeight - 1);
+        int clearMinY = Math.min(min.getBlockY(), pasteY);
+        final int finalPasteY = pasteY;
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
-                min.getBlockX(), min.getBlockY(), min.getBlockZ(),
-                max.getBlockX(), max.getBlockY(), max.getBlockZ(),
+                min.getBlockX(), clearMinY, min.getBlockZ(),
+                max.getBlockX(), clearMaxY, max.getBlockZ(),
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), selectedDesign,
-                        min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
+                        min.getBlockX(), finalPasteY, min.getBlockZ(), null)
         );
 
         // Apply design profile if one has been recorded for this template
-        net.gravijet.fastbuilder.map.MapData.DesignProfile profile =
-                map.getDesignProfile(selectedDesign);
         if (profile != null) {
             // Teleport player to the design-specific spawn position (account for diagonal X offset)
             long diagX = (long) islandIndex * map.getDiagonalStepX();
@@ -888,22 +934,26 @@ public class GameplayManager {
             );
             player.teleport(profileSpawn);
 
-            // Store finish-zone override so GameplayListener uses the correct bounds
+            // Store finish-zone override so GameplayListener uses the correct bounds.
+            // Y is shifted so the design's finish-zone Y stays aligned with the design
+            // blocks now pasted at the corrected height.
             if (profile.hasFinishZone()) {
                 pData.setActiveFinishZone(map.getName(),
-                        profile.finishMinX, profile.finishMinY, profile.finishMinZ,
-                        profile.finishMaxX, profile.finishMaxY, profile.finishMaxZ);
+                        profile.finishMinX, profile.finishMinY + designYShift, profile.finishMinZ,
+                        profile.finishMaxX, profile.finishMaxY + designYShift, profile.finishMaxZ);
             } else {
                 pData.clearActiveFinishZone(map.getName());
             }
 
-            // Respawn NPC at the design-profile NPC position if one is recorded
+            // Respawn NPC at the design-profile NPC position if one is recorded.
+            // Y uses profile.npcOffsetY + designYShift so the NPC stays at the level
+            // the admin originally placed it relative to the design's blocks.
             if (profile.hasNpcPosition() && plugin.getNpcManager() != null) {
                 long slotZ = map.getOriginZ() + (long) islandIndex * map.getActualZStep();
                 org.bukkit.Location npcLoc = new org.bukkit.Location(
                         map.getWorld(),
                         map.getOriginX() + diagX + profile.npcOffsetX,
-                        map.getOriginY() + profile.npcOffsetY,
+                        map.getOriginY() + profile.npcOffsetY + designYShift,
                         slotZ + profile.npcOffsetZ,
                         profile.npcYaw, profile.npcPitch
                 );
@@ -977,10 +1027,11 @@ public class GameplayManager {
                         map.getDesignProfile(design);
                 if (profile != null && profile.hasHologramPosition()) {
                     long diagX = (long) islandIndex * map.getDiagonalStepX();
+                    int designYShift = computeDesignYShift(map, profile);
                     return new org.bukkit.Location(
                             map.getWorld(),
                             map.getOriginX() + diagX + profile.hologramOffsetX,
-                            map.getOriginY() + profile.hologramOffsetY,
+                            map.getOriginY() + profile.hologramOffsetY + designYShift,
                             map.getOriginZ() + (long) islandIndex * map.getActualZStep()
                                     + profile.hologramOffsetZ
                     );
@@ -988,6 +1039,25 @@ public class GameplayManager {
             }
         }
         return map.getIslandHologramLocation(islandIndex);
+    }
+
+    /**
+     * Returns the vertical correction (in blocks) needed to make the design's
+     * spawn level line up with the default island's spawn level. The default
+     * island schematic is anchored at {@code map.getSpawnOffsetY()} above the
+     * island origin; if the admin saved the design at a different setup Y the
+     * profile carries that offset in {@code profile.spawnOffsetY}.
+     *
+     * Returning a non-zero shift moves the design's blocks (and its NPC /
+     * hologram / finish offsets) up or down so the player still spawns on top
+     * of the design's intended floor.
+     *
+     * @return 0 when no profile is set or already aligned; otherwise the delta
+     */
+    public int computeDesignYShift(net.gravijet.fastbuilder.map.MapData map,
+                                    net.gravijet.fastbuilder.map.MapData.DesignProfile profile) {
+        if (profile == null) return 0;
+        return (int) Math.round(map.getSpawnOffsetY() - profile.spawnOffsetY);
     }
 
     // =========================================================================

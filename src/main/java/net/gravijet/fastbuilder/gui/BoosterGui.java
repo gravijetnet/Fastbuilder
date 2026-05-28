@@ -151,16 +151,19 @@ public class BoosterGui {
             String affordLine = canAfford
                     ? "&fClick to purchase &7(&c" + type.price + " coins&7)"
                     : "&cNeed &f" + type.price + " coins &7(have &f" + coins + "&7)";
-            String ownedLine = owned > 0 ? "&7Owned: &f" + owned : "&7Not owned";
+
+            List<String> lore = new ArrayList<>();
+            lore.add("&7" + type.description);
+            lore.add("");
+            lore.add("&7Price: &c" + type.price + " coins");
+            if (owned > 0) lore.add("&7Owned: &f" + owned);
+            lore.add("");
+            lore.add(affordLine);
 
             inv.setItem(9 + i, new ItemBuilder(Material.POTION, (byte) 0)
                     .data(type.potionData)
                     .name(type.displayName)
-                    .lore("&7" + type.description, "",
-                          "&7Multiplier: &c" + type.formatMultiplier(),
-                          "&7Duration:   &f" + type.durationMinutes + " min",
-                          "&7Price:      &c" + type.price + " coins",
-                          ownedLine, "", affordLine)
+                    .lore(lore.toArray(new String[0]))
                     .hideFlags().build());
         }
 
@@ -272,10 +275,7 @@ public class BoosterGui {
             inv.setItem(9 + i, new ItemBuilder(Material.POTION, (byte) 0)
                     .data(type.potionData)
                     .name(type.displayName + " &7x" + owned)
-                    .lore("&7" + type.description, "",
-                          "&7Multiplier: &c" + type.formatMultiplier(),
-                          "&7Duration:   &f" + type.durationMinutes + " min",
-                          "&7Owned:      &f" + owned, "", actionLine)
+                    .lore("&7" + type.description, "", actionLine)
                     .hideFlags().build());
         }
 
