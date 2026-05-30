@@ -69,6 +69,7 @@ public class MapManager {
 
                 MapData data = new MapData(mapName);
                 data.loadFrom(config);
+                refreshDesignDimensions(data);
                 maps.put(mapName.toLowerCase(), data);
                 initializeIslands(data);
 
@@ -107,6 +108,9 @@ public class MapManager {
     }
 
     public void saveMap(MapData data) {
+        // Keep the design-dimension cache fresh so newly added designs immediately enlarge
+        // the island bounds (getMaxDesign*) even before the next reload.
+        refreshDesignDimensions(data);
         File file = new File(mapsDir, data.getName().toLowerCase() + ".yml");
         YamlConfiguration config = new YamlConfiguration();
         data.saveTo(config);
@@ -114,6 +118,31 @@ public class MapManager {
             config.save(file);
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to save map: " + data.getName(), e);
+        }
+    }
+
+    /**
+     * Populates the map's runtime design-dimension cache by reading each alternative/
+     * custom-length/infinite design schematic's bounding box from disk. This lets the
+     * island bounds (getMaxDesign*) account for designs that were added without a
+     * DesignProfile, so a longer/wider/taller design is fully walkable, buildable, and
+     * cleared. Reads are cached inside FawePaster, so repeat calls are cheap.
+     */
+    public void refreshDesignDimensions(MapData data) {
+        if (plugin.getFawePaster() == null) return;
+        java.util.Set<String> keys = new java.util.HashSet<>();
+        keys.addAll(data.getAlternativeTemplates());
+        keys.addAll(data.getCustomLengthTemplates());
+        keys.addAll(data.getInfiniteTemplates());
+        for (String key : keys) {
+            if (key == null || key.isEmpty()) continue;
+            // A saved DesignProfile already supplies dimensions; skip the disk read for those.
+            MapData.DesignProfile prof = data.getDesignProfile(key);
+            if (prof != null && (prof.islandWidth > 0 || prof.islandHeight > 0 || prof.islandLength > 0)) {
+                continue;
+            }
+            int[] size = plugin.getFawePaster().getSchematicSize(key);
+            if (size != null) data.setDesignDimension(key, size);
         }
     }
 

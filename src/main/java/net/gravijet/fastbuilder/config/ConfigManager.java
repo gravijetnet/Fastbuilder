@@ -286,6 +286,11 @@ public class ConfigManager {
         return messagesConfig.getString("booster." + key, "");
     }
 
+    /** Run-finish notice templates (the {@code finish.*} section of messages.yml). */
+    public String getFinishMessage(String key) {
+        return messagesConfig.getString("finish." + key, "");
+    }
+
     public String getTitle() {
         return messagesConfig.getString("title", "");
     }

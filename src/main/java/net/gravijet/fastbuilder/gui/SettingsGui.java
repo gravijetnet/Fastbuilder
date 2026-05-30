@@ -187,7 +187,6 @@ public class SettingsGui {
         if (settingsSlots == null) return;
 
         String gui = settingsSlots.getString(slot + ".gui", "");
-        String prefix = plugin.getConfigManager().getPrefix();
 
         switch (gui) {
             case "infinite_blocks": {
@@ -222,9 +221,7 @@ public class SettingsGui {
             }
             case "reset_stats":
                 if (!player.hasPermission("fastbuilder.stats.reset")) {
-                    player.sendMessage(ColorUtil.translate(prefix
-                            + plugin.getConfigManager().getMessage("no-permission")
-                            .replace("%prefix%", "")));
+                    Messages.send(player, "no-permission");
                     break;
                 }
                 player.closeInventory();

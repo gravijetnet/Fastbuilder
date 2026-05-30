@@ -436,28 +436,34 @@ public class GameplayManager {
                 }
             }
         } else {
-            // Practice or stats-disabled mode: show time but note it's not saved
-            String modeLabel = session.isPracticeMode() ? "&6Practice &8» &f" : "&aFinish &8» &f";
-            String noteSuffix;
+            // Practice or stats-disabled mode: show time but note it's not saved.
+            // Titles come from messages.yml (finish.*) so the wording stays consistent
+            // with the rest of the plugin and is fully configurable.
+            String titleKey = session.isPracticeMode() ? "practice-title" : "finish-title";
+            String titleTpl = plugin.getConfigManager().getFinishMessage(titleKey);
+            if (titleTpl == null || titleTpl.isEmpty()) {
+                titleTpl = session.isPracticeMode() ? "&6Practice &8» &f%time%" : "&aFinish &8» &f%time%";
+            }
+            String noteSuffix = "";
             if (statsMap != null && statsMap.isInfinite()) {
-                noteSuffix = "&7Infinite mode";
+                int blocks = session.getPlacedBlocks().size() - session.getPracticeBlocks().size();
+                noteSuffix = formatFinishNote("note-infinite", "&7Infinite &8» &f%blocks% blocks", blocks);
             } else if (playerCustomLengthActive) {
-                // Record custom-length bests (per distance, not globally ranked)
                 int activeDist = data.getCustomLength(session.getMapName());
                 if (activeDist <= 0) activeDist = statsMap != null && statsMap.getBaseCustomLength() > 0
                         ? statsMap.getBaseCustomLength() : 0;
-                if (activeDist > 0 && statsMap != null) {
+                // Record custom-length bests (per distance, not globally ranked) — but never
+                // for practice runs, so a practice attempt can't claim a custom-length record.
+                if (activeDist > 0 && statsMap != null && !wasPractice) {
                     activeDist = Math.max(statsMap.getEffectiveMinCustomLength(),
                             Math.min(statsMap.getEffectiveMaxCustomLength(), activeDist));
                     data.updateCustomLengthBest(session.getMapName(), activeDist, time);
                     data.updateCustomLengthSessionBest(session.getMapName(), activeDist, time);
                     plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 }
-                noteSuffix = "&7Custom &8(" + activeDist + " blocks)";
-            } else {
-                noteSuffix = "";
+                noteSuffix = formatFinishNote("note-custom", "&7Custom &8» &f%blocks% blocks", activeDist);
             }
-            player.sendTitle(ColorUtil.translate(modeLabel + TimeUtil.formatTime(time)),
+            player.sendTitle(ColorUtil.translate(titleTpl.replace("%time%", TimeUtil.formatTime(time))),
                     ColorUtil.translate(noteSuffix));
         }
 
@@ -529,8 +535,13 @@ public class GameplayManager {
                 }
             }
 
-            // Record best infinite distance (blocks placed) + elapsed time on fall for infinite maps
-            if (fallMap != null && fallMap.isInfinite()) {
+            // Record best infinite distance (blocks placed) + elapsed time on fall for infinite maps.
+            // Practice runs (mode on, practice blocks placed, or the sticky flag) never count —
+            // mirrors the finish-path stats gate so a practice attempt can't set a distance record.
+            boolean infinitePractice = session.isPracticeMode()
+                    || session.hasPracticeBlocks()
+                    || session.practiceUsedThisRun();
+            if (fallMap != null && fallMap.isInfinite() && !infinitePractice) {
                 PlayerData infData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
                 if (infData != null) {
                     // Exclude practice blocks: only count real bridging blocks toward distance
@@ -548,13 +559,18 @@ public class GameplayManager {
                 }
             }
 
-            // Award consolation coins on failed runs if configured — only when ≥12 blocks placed
+            // Award consolation coins on failed runs if configured — only when ≥12 blocks placed.
+            // Title/subtitle wording comes from messages.yml (finish.*) for consistency.
             if (plugin.getConfigManager().isCoinsOnFailed() && session.getPlacedBlocks().size() >= 12) {
                 int failCoins = plugin.getCoinManager().awardFailedRunCoins(player);
                 if (failCoins > 0) {
+                    String failTitle = plugin.getConfigManager().getFinishMessage("fail-title");
+                    if (failTitle == null) failTitle = "";
+                    String failCoinsTpl = plugin.getConfigManager().getFinishMessage("fail-coins");
+                    if (failCoinsTpl == null || failCoinsTpl.isEmpty()) failCoinsTpl = "&7+%coins% coins";
                     player.sendTitle(
-                        ColorUtil.translate(""),
-                        ColorUtil.translate("&7+" + failCoins + " coin" + (failCoins != 1 ? "s" : ""))
+                        ColorUtil.translate(failTitle),
+                        ColorUtil.translate(failCoinsTpl.replace("%coins%", String.valueOf(failCoins)))
                     );
                 }
             }
@@ -831,31 +847,27 @@ public class GameplayManager {
     // =========================================================================
 
     /**
-     * Re-paste the default island template at island slot {@code islandIndex}, erasing any
-     * custom design the previous player had applied. Called before a player leaves or switches.
-     * The operation is async-batched so it does not freeze the server.
+     * Computes the union clear box for an island slot: a region large enough to cover the
+     * default island AND every known design's full footprint (width/height/length and
+     * vertical shift), so that switching to a smaller/shorter/lower design never leaves
+     * leftover blocks from a previously-applied larger one.
      *
-     * Clear region grows upward to the tallest known design height so leftover blocks
-     * from a previous (taller) design don't survive the revert.
+     * Each design's footprint is taken from its {@link MapData.DesignProfile} when one was
+     * saved (via {@code /map setdesignmeta}); otherwise it falls back to the raw schematic
+     * bounding box so admin-added designs without metadata are still fully covered.
+     *
+     * @return {@code int[]{minX, minY, minZ, maxX, maxY, maxZ}} in absolute world coords.
      */
-    public void revertIslandDesign(net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
-        if (map.getTemplateFile() == null) return;
+    private int[] computeDesignUnionClearBox(net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
         org.bukkit.Location min = map.getIslandMin(islandIndex);
         org.bukkit.Location max = map.getIslandMax(islandIndex);
-        if (min == null || map.getWorld() == null) return;
 
-        // Compute a clear region large enough to cover the default island AND any
-        // alternative design's full footprint. If the previous design was wider/longer/taller
-        // than the default, its blocks would otherwise survive the revert.
-        // Iterate ALL known templates (across modes) so a design added for one mode
-        // still gets cleared when the player toggles back. Fall back to the raw
-        // schematic dimensions when no DesignProfile has been saved for a design,
-        // so the clear region still covers admin-added designs without /map setdesignmeta.
         int maxDesignWidth  = map.getIslandWidth();
         int maxDesignHeight = map.getIslandHeight();
         int maxDesignLength = map.getIslandLength();
-        int maxDesignShiftUp = 0;
-        int maxDesignShiftDown = 0;
+        int maxShiftUp   = 0;
+        int maxShiftDown = 0;
+
         java.util.Set<String> allTemplates = new java.util.HashSet<>();
         allTemplates.addAll(map.getAlternativeTemplates());
         allTemplates.addAll(map.getCustomLengthTemplates());
@@ -876,26 +888,40 @@ public class GameplayManager {
             if (ph > maxDesignHeight) maxDesignHeight = ph;
             if (pl > maxDesignLength) maxDesignLength = pl;
             int shift = computeDesignYShift(map, prof);
-            if (shift > maxDesignShiftUp) maxDesignShiftUp = shift;
-            if (shift < maxDesignShiftDown) maxDesignShiftDown = shift;
+            if (shift > maxShiftUp)   maxShiftUp   = shift;
+            if (shift < maxShiftDown) maxShiftDown = shift;
         }
-        int clearMaxX = min.getBlockX() + maxDesignWidth - 1;
-        if (clearMaxX < max.getBlockX()) clearMaxX = max.getBlockX();
-        int clearMaxY = min.getBlockY() + maxDesignShiftUp + maxDesignHeight - 1;
-        if (clearMaxY < max.getBlockY()) clearMaxY = max.getBlockY();
-        int clearMinY = min.getBlockY() + maxDesignShiftDown;
-        if (clearMinY > min.getBlockY()) clearMinY = min.getBlockY();
-        int clearMaxZ = min.getBlockZ() + maxDesignLength - 1;
-        if (clearMaxZ < max.getBlockZ()) clearMaxZ = max.getBlockZ();
 
-        final int finalClearMinY = clearMinY;
-        final int finalClearMaxX = clearMaxX;
-        final int finalClearMaxY = clearMaxY;
-        final int finalClearMaxZ = clearMaxZ;
+        int clearMinY = Math.min(min.getBlockY(), min.getBlockY() + maxShiftDown);
+        int clearMaxX = Math.max(max.getBlockX(), min.getBlockX() + maxDesignWidth  - 1);
+        // Cover the tallest design at every shift level: the highest reachable top block is
+        // (minY + maxShiftUp) + (maxDesignHeight - 1). Using both maxima over-covers slightly,
+        // which is safe (the region is repainted), and is never short of any single design.
+        int clearMaxY = Math.max(max.getBlockY(), min.getBlockY() + maxShiftUp + maxDesignHeight - 1);
+        int clearMaxZ = Math.max(max.getBlockZ(), min.getBlockZ() + maxDesignLength - 1);
+
+        return new int[]{ min.getBlockX(), clearMinY, min.getBlockZ(), clearMaxX, clearMaxY, clearMaxZ };
+    }
+
+    /**
+     * Re-paste the default island template at island slot {@code islandIndex}, erasing any
+     * custom design the previous player had applied. Called before a player leaves or switches.
+     * The operation is async-batched so it does not freeze the server.
+     *
+     * The clear region spans the union of the default island and every known design footprint
+     * (see {@link #computeDesignUnionClearBox}) so leftover blocks from a previous (taller /
+     * longer / wider) design never survive the revert.
+     */
+    public void revertIslandDesign(net.gravijet.fastbuilder.map.MapData map, int islandIndex) {
+        if (map.getTemplateFile() == null) return;
+        org.bukkit.Location min = map.getIslandMin(islandIndex);
+        if (min == null || map.getWorld() == null) return;
+
+        int[] box = computeDesignUnionClearBox(map, islandIndex);
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
-                min.getBlockX(), finalClearMinY, min.getBlockZ(),
-                finalClearMaxX, finalClearMaxY, finalClearMaxZ,
+                box[0], box[1], box[2],
+                box[3], box[4], box[5],
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), map.getTemplateFile(),
                         min.getBlockX(), min.getBlockY(), min.getBlockZ(), null)
@@ -933,7 +959,6 @@ public class GameplayManager {
                 && !map.getInfiniteTemplates().contains(selectedDesign)) return;
 
         org.bukkit.Location min = map.getIslandMin(islandIndex);
-        org.bukkit.Location max = map.getIslandMax(islandIndex);
         if (min == null || map.getWorld() == null) return;
 
         // Compute the vertical correction so the design's spawn level lines up
@@ -945,65 +970,15 @@ public class GameplayManager {
                 map.getDesignProfile(selectedDesign);
         int designYShift = computeDesignYShift(map, profile);
         int pasteY = min.getBlockY() + designYShift;
-        // Clear region must cover the union of: the default island, this design's footprint,
-        // AND every other design's footprint (incl. their Y-shift). Otherwise leftover blocks
-        // from a previously applied longer/taller/wider design survive the repaint.
-        // Use the raw schematic dimensions as a fallback when a design has no profile.
-        int clearW = map.getIslandWidth();
-        int clearH = map.getIslandHeight();
-        int clearL = map.getIslandLength();
-        int maxShiftUp = 0;
-        int maxShiftDown = 0;
-        if (profile != null && (profile.islandWidth > 0 || profile.islandHeight > 0 || profile.islandLength > 0)) {
-            if (profile.islandWidth  > clearW) clearW = profile.islandWidth;
-            if (profile.islandHeight > clearH) clearH = profile.islandHeight;
-            if (profile.islandLength > clearL) clearL = profile.islandLength;
-            if (designYShift > maxShiftUp)   maxShiftUp   = designYShift;
-            if (designYShift < maxShiftDown) maxShiftDown = designYShift;
-        } else {
-            int[] selSize = plugin.getFawePaster().getSchematicSize(selectedDesign);
-            if (selSize != null) {
-                if (selSize[0] > clearW) clearW = selSize[0];
-                if (selSize[1] > clearH) clearH = selSize[1];
-                if (selSize[2] > clearL) clearL = selSize[2];
-            }
-        }
-        java.util.Set<String> allDesignKeys = new java.util.HashSet<>();
-        allDesignKeys.addAll(map.getAlternativeTemplates());
-        allDesignKeys.addAll(map.getCustomLengthTemplates());
-        allDesignKeys.addAll(map.getInfiniteTemplates());
-        for (String templateKey : allDesignKeys) {
-            net.gravijet.fastbuilder.map.MapData.DesignProfile other = map.getDesignProfile(templateKey);
-            int ow, oh, ol;
-            if (other != null && (other.islandWidth > 0 || other.islandHeight > 0 || other.islandLength > 0)) {
-                ow = other.islandWidth; oh = other.islandHeight; ol = other.islandLength;
-            } else {
-                int[] sz = plugin.getFawePaster().getSchematicSize(templateKey);
-                if (sz == null) continue;
-                ow = sz[0]; oh = sz[1]; ol = sz[2];
-            }
-            if (ow > clearW) clearW = ow;
-            if (oh > clearH) clearH = oh;
-            if (ol > clearL) clearL = ol;
-            int shift = computeDesignYShift(map, other);
-            if (shift > maxShiftUp)   maxShiftUp   = shift;
-            if (shift < maxShiftDown) maxShiftDown = shift;
-        }
-        int clearMaxX = min.getBlockX() + clearW - 1;
-        int clearMaxY = Math.max(max.getBlockY(),
-                min.getBlockY() + maxShiftUp + clearH - 1);
-        int clearMaxZ = min.getBlockZ() + clearL - 1;
-        int clearMinY = Math.min(min.getBlockY(), min.getBlockY() + maxShiftDown);
-        if (clearMaxX < max.getBlockX()) clearMaxX = max.getBlockX();
-        if (clearMaxZ < max.getBlockZ()) clearMaxZ = max.getBlockZ();
+        // Clear the union of the default island and EVERY design footprint (the same box used
+        // by revertIslandDesign), so a previously-applied longer/taller/wider design can never
+        // leave leftover blocks behind when this design is pasted over it.
+        int[] box = computeDesignUnionClearBox(map, islandIndex);
         final int finalPasteY = pasteY;
-        final int finalClearMaxX = clearMaxX;
-        final int finalClearMaxY = clearMaxY;
-        final int finalClearMaxZ = clearMaxZ;
         plugin.getFawePaster().clearRegion(
                 map.getWorld(),
-                min.getBlockX(), clearMinY, min.getBlockZ(),
-                finalClearMaxX, finalClearMaxY, finalClearMaxZ,
+                box[0], box[1], box[2],
+                box[3], box[4], box[5],
                 () -> plugin.getFawePaster().pasteTemplate(
                         map.getWorld(), selectedDesign,
                         min.getBlockX(), finalPasteY, min.getBlockZ(), null)
@@ -1365,6 +1340,13 @@ public class GameplayManager {
     private static String formatMult(double mult) {
         if (Math.abs(mult - Math.floor(mult)) < 1e-9) return (int) mult + "x";
         return String.format("%.1fx", mult);
+    }
+
+    /** Resolves a finish.* note template (with %blocks%) from messages.yml, falling back to a default. */
+    private String formatFinishNote(String key, String fallback, int blocks) {
+        String tpl = plugin.getConfigManager().getFinishMessage(key);
+        if (tpl == null || tpl.isEmpty()) tpl = fallback;
+        return tpl.replace("%blocks%", String.valueOf(blocks));
     }
 
     public void enterBuildMode(UUID uuid) { buildModePlayers.add(uuid); }

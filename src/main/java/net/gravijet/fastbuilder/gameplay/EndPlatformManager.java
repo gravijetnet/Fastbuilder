@@ -67,7 +67,11 @@ class EndPlatformManager {
 
         // Diagonal maps shift each slot in +X by diagonalStepX (0 for straight maps).
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
-        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
+        // End island min-X mirrors how baseCustomLength is measured at setup:
+        // baseCustomLength = endMin.X - (originX + islandWidth - 1) - 1
+        //   ⇒ endMin.X = originX + islandWidth + customLength
+        // so the live position reproduces exactly where the admin placed the end island.
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
@@ -113,7 +117,8 @@ class EndPlatformManager {
 
         // Diagonal maps shift each slot in +X by diagonalStepX (0 for straight maps).
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
-        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength - 2;
+        // See placeEndIslandTemplateAfterClear: endMin.X = originX + islandWidth + customLength.
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
@@ -231,7 +236,8 @@ class EndPlatformManager {
         if (defaultLength <= 0) return;
 
         int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
-        int endX = map.getOriginX() + diagX + map.getIslandWidth() + defaultLength - 2;
+        // Matches the live-placement formula: endMin.X = originX + islandWidth + length.
+        int endX = map.getOriginX() + diagX + map.getIslandWidth() + defaultLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset();
         int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 

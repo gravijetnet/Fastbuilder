@@ -39,7 +39,7 @@ public class ReplayGui {
 
     public void open(Player player, String mapName, boolean showFavorites) {
         if (plugin.getReplayManager() == null) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cReplays aren't available right now."));
+            net.gravijet.fastbuilder.util.Messages.send(player, "replay-unavailable");
             return;
         }
 
@@ -277,14 +277,14 @@ public class ReplayGui {
             if (pData == null) return;
             boolean wasFav = pData.isFavoriteReplay(replay.getFileName());
             pData.toggleFavoriteReplay(replay.getFileName());
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                    + (!wasFav ? "&aAdded to favorites." : "&7Removed from favorites.")));
+            net.gravijet.fastbuilder.util.Messages.send(player,
+                    wasFav ? "replay-favorite-removed" : "replay-favorite-added");
             openPage(player, replays, currentPage, favMode, mapName);
         } else {
             player.closeInventory();
             if (plugin.getReplayManager() != null) {
                 plugin.getReplayManager().startPlayback(player, replay);
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7Loading replay&8..."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "replay-loading");
             }
         }
     }

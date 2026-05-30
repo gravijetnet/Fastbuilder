@@ -52,7 +52,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ColorUtil.translate("&cOnly players can use this command."));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "players-only");
             return true;
         }
 
@@ -713,6 +713,10 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
     // --- Message Helper ---
 
     private void msg(Player player, String text) {
-        player.sendMessage(ColorUtil.translate(text));
+        if (text == null || text.isEmpty()) return;
+        // Always resolve %prefix% here so callers that pass a raw messages.yml template
+        // (e.g. getMessage("no-permission")) don't leak a literal "%prefix%" to the player.
+        player.sendMessage(ColorUtil.translate(
+                text.replace("%prefix%", plugin.getConfigManager().getPrefix())));
     }
 }

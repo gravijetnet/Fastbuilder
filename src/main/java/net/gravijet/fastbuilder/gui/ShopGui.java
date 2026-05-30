@@ -660,7 +660,7 @@ public class ShopGui {
         String defaultKey2 = map.getTemplateFile();
         if (currentlySelected == null) currentlySelected = defaultKey2;
         if (templateKey.equalsIgnoreCase(currentlySelected)) {
-            player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7That design is already active."));
+            net.gravijet.fastbuilder.util.Messages.send(player, "design-already-active");
             return;
         }
 
@@ -678,7 +678,8 @@ public class ShopGui {
                 pData.removeCoins(designPrice);
                 pData.purchaseDesign(templateKey);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
-                player.sendMessage(ColorUtil.translate(prefix + "&aDesign unlocked &8» &f" + templateKey + " &7&o(-" + designPrice + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "design-unlocked",
+                        "design", templateKey, "price", String.valueOf(designPrice));
             } else {
                 String msg = guis.getString("island-designs.lore-cannot-afford",
                         "&cNot enough coins &7(&f%coins% / %price%&7)")
@@ -717,8 +718,7 @@ public class ShopGui {
             if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         }
 
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fIsland design &capplied instantly: &f" + templateKey));
+        net.gravijet.fastbuilder.util.Messages.send(player, "design-applied", "design", templateKey);
     }
 
     private ItemStack buildCategoryItem(FileConfiguration guis, String path,

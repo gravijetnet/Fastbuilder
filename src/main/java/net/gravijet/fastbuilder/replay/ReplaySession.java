@@ -191,9 +191,9 @@ public class ReplaySession {
                                         ? map.getBaseCustomLength()
                                         : map.getEffectiveMinCustomLength());
                             // Use the same X formula as EndPlatformManager/GameplayListener
-                            // (… + len - 2) so the replay's end island sits exactly where
-                            // it was during the actual recorded run.
-                            int endX = replayAreaXFinal + map.getIslandWidth() + len - 2;
+                            // (originX + islandWidth + len) so the replay's end island sits
+                            // exactly where it was during the actual recorded run.
+                            int endX = replayAreaXFinal + map.getIslandWidth() + len;
                             int endY = REPLAY_AREA_Y + map.getEndIslandYOffset();
                             int endZ = replayAreaZ + map.getEndIslandZOffset();
                             endIslandClearRegion = new int[]{
@@ -659,8 +659,7 @@ public class ReplaySession {
                         .name("&a■ Replay Finished  &7— Click to watch again")
                         .lore("&7Click to restart the replay")
                         .build());
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&fReplay finished. &aClick Lime Dye &7(slot 5) to restart or &cLeave Replay &7(slot 9)."));
+        net.gravijet.fastbuilder.util.Messages.send(player, "replay-finished");
     }
 
     public void updateControlItems() {

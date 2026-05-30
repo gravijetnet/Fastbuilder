@@ -38,7 +38,7 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             // View own balance
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ColorUtil.translate(prefix + "&cPlayers only."));
+                net.gravijet.fastbuilder.util.Messages.send(sender, "players-only");
                 return true;
             }
             Player player = (Player) sender;

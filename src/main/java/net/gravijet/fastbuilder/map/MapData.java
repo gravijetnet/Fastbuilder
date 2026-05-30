@@ -112,6 +112,13 @@ public class MapData {
     // Keyed by template file name (lower-case). Saved in the map YAML file.
     private final Map<String, DesignProfile> designProfiles = new HashMap<>();
 
+    // Raw schematic dimensions {width,height,length} per design template key (lower-case),
+    // populated from disk by MapManager. NOT persisted — it's a runtime cache used so the
+    // island bounds (getMaxDesign*) cover designs that were added WITHOUT a DesignProfile
+    // (e.g. via /map adddesign with no /map setdesignmeta). Without this a longer/wider/taller
+    // design pastes fully but the gameplay bounds still think the island is the default size.
+    private final Map<String, int[]> designDimensionCache = new HashMap<>();
+
     /**
      * Metadata for an alternative island design template: spawn location offset,
      * finish zone bounds, NPC position, and island dimensions — all relative to
@@ -391,31 +398,51 @@ public class MapData {
         return (long) index * diagonalStepX;
     }
 
-    /** Maximum islandWidth across the base map AND all known design profiles. */
+    /** Maximum islandWidth across the base map, all design profiles, AND cached schematic sizes. */
     public int getMaxDesignWidth() {
         int max = islandWidth;
         for (DesignProfile p : designProfiles.values()) {
             if (p.islandWidth > max) max = p.islandWidth;
         }
+        for (int[] dim : designDimensionCache.values()) {
+            if (dim != null && dim[0] > max) max = dim[0];
+        }
         return max;
     }
 
-    /** Maximum islandHeight across the base map AND all known design profiles. */
+    /** Maximum islandHeight across the base map, all design profiles, AND cached schematic sizes. */
     public int getMaxDesignHeight() {
         int max = islandHeight;
         for (DesignProfile p : designProfiles.values()) {
             if (p.islandHeight > max) max = p.islandHeight;
         }
+        for (int[] dim : designDimensionCache.values()) {
+            if (dim != null && dim[1] > max) max = dim[1];
+        }
         return max;
     }
 
-    /** Maximum islandLength across the base map AND all known design profiles. */
+    /** Maximum islandLength across the base map, all design profiles, AND cached schematic sizes. */
     public int getMaxDesignLength() {
         int max = islandLength;
         for (DesignProfile p : designProfiles.values()) {
             if (p.islandLength > max) max = p.islandLength;
         }
+        for (int[] dim : designDimensionCache.values()) {
+            if (dim != null && dim[2] > max) max = dim[2];
+        }
         return max;
+    }
+
+    /**
+     * Records the raw schematic dimensions of a design template (runtime cache, not persisted).
+     * Called by MapManager after reading the schematic from disk so the island bounds include
+     * designs that have no DesignProfile. Pass {@code null} dims to clear the entry.
+     */
+    public void setDesignDimension(String templateKey, int[] whl) {
+        if (templateKey == null) return;
+        if (whl == null) designDimensionCache.remove(templateKey.toLowerCase());
+        else designDimensionCache.put(templateKey.toLowerCase(), whl);
     }
 
     /**

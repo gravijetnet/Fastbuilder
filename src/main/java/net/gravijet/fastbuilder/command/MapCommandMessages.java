@@ -16,7 +16,11 @@ class MapCommandMessages {
     }
 
     void msg(Player player, String text) {
-        player.sendMessage(ColorUtil.translate(text));
+        if (text == null || text.isEmpty()) return;
+        // Resolve %prefix% here so callers passing a raw messages.yml template
+        // (e.g. getMessage("no-permission")) never leak a literal "%prefix%".
+        player.sendMessage(ColorUtil.translate(
+                text.replace("%prefix%", plugin.getConfigManager().getPrefix())));
     }
 
     void msgAdmin(Player player, String key) {

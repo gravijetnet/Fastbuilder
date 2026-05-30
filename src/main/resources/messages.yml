@@ -89,6 +89,31 @@ messages:
   stats-reset: "%prefix%&7Stats reset."
   config-reloaded: "%prefix%&aConfig reloaded."
 
+  # Island designs (shown when a player switches design in the shop)
+  design-applied: "%prefix%&7Design &8» &f%design%"
+  design-already-active: "%prefix%&7That design is already active."
+  design-unlocked: "%prefix%&7Design unlocked &8» &f%design% &8(&6-%price% coins&8)"
+
+  # Replays
+  replay-loading: "%prefix%&7Loading replay&8..."
+  replay-favorite-added: "%prefix%&7Added to favorites."
+  replay-favorite-removed: "%prefix%&7Removed from favorites."
+  replay-unavailable: "%prefix%&cReplays aren't available right now."
+  replay-finished: "%prefix%&7Replay finished &8» &aclick to watch again &7or leave."
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Run-finish notices (titles shown above the hotbar at the end of a run)
+# These cover non-ranked finishes; ranked finishes use title/subtitle + end-messages.
+# Placeholders: %time%, %blocks%, %coins%
+# ──────────────────────────────────────────────────────────────────────────────
+finish:
+  practice-title: "&6Practice &8» &f%time%"
+  finish-title: "&aFinish &8» &f%time%"
+  note-infinite: "&7Infinite &8» &f%blocks% blocks"
+  note-custom: "&7Custom &8» &f%blocks% blocks"
+  fail-title: "&c&lFAILED"
+  fail-coins: "&7+%coins% coins"
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Completion title / subtitle shown above the hotbar
 # Placeholders: %time%, %coins%, %booster%

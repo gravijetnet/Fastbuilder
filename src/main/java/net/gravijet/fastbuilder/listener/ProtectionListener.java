@@ -326,7 +326,8 @@ public class ProtectionListener implements Listener {
         boolean isLeft  = event.getAction() == org.bukkit.event.block.Action.LEFT_CLICK_BLOCK;
         boolean isShift = player.isSneaking();
         int step = isShift ? 10 : 1;
-        // Left-click = 1 Block näher (customLength verringern), right-click = weiter (erhöhen)
+        // Matches the Custom Length menu (slot 11): left-click = closer (decrease customLength),
+        // right-click = further (increase). Shift multiplies the step by 10.
         int delta = isLeft ? -step : step;
 
         int current = pData.getCustomLength(map.getName());
