@@ -35,10 +35,7 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!sender.hasPermission("fastbuilder.command.leaderboard")) {
-            String noPermMsg = plugin.getConfigManager().getMessage("no-permission");
-            if (noPermMsg == null) noPermMsg = "%prefix%&cYou do not have permission.";
-            sender.sendMessage(ColorUtil.translate(
-                    noPermMsg.replace("%prefix%", plugin.getConfigManager().getPrefix())));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "no-permission");
             return true;
         }
 
@@ -69,7 +66,8 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
             if (targetMap != null) {
                 MapData map = plugin.getMapManager().getMap(targetMap);
                 if (map == null) {
-                    player.sendMessage(ColorUtil.translate(prefix + "&cNo map called &f" + targetMap + "&c."));
+                    net.gravijet.fastbuilder.util.Messages.send(player, "map-not-found",
+                            "map", targetMap);
                     return true;
                 }
                 plugin.getGuiManager().openLeaderboardGui(player, map.getName());
@@ -84,7 +82,8 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
             final String mapName = targetMap;
             MapData map = plugin.getMapManager().getMap(mapName);
             if (map == null) {
-                sender.sendMessage(ColorUtil.translate(prefix + "&cNo map called &f" + mapName + "&c."));
+                net.gravijet.fastbuilder.util.Messages.send(sender, "map-not-found",
+                        "map", mapName);
                 return true;
             }
             showLeaderboardForMap(sender, map, limit, prefix);

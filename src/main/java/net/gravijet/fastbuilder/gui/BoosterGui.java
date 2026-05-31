@@ -186,7 +186,6 @@ public class BoosterGui {
         int navRowStart = (rows - 1) * 9;
         int invBtnSlot = navRowStart;
         int backBtnSlot = navRowStart + 4;
-        String prefix = plugin.getConfigManager().getPrefix();
 
         if (slot == invBtnSlot) {
             player.closeInventory();
@@ -209,16 +208,16 @@ public class BoosterGui {
         if (data == null) return;
 
         if (data.getCoins() < type.price) {
-            player.sendMessage(ColorUtil.translate(prefix
-                    + "&cNot enough coins &7(&fneed &c" + type.price + "&7, have &f" + data.getCoins() + "&7)."));
+            net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                    "price", String.valueOf(type.price));
             return;
         }
 
         data.removeCoins(type.price);
         data.addBooster(type.id, 1);
         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
-        player.sendMessage(ColorUtil.translate(prefix + "&fPurchased &c" + type.displayName
-                + " &7» &fActivate it from your &cBooster Inventory&f."));
+        net.gravijet.fastbuilder.util.Messages.send(player, "booster-purchased",
+                "type", type.displayName);
         player.closeInventory();
         openShop(player);
     }
@@ -297,7 +296,6 @@ public class BoosterGui {
         int navRowStart = (rows - 1) * 9;
         int shopBtnSlot = navRowStart;
         int backBtnSlot = navRowStart + 4;
-        String prefix = plugin.getConfigManager().getPrefix();
 
         if (slot == shopBtnSlot) { player.closeInventory(); openShop(player); return; }
         if (slot == backBtnSlot) { player.closeInventory(); openHub(player); return; }
@@ -318,19 +316,20 @@ public class BoosterGui {
         BoosterType type = ownedTypes.get(index);
         if (plugin.getBoosterManager().hasActiveTemporaryBooster(player.getUniqueId())) {
             String remaining = plugin.getBoosterManager().formatRemaining(player.getUniqueId());
-            player.sendMessage(ColorUtil.translate(prefix
-                    + "&cYou already have an active booster! &7Wait &c" + remaining + " &7for it to expire."));
+            net.gravijet.fastbuilder.util.Messages.send(player, "booster-already-active",
+                    "remaining", remaining);
             return;
         }
 
         boolean activated = plugin.getBoosterManager().activateBooster(player, type.id);
         if (!activated) {
-            player.sendMessage(ColorUtil.translate(prefix + "&cFailed to activate booster."));
+            net.gravijet.fastbuilder.util.Messages.send(player, "booster-activate-failed");
             return;
         }
 
-        player.sendMessage(ColorUtil.translate(prefix + "&c" + type.formatMultiplier()
-                + " Coin Booster &factivated &7» &f" + type.durationMinutes + " minutes"));
+        net.gravijet.fastbuilder.util.Messages.send(player, "booster-activated",
+                "multiplier", type.formatMultiplier(),
+                "duration", String.valueOf(type.durationMinutes));
         player.closeInventory();
         openInventory(player);
     }

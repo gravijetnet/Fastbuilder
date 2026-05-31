@@ -187,11 +187,11 @@ public class BlockSelectorGui {
                     if (swapSession != null) plugin.getGameplayManager().resetRun(player);
                 }
                 String blockName = pageSection.getString(blockIndex + ".name", "Block");
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&aUnlocked &f" + blockName + " &7&o(-" + price + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-unlocked",
+                        "item", blockName, "price", String.valueOf(price));
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cNot enough coins &8» &7need &6" + price + "&7."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(price));
             }
             return;
         }
@@ -207,8 +207,7 @@ public class BlockSelectorGui {
             if (swapSession != null) plugin.getGameplayManager().resetRun(player);
         }
         String blockName = pageSection.getString(blockIndex + ".name", "Block");
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                + "&7Block &8» &f" + blockName));
+        net.gravijet.fastbuilder.util.Messages.send(player, "shop-block-selected", "item", blockName);
     }
 
     static boolean isWallOrFence(String materialString) {

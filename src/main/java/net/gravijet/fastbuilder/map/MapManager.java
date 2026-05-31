@@ -633,13 +633,22 @@ public class MapManager {
                 ? plugin.getGameplayManager().getEffectiveSpawn(player.getUniqueId(), map, island)
                 : map.getIslandSpawn(island);
         player.teleport(spawn);
+        // Restore normal play state — the player may have been in SPECTATOR/CREATIVE from a
+        // previous failed relocation attempt or admin no-island fallback.
+        player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+        player.setFlying(false);
+        player.setAllowFlight(false);
+        player.setFoodLevel(20);
+        player.setHealth(player.getMaxHealth());
         if (plugin.getGameplayManager() != null) {
             plugin.getGameplayManager().createSession(player.getUniqueId(), map.getName(), island);
         }
         if (plugin.getHotbarManager() != null) {
             plugin.getHotbarManager().giveItems(player);
         }
-        plugin.getScoreboardManager().updateScoreboard(player);
+        // Re-create the scoreboard rather than just updating it: a relocated player coming from
+        // a deleted/rescaled map may have lost their board, and updateScoreboard() no-ops without one.
+        plugin.getScoreboardManager().createScoreboard(player);
     }
 
     // --- Setup Sessions ---

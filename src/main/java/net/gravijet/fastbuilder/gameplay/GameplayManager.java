@@ -271,11 +271,8 @@ public class GameplayManager {
                 plugin.getReplayManager().stopRecording(player.getUniqueId(), false);
             }
             finishCooldown.remove(uuid);
-            String msg = plugin.getConfigManager().getMessage("min-time-not-recorded");
-            if (msg == null || msg.isEmpty()) msg = "%prefix%&cTime too fast to be recorded &7(&f%time%&7).";
-            msg = msg.replace("%time%", net.gravijet.fastbuilder.util.TimeUtil.formatTime(rawElapsed))
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
-            player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(msg));
+            net.gravijet.fastbuilder.util.Messages.send(player, "min-time-not-recorded",
+                    "time", TimeUtil.formatTime(rawElapsed));
             // Reset without counting as attempt.
             // Re-lookup player by UUID so a stale Player object never reaches resetRun.
             UUID minTimeUuid = uuid;
@@ -425,14 +422,8 @@ public class GameplayManager {
                 String rank = map.getPlayerRank(stats.bestTime);
                 if (rank != null && !data.hasBeenNotifiedOfRank(session.getMapName(), rank)) {
                     data.markRankNotified(session.getMapName(), rank);
-                    String rankMsg = plugin.getConfigManager().getMessage("rank-achieved");
-                    if (rankMsg == null || rankMsg.isEmpty()) {
-                        rankMsg = "%prefix%&fYou achieved the &6%rank% &frank on &c%map%&f!";
-                    }
-                    rankMsg = rankMsg.replace("%rank%", rank)
-                            .replace("%map%", session.getMapName())
-                            .replace("%prefix%", plugin.getConfigManager().getPrefix());
-                    player.sendMessage(net.gravijet.fastbuilder.util.ColorUtil.translate(rankMsg));
+                    net.gravijet.fastbuilder.util.Messages.send(player, "rank-achieved",
+                            "rank", rank, "map", session.getMapName());
                 }
             }
         } else {
@@ -1261,12 +1252,7 @@ public class GameplayManager {
                                     stats.totalAttempts++;
                                 }
                             }
-                            String limitMsg = plugin.getConfigManager().getMessage("max-time-exceeded");
-                            if (limitMsg == null || limitMsg.isEmpty()) {
-                                limitMsg = "%prefix%&cRun failed: time limit exceeded.";
-                            }
-                            limitMsg = limitMsg.replace("%prefix%", plugin.getConfigManager().getPrefix());
-                            player.sendMessage(ColorUtil.translate(limitMsg));
+                            net.gravijet.fastbuilder.util.Messages.send(player, "max-time-exceeded");
                             resetRun(player);
                             continue;
                         }

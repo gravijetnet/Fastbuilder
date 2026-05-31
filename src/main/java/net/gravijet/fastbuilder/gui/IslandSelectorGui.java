@@ -183,19 +183,13 @@ public class IslandSelectorGui {
 
         IslandInstance island = islands.get(islandIndex);
         if (island.isOccupied()) {
-            String raw = plugin.getConfigManager().getMessage("island-already-occupied");
-            raw = raw.replace("%island_player%", island.getOccupantName());
-            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-            player.sendMessage(ColorUtil.translate(raw));
+            net.gravijet.fastbuilder.util.Messages.send(player, "island-already-occupied",
+                    "island_player", island.getOccupantName());
             player.closeInventory();
             return;
         }
         if (plugin.getMapManager().isMapScaling(map.getName())) {
-            String raw = plugin.getConfigManager().getMessage("island-scaling");
-            if (raw == null || raw.isEmpty())
-                raw = "%prefix%&cThis island is still being prepared. Please try again in a moment.";
-            raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-            player.sendMessage(ColorUtil.translate(raw));
+            net.gravijet.fastbuilder.util.Messages.send(player, "island-scaling");
             player.closeInventory();
             return;
         }
@@ -273,9 +267,7 @@ public class IslandSelectorGui {
             plugin.getHologramManager().updateHologramAt(map.getName(), islandIndex, player, holoLoc);
         }
 
-        String raw = plugin.getConfigManager().getMessage("island-joined");
-        raw = raw.replace("%island_number%", String.valueOf(islandIndex + 1));
-        raw = raw.replace("%prefix%", plugin.getConfigManager().getPrefix());
-        player.sendMessage(ColorUtil.translate(raw));
+        net.gravijet.fastbuilder.util.Messages.send(player, "island-joined",
+                "island_number", String.valueOf(islandIndex + 1));
     }
 }

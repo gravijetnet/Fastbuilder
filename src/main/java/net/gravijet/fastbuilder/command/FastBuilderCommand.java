@@ -59,7 +59,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         Player player = (Player) sender;
 
         if (!player.hasPermission("fastbuilder.play")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return true;
         }
 
@@ -101,13 +101,11 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private void handleJoin(Player player, String[] args, MapManager mm) {
         if (!player.hasPermission("fastbuilder.command.fb.join")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
         if (args.length < 2) {
-            msg(player, plugin.getConfigManager().getMessage("usage")
-                    .replace("%command%", "/fb join <map>")
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix()));
+            net.gravijet.fastbuilder.util.Messages.send(player, "usage", "command", "/fb join <map>");
             return;
         }
 
@@ -115,16 +113,12 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         MapData map = mm.getMap(mapName);
 
         if (map == null) {
-            msg(player, plugin.getConfigManager().getMessage("map-not-found")
-                    .replace("%map%", mapName)
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix()));
+            net.gravijet.fastbuilder.util.Messages.send(player, "map-not-found", "map", mapName);
             return;
         }
 
         if (!map.isEnabled()) {
-            msg(player, plugin.getConfigManager().getMessage("map-disabled")
-                    .replace("%map%", map.getName())
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix()));
+            net.gravijet.fastbuilder.util.Messages.send(player, "map-disabled", "map", map.getName());
             return;
         }
 
@@ -160,17 +154,18 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         // Assign a free island on the target map
         int island = mm.assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
         if (island < 0) {
-            msg(player, plugin.getConfigManager().getMessage("no-free-islands")
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix()));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-free-islands");
             return;
         }
 
-        player.teleport(map.getIslandSpawn(island));
-
-        // Update player data
+        // Update player data first so getEffectiveSpawn can honour the selected design
         PlayerData data = plugin.getPlayerManager().getPlayerData(player.getUniqueId(), player.getName());
         data.setLastMap(map.getName());
         data.setLastIsland(island);
+
+        player.teleport(plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getEffectiveSpawn(player.getUniqueId(), map, island)
+                : map.getIslandSpawn(island));
 
         // Full island setup on the new island
         player.setGameMode(org.bukkit.GameMode.SURVIVAL);
@@ -219,19 +214,14 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         // Check autoscale
         mm.checkAutoscale(map);
 
-        String raw = plugin.getConfigManager().getMessage("joined-mode");
-        if (raw != null && !raw.isEmpty()) {
-            raw = raw.replace("%map%", map.getName())
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
-            msg(player, raw);
-        }
+        net.gravijet.fastbuilder.util.Messages.send(player, "joined-mode", "map", map.getName());
     }
 
     // --- /fb leave ---
 
     private void handleLeave(Player player) {
         if (!player.hasPermission("fastbuilder.command.fb.leave")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
 
@@ -317,7 +307,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
         // Only send the message for non-kick actions (kick reason serves as the message)
         if (!action.equals("KICK") && !action.equals("BUNGEE")) {
-            msg(player, plugin.getConfigManager().getPrefix() + "&7See you next time.");
+            net.gravijet.fastbuilder.util.Messages.send(player, "left-game");
         }
     }
 
@@ -326,7 +316,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private void handleLeaveMap(Player player) {
         if (!player.hasPermission("fastbuilder.command.fb.leave")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
 
@@ -366,14 +356,14 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         plugin.getMapManager().freeAllIslands(player.getUniqueId());
 
         player.setGameMode(org.bukkit.GameMode.CREATIVE);
-        msg(player, plugin.getConfigManager().getPrefix() + "&7Left your island &8» &abuild mode active");
+        net.gravijet.fastbuilder.util.Messages.send(player, "left-map-build-mode");
     }
 
     // --- /fb reset ---
 
     private void handleReset(Player player, MapManager mm) {
         if (!player.hasPermission("fastbuilder.command.fb.reset")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
         String currentMap = null;
@@ -436,7 +426,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private void handleReload(Player player) {
         if (!player.hasPermission("fastbuilder.command.fb.reload")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
 
@@ -458,7 +448,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     private void handleDump(Player player) {
         if (!player.hasPermission("fastbuilder.command.fb.dump")) {
-            msg(player, plugin.getConfigManager().getMessage("no-permission"));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return;
         }
 

@@ -3,7 +3,6 @@ package net.gravijet.fastbuilder.command;
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.gameplay.GameplayManager;
 import net.gravijet.fastbuilder.gameplay.RunSession;
-import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.GameMode;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -24,18 +23,15 @@ public class BuildCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        String prefix = plugin.getConfigManager().getPrefix();
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cPlayers only."));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "players-only");
             return true;
         }
 
         Player player = (Player) sender;
 
         if (!player.hasPermission("fastbuilder.admin")) {
-            String msg = plugin.getConfigManager().getMessage("no-permission");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&cYou do not have permission to do this.";
-            player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
+            net.gravijet.fastbuilder.util.Messages.send(player, "no-permission");
             return true;
         }
 
@@ -44,9 +40,7 @@ public class BuildCommand implements CommandExecutor {
 
         RunSession session = gm.getSession(player.getUniqueId());
         if (session == null) {
-            String msg = plugin.getConfigManager().getMessage("build-mode-not-on-island");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&cYou must be on an island to use Build Mode.";
-            player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
+            net.gravijet.fastbuilder.util.Messages.send(player, "build-mode-not-on-island");
             return true;
         }
 
@@ -58,18 +52,14 @@ public class BuildCommand implements CommandExecutor {
             player.setFlying(false);
             if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
             plugin.getScoreboardManager().updateScoreboard(player);
-            String msg = plugin.getConfigManager().getMessage("build-mode-exit");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&cBuild Mode exited. Your blocks are preserved until the map is rescaled.";
-            player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
+            net.gravijet.fastbuilder.util.Messages.send(player, "build-mode-exit");
         } else {
             // Enter build mode — session and blocks intentionally preserved
             gm.enterBuildMode(player.getUniqueId());
             player.setGameMode(GameMode.CREATIVE);
             player.setAllowFlight(true);
             player.setFlying(true);
-            String msg = plugin.getConfigManager().getMessage("build-mode-enter");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&aYou entered Build Mode. Changes will be preserved. Use &f/build &aagain to exit.";
-            player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
+            net.gravijet.fastbuilder.util.Messages.send(player, "build-mode-enter");
         }
 
         return true;

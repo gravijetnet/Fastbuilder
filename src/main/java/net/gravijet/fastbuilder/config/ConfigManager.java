@@ -30,6 +30,26 @@ public class ConfigManager {
     private FileConfiguration guisConfig;
     private FileConfiguration itemsConfig;
 
+    // -------------------------------------------------------------------------
+    // Config migration — renamed keys
+    // -------------------------------------------------------------------------
+    // When you RENAME a config option between plugin versions, add a
+    // { "old.path", "new.path" } entry to the matching table below. On the next
+    // server start the user's existing value is moved to the new key automatically
+    // and the old key is removed.
+    //
+    // Adding a brand-NEW option needs NO entry here at all — it is copied from the
+    // bundled default by addMissingDefaults() on its own. Dotted paths ("a.b.c")
+    // target nested keys; an entry may rename a whole section too.
+    private static final String[][] CONFIG_RENAMES = {
+        // Example — rename "available-blocks:" to "blocks:" :
+        // { "available-blocks", "blocks" },
+        { "bungee.lobby-server", "leave-item.lobby-server" },
+    };
+    private static final String[][] MESSAGES_RENAMES = {};
+    private static final String[][] GUIS_RENAMES = {};
+    private static final String[][] ITEMS_RENAMES = {};
+
     public ConfigManager(FastBuilder plugin) {
         this.plugin = plugin;
     }
@@ -48,23 +68,67 @@ public class ConfigManager {
         guisConfig = loadYaml("guis.yml");
         itemsConfig = loadYaml("items.yml");
 
-        // Merge any new keys from bundled defaults into existing server config files.
-        // For config.yml we skip after first load (Bukkit's saveDefaultConfig handles initial creation).
-        mergeMissingDefaults(mainConfig,     "config.yml",   new File(plugin.getDataFolder(), "config.yml"));
-        mergeMissingDefaults(messagesConfig, "messages.yml", new File(plugin.getDataFolder(), "messages.yml"));
-        mergeMissingDefaults(guisConfig,     "guis.yml",     new File(plugin.getDataFolder(), "guis.yml"));
-        mergeMissingDefaults(itemsConfig,    "items.yml",    new File(plugin.getDataFolder(), "items.yml"));
+        // Bring each server-side config up to date with the bundled version:
+        //   1) migrate any renamed keys (moves the user's value to the new key name)
+        //   2) add any brand-new keys that the bundled default has but the file lacks
+        // New options therefore appear automatically on update with no code change;
+        // only *renames* need a one-line entry in the *_RENAMES tables above.
+        syncConfig(mainConfig,     "config.yml",   CONFIG_RENAMES);
+        syncConfig(messagesConfig, "messages.yml", MESSAGES_RENAMES);
+        syncConfig(guisConfig,     "guis.yml",     GUIS_RENAMES);
+        syncConfig(itemsConfig,    "items.yml",    ITEMS_RENAMES);
     }
 
-    private void mergeMissingDefaults(FileConfiguration config, String resourceName, File file) {
+    /**
+     * Migrates renamed keys, then copies any keys present in the bundled default
+     * resource but missing from the server's file, saving once if anything changed.
+     */
+    private void syncConfig(FileConfiguration config, String resourceName, String[][] renames) {
+        File file = new File(plugin.getDataFolder(), resourceName);
+        boolean changed = applyRenames(config, renames);
+        changed |= addMissingDefaults(config, resourceName);
+        if (changed) {
+            try {
+                config.save(file);
+            } catch (IOException e) {
+                plugin.getLogger().warning("Could not save updated " + resourceName + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * For each {oldKey, newKey} pair: if the old key still exists, move its value to the
+     * new key (only when the new key isn't already set, so a value the user maintains under
+     * the new name is never clobbered) and remove the old key. Returns true if anything changed.
+     */
+    private boolean applyRenames(FileConfiguration config, String[][] renames) {
+        boolean changed = false;
+        for (String[] pair : renames) {
+            String oldKey = pair[0];
+            String newKey = pair[1];
+            if (!config.isSet(oldKey)) continue;
+            if (!config.isSet(newKey)) {
+                config.set(newKey, deepCopy(config.get(oldKey)));
+            }
+            config.set(oldKey, null); // drop the stale key either way
+            changed = true;
+        }
+        return changed;
+    }
+
+    /**
+     * Copies every key present in the bundled default resource but missing from
+     * {@code config}. Returns true if the config was modified.
+     */
+    private boolean addMissingDefaults(FileConfiguration config, String resourceName) {
         InputStream in = plugin.getResource(resourceName);
-        if (in == null) return;
+        if (in == null) return false;
         FileConfiguration defaults;
         try (InputStreamReader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
             defaults = YamlConfiguration.loadConfiguration(reader);
         } catch (IOException e) {
             plugin.getLogger().warning("Could not read default " + resourceName + ": " + e.getMessage());
-            return;
+            return false;
         }
         boolean changed = false;
         for (String key : defaults.getKeys(true)) {
@@ -73,13 +137,20 @@ public class ConfigManager {
                 changed = true;
             }
         }
-        if (changed) {
-            try {
-                config.save(file);
-            } catch (IOException e) {
-                plugin.getLogger().warning("Could not save updated " + resourceName + ": " + e.getMessage());
+        return changed;
+    }
+
+    /** Deep-copies a config value so a moved subtree doesn't share references with the old key. */
+    private Object deepCopy(Object value) {
+        if (value instanceof ConfigurationSection) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            ConfigurationSection section = (ConfigurationSection) value;
+            for (String k : section.getKeys(false)) {
+                copy.put(k, deepCopy(section.get(k)));
             }
+            return copy;
         }
+        return value;
     }
 
     public void reload() {

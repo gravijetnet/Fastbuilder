@@ -297,7 +297,6 @@ public class ShopGui {
         boolean owned = price == 0 || data.hasPurchasedBlock("pickaxe:" + mat)
                 || player.hasPermission("fastbuilder.blocks.*")
                 || player.hasPermission(pickPerm);
-        String prefix = plugin.getConfigManager().getPrefix();
 
         if (!owned) {
             if (data.getCoins() >= price) {
@@ -310,9 +309,11 @@ public class ShopGui {
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-                player.sendMessage(ColorUtil.translate(prefix + "&aUnlocked &f" + name + " &7&o(-" + price + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-unlocked",
+                        "item", name, "price", String.valueOf(price));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(price));
             }
             return;
         }
@@ -324,13 +325,12 @@ public class ShopGui {
         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-        player.sendMessage(ColorUtil.translate(prefix + "&7Tool &8» &f" + name));
+        net.gravijet.fastbuilder.util.Messages.send(player, "shop-pickaxe-selected", "item", name);
     }
 
     private void handleOneClickPickClick(Player player) {
         FileConfiguration guis = plugin.getConfigManager().getGuisConfig();
         int price = guis.getInt("one-click-pick.price", 5000);
-        String prefix = plugin.getConfigManager().getPrefix();
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
@@ -343,15 +343,18 @@ public class ShopGui {
                 data.setOneClickPick(true);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-                player.sendMessage(ColorUtil.translate(prefix + "&aOne-Click Pick unlocked &7&o(-" + price + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "one-click-pick-unlocked",
+                        "price", String.valueOf(price));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(price));
             }
         } else {
             data.setOneClickPick(!data.hasOneClickPick());
             plugin.getPlayerManager().savePlayerData(player.getUniqueId());
             if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
-            player.sendMessage(ColorUtil.translate(prefix + "&7One-Click Pick &8» " + (data.hasOneClickPick() ? "&aon" : "&coff")));
+            net.gravijet.fastbuilder.util.Messages.send(player,
+                    data.hasOneClickPick() ? "one-click-pick-on" : "one-click-pick-off");
         }
         int ocpPage = plugin.getConfigManager().getGuisConfig().getInt("one-click-pick.page", 1);
         openPickaxeSelector(player, ocpPage);
@@ -448,9 +451,11 @@ public class ShopGui {
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String aName = slotsSection.getString(configKey + ".name", "Animation");
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&aUnlocked &f" + aName + " &7&o(-" + price + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-unlocked",
+                        "item", aName, "price", String.valueOf(price));
             } else {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&cNot enough coins &8» &7need &6" + price + "&7."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(price));
             }
             return;
         }
@@ -460,7 +465,7 @@ public class ShopGui {
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String aName = slotsSection.getString(configKey + ".name", "Animation");
-        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix() + "&7Animation &8» &f" + aName));
+        net.gravijet.fastbuilder.util.Messages.send(player, "shop-animation-selected", "item", aName);
     }
 
     // ===== Death Sound Selector =====
@@ -547,7 +552,6 @@ public class ShopGui {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        String prefix = plugin.getConfigManager().getPrefix();
         boolean owned = price == 0 || data.hasPurchasedBlock("sound:" + soundId)
                 || player.hasPermission("fastbuilder.cosmetic.sounds.*")
                 || player.hasPermission("fastbuilder.sound." + soundId.toLowerCase());
@@ -560,9 +564,11 @@ public class ShopGui {
                 player.closeInventory();
                 if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
                 String sName = slotsSection.getString(configKey + ".name", "Sound");
-                player.sendMessage(ColorUtil.translate(prefix + "&aUnlocked &f" + sName + " &7&o(-" + price + " coins)"));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-unlocked",
+                        "item", sName, "price", String.valueOf(price));
             } else {
-                player.sendMessage(ColorUtil.translate(prefix + "&cNot enough coins &8» &7need &6" + price + "&7."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(price));
             }
             return;
         }
@@ -572,7 +578,7 @@ public class ShopGui {
         player.closeInventory();
         if (plugin.getHotbarManager() != null) plugin.getHotbarManager().giveItems(player);
         String sName = slotsSection.getString(configKey + ".name", "Sound");
-        player.sendMessage(ColorUtil.translate(prefix + "&7Death sound &8» &f" + sName));
+        net.gravijet.fastbuilder.util.Messages.send(player, "shop-death-sound-selected", "item", sName);
     }
 
     // ===== Design Selector =====
@@ -672,7 +678,6 @@ public class ShopGui {
                 || player.hasPermission("fastbuilder.design.*")
                 || player.hasPermission("fastbuilder.design." + templateKey.toLowerCase());
 
-        String prefix = plugin.getConfigManager().getPrefix();
         if (!unlocked) {
             if (pData.getCoins() >= designPrice) {
                 pData.removeCoins(designPrice);
@@ -681,11 +686,8 @@ public class ShopGui {
                 net.gravijet.fastbuilder.util.Messages.send(player, "design-unlocked",
                         "design", templateKey, "price", String.valueOf(designPrice));
             } else {
-                String msg = guis.getString("island-designs.lore-cannot-afford",
-                        "&cNot enough coins &7(&f%coins% / %price%&7)")
-                        .replace("%coins%", String.valueOf(pData.getCoins()))
-                        .replace("%price%", String.valueOf(designPrice));
-                player.sendMessage(ColorUtil.translate(prefix + msg));
+                net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
+                        "price", String.valueOf(designPrice));
                 openDesignSelector(player);
                 return;
             }

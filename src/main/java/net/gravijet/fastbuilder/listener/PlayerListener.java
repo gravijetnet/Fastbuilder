@@ -47,14 +47,9 @@ public class PlayerListener implements Listener {
         String defaultMapName = plugin.getConfigManager().getDefaultMap();
         if (defaultMapName != null && !defaultMapName.isEmpty()) {
             MapData defMap = mm.getMap(defaultMapName);
-            if (defMap != null && defMap.isEnabled()) {
-                if (mm.isMapScaling(defMap.getName())) {
-                    String scalingMsg = plugin.getConfigManager().getMessage("island-scaling");
-                    if (scalingMsg != null && !scalingMsg.isEmpty()) {
-                        player.sendMessage(ColorUtil.translate(scalingMsg.replace("%prefix%", plugin.getConfigManager().getPrefix())));
-                    }
-                    return;
-                }
+            // Skip the default map while it is being scaled — fall through to other maps
+            // instead of leaving the player stranded with no island and no session.
+            if (defMap != null && defMap.isEnabled() && !mm.isMapScaling(defMap.getName())) {
                 int island = mm.assignFreeIsland(defMap.getName(), player.getUniqueId(), player.getName());
                 if (island >= 0) {
                     finalizeJoin(player, data, mm, defMap, island);
@@ -86,21 +81,58 @@ public class PlayerListener implements Listener {
             // If no maps exist at all, prompt the admin to run /map setup
             boolean noMapsExist = mm.getAllMaps().isEmpty();
             if (noMapsExist) {
-                String prefix = plugin.getConfigManager().getPrefix();
-                player.sendMessage(ColorUtil.translate(prefix + "&fNo maps are configured yet."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "no-maps-configured");
                 sendSetupPrompt(player);
             } else {
-                String noIslands = plugin.getConfigManager().getMessage("no-free-islands");
-                if (noIslands == null) noIslands = "";
-                player.sendMessage(ColorUtil.translate(noIslands
-                        .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+                net.gravijet.fastbuilder.util.Messages.send(player, "no-free-islands");
             }
-        } else {
-            String noIslands = plugin.getConfigManager().getMessage("no-free-islands");
-            if (noIslands == null) noIslands = "";
-            player.kickPlayer(ColorUtil.translate(noIslands
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+            return;
         }
+
+        // Non-admins: if the only reason there's no island is that a map is mid-scale,
+        // keep the player connected and retry shortly rather than kicking them.
+        boolean anyEnabledScaling = false;
+        for (MapData map : mm.getAllMaps()) {
+            if (map.isEnabled() && mm.isMapScaling(map.getName())) { anyEnabledScaling = true; break; }
+        }
+        if (anyEnabledScaling) {
+            if (!Bukkit.getWorlds().isEmpty()) player.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+            net.gravijet.fastbuilder.util.Messages.send(player, "island-scaling");
+            retryJoinAfterScaling(player, 0);
+            return;
+        }
+
+        String noIslands = net.gravijet.fastbuilder.util.Messages.get("no-free-islands");
+        player.kickPlayer(ColorUtil.translate(noIslands
+                .replace("%prefix%", plugin.getConfigManager().getPrefix())));
+    }
+
+    /**
+     * Retry assigning a free island for a player who joined while a map was mid-scale.
+     * Retries up to 10 times (1 s apart). Gives up silently if still no island —
+     * the player remains at world spawn and can use /fb join manually.
+     */
+    private void retryJoinAfterScaling(Player player, int attempt) {
+        if (attempt >= 10) return;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            MapManager mm = plugin.getMapManager();
+            // If the player already got placed (e.g. used /fb join in the meantime), stop retrying.
+            if (plugin.getGameplayManager() != null
+                    && plugin.getGameplayManager().getSession(player.getUniqueId()) != null) {
+                return;
+            }
+            PlayerData data = plugin.getPlayerManager().getPlayerData(player.getUniqueId(), player.getName());
+            for (MapData map : mm.getAllMaps()) {
+                if (!map.isEnabled() || mm.isMapScaling(map.getName())) continue;
+                int island = mm.assignFreeIsland(map.getName(), player.getUniqueId(), player.getName());
+                if (island >= 0) {
+                    finalizeJoin(player, data, mm, map, island);
+                    return;
+                }
+            }
+            retryJoinAfterScaling(player, attempt + 1);
+        }, 20L);
     }
 
     private void finalizeJoin(Player player, PlayerData data, MapManager mm, MapData map, int island) {
@@ -111,12 +143,7 @@ public class PlayerListener implements Listener {
         data.setLastMap(map.getName());
         data.setLastIsland(island);
 
-        String raw = plugin.getConfigManager().getMessage("joined-mode");
-        if (raw != null && !raw.isEmpty()) {
-            raw = raw.replace("%map%", map.getName())
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
-            player.sendMessage(ColorUtil.translate(raw));
-        }
+        net.gravijet.fastbuilder.util.Messages.send(player, "joined-mode", "map", map.getName());
 
         setupPlayerOnIsland(player, map, island);
         mm.checkAutoscale(map);

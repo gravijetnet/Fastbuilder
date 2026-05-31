@@ -53,9 +53,35 @@ messages:
   coins-removed: "%prefix%&c-%amount% &7from &f%player%"
   coins-set: "%prefix%&f%player%&7's balance &8» &6%amount%"
   coins-not-enough: "%prefix%&cNot enough coins."
+  coins-not-enough-other: "%prefix%&f%player% &cdoesn't have enough coins."
+  coins-applied-all: "%prefix%&7Applied to &f%count% &7online players."
+  invalid-amount-value: "%prefix%&cInvalid amount &8» &f%amount%"
+  amount-non-negative: "%prefix%&cAmount must be zero or higher."
   build-mode-enter: "%prefix%&aBuild mode on &7&o— use /build to exit"
   build-mode-exit: "%prefix%&7Build mode off."
   build-mode-not-on-island: "%prefix%&cYou need to be on an island for build mode."
+
+  # Join / leave flow
+  no-maps-configured: "%prefix%&fNo maps are configured yet."
+  left-game: "%prefix%&7See you next time."
+  left-map-build-mode: "%prefix%&7Left your island &8» &abuild mode active"
+
+  # Shop / cosmetic feedback (shared across pickaxe / animation / sound / design / booster shops)
+  shop-not-enough-coins: "%prefix%&cNot enough coins &8» &7need &6%price%&7."
+  shop-unlocked: "%prefix%&aUnlocked &f%item% &7&o(-%price% coins)"
+  shop-block-selected: "%prefix%&7Block &8» &f%item%"
+  shop-pickaxe-selected: "%prefix%&7Tool &8» &f%item%"
+  shop-animation-selected: "%prefix%&7Animation &8» &f%item%"
+  shop-death-sound-selected: "%prefix%&7Death sound &8» &f%item%"
+  one-click-pick-unlocked: "%prefix%&aOne-Click Pick unlocked &7&o(-%price% coins)"
+  one-click-pick-on: "%prefix%&7One-Click Pick &8» &aon"
+  one-click-pick-off: "%prefix%&7One-Click Pick &8» &coff"
+
+  # Booster shop / inventory feedback
+  booster-purchased: "%prefix%&7Purchased &f%type% &8» &7activate it from your Booster Inventory."
+  booster-activated: "%prefix%&7%multiplier% Coin Booster activated &8» &f%duration% minutes"
+  booster-already-active: "%prefix%&cYou already have an active booster &8» &7%remaining% left."
+  booster-activate-failed: "%prefix%&cCouldn't activate that booster."
 
   # Custom length
   custom-length-unavailable: "%prefix%&cCustom length isn't available on this map."
@@ -99,6 +125,7 @@ messages:
   replay-favorite-added: "%prefix%&7Added to favorites."
   replay-favorite-removed: "%prefix%&7Removed from favorites."
   replay-unavailable: "%prefix%&cReplays aren't available right now."
+  replay-none-found: "%prefix%&cNo replay for &f%player% &con &f%map%&c."
   replay-finished: "%prefix%&7Replay finished &8» &aclick to watch again &7or leave."
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -152,7 +179,6 @@ admin:
   distance-too-small: "%prefix%&cMinimum distance is &f%min% blocks&c."
   scale-updating: "%prefix%&7Resizing &f%map%&7..."
   island-reset: "%prefix%&7Island reset."
-  left-game: "%prefix%&7See you next time."
   not-on-island: "%prefix%&cYou're not on an island."
   config-reloaded: "%prefix%&aConfig reloaded."
   setup-spawn-not-east-player: "%prefix%&cSpawn must face east &7(yaw -90)&c. &f/map setup continue --force &cto override."

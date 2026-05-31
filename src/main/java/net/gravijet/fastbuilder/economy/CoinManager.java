@@ -2,7 +2,6 @@ package net.gravijet.fastbuilder.economy;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.player.PlayerData;
-import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -115,7 +114,7 @@ public class CoinManager {
                 ? personalMs * 0.65 + serverMs * 0.35
                 : serverMs;
 
-        int base = computeTierCoins(timeMillis, averageMs); // base is at most 20
+        int base = computeTierCoins(timeMillis, averageMs); // base is clamped to [5, 30]
 
         double boost = plugin.getBoosterManager().getMultiplier(player);
         int coins = (int) Math.round(base * boost);
@@ -267,16 +266,12 @@ public class CoinManager {
                         elapsedSeconds.put(uuid, 0);
                         targetIntervals.put(uuid, pickRandomInterval());
 
-                        String msg = plugin.getConfigManager().getMessage("playtime-reward");
-                        if (msg == null || msg.isEmpty()) {
-                            msg = "%prefix%&a+%coins% coins &7(playtime reward).";
-                        }
+                        String msg = net.gravijet.fastbuilder.util.Messages.get("playtime-reward");
                         if (mult > 1.0) {
                             msg = msg + " &6[" + formatMult(mult) + " booster]";
                         }
-                        msg = msg.replace("%coins%", String.valueOf(coins))
-                                 .replace("%prefix%", plugin.getConfigManager().getPrefix());
-                        player.sendMessage(ColorUtil.translate(msg));
+                        net.gravijet.fastbuilder.util.Messages.sendRaw(player, msg,
+                                "coins", String.valueOf(coins));
                     } else {
                         elapsedSeconds.put(uuid, elapsed);
                     }

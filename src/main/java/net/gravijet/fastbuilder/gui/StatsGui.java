@@ -283,8 +283,7 @@ public class StatsGui {
             player.closeInventory();
 
             if (plugin.getReplayManager() == null) {
-                player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                        + "&cReplay system is not available."));
+                net.gravijet.fastbuilder.util.Messages.send(player, "replay-unavailable");
                 return;
             }
 
@@ -294,16 +293,16 @@ public class StatsGui {
                 UUID targetUuid = plugin.getPlayerManager().getUuidForPlayerName(finalName);
                 if (targetUuid == null) {
                     Bukkit.getScheduler().runTask(plugin, () ->
-                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                                + "&cCould not find player data for &f" + finalName + "&c.")));
+                        net.gravijet.fastbuilder.util.Messages.send(player, "player-not-found",
+                                "player", finalName));
                     return;
                 }
                 net.gravijet.fastbuilder.replay.ReplayData pbReplay =
                         plugin.getReplayManager().getPbReplay(targetUuid, finalMapName);
                 if (pbReplay == null) {
                     Bukkit.getScheduler().runTask(plugin, () ->
-                        player.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                                + "&cNo replay found for &f" + finalName + " &con map &f" + finalMapName + "&c.")));
+                        net.gravijet.fastbuilder.util.Messages.send(player, "replay-none-found",
+                                "player", finalName, "map", finalMapName));
                     return;
                 }
                 Bukkit.getScheduler().runTask(plugin, () ->

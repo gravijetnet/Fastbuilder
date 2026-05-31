@@ -2,7 +2,6 @@ package net.gravijet.fastbuilder.command;
 
 import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.player.PlayerData;
-import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -33,8 +32,6 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        String prefix = plugin.getConfigManager().getPrefix();
-
         if (args.length == 0) {
             // View own balance
             if (!(sender instanceof Player)) {
@@ -44,9 +41,8 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
             Player player = (Player) sender;
             PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
             int coins = data != null ? data.getCoins() : 0;
-            String msg = plugin.getConfigManager().getMessage("coins-balance");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&fYour balance: &c%coins% &fcoins.";
-            player.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix).replace("%coins%", String.valueOf(coins))));
+            net.gravijet.fastbuilder.util.Messages.send(player, "coins-balance",
+                    "coins", String.valueOf(coins));
             return true;
         }
 
@@ -57,30 +53,26 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
             String targetName = args[0];
             Player target = Bukkit.getPlayer(targetName);
             if (target == null) {
-                String notFound = plugin.getConfigManager().getMessage("player-not-found");
-                if (notFound == null || notFound.isEmpty()) notFound = prefix + "&cPlayer &f%player% &cnot found.";
-                sender.sendMessage(ColorUtil.translate(notFound.replace("%prefix%", prefix).replace("%player%", targetName)));
+                net.gravijet.fastbuilder.util.Messages.send(sender, "player-not-found",
+                        "player", targetName);
                 return true;
             }
             PlayerData data = plugin.getPlayerManager().getCachedData(target.getUniqueId());
             int coins = data != null ? data.getCoins() : 0;
-            String msg = plugin.getConfigManager().getMessage("coins-balance-other");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&f%player%'s balance: &c%coins% &fcoins.";
-            sender.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)
-                    .replace("%player%", target.getName()).replace("%coins%", String.valueOf(coins))));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "coins-balance-other",
+                    "player", target.getName(), "coins", String.valueOf(coins));
             return true;
         }
 
         // Admin subcommands
         if (!sender.hasPermission("fastbuilder.coins.admin")) {
-            String noPerms = plugin.getConfigManager().getMessage("no-permission");
-            if (noPerms == null || noPerms.isEmpty()) noPerms = prefix + "&cYou do not have permission.";
-            sender.sendMessage(ColorUtil.translate(noPerms.replace("%prefix%", prefix)));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "no-permission");
             return true;
         }
 
         if (args.length < 3) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&7Usage &8» &f/coins " + sub + " <player|*> <amount>"));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "usage",
+                    "command", "/coins " + sub + " <player|*> <amount>");
             return true;
         }
 
@@ -88,11 +80,12 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         try {
             amount = Integer.parseInt(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cInvalid amount: &f" + args[2]));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "invalid-amount-value",
+                    "amount", args[2]);
             return true;
         }
         if (amount < 0) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&cAmount must be non-negative."));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "amount-non-negative");
             return true;
         }
 
@@ -103,9 +96,8 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
         } else {
             Player t = Bukkit.getPlayer(args[1]);
             if (t == null) {
-                String notFound = plugin.getConfigManager().getMessage("player-not-found");
-                if (notFound == null || notFound.isEmpty()) notFound = prefix + "&cPlayer &f%player% &cnot found.";
-                sender.sendMessage(ColorUtil.translate(notFound.replace("%prefix%", prefix).replace("%player%", args[1])));
+                net.gravijet.fastbuilder.util.Messages.send(sender, "player-not-found",
+                        "player", args[1]);
                 return true;
             }
             targets.add(t);
@@ -118,48 +110,33 @@ public class CoinsCommand implements CommandExecutor, TabCompleter {
             switch (sub) {
                 case "add":
                     data.addCoins(amount);
-                    notifyChange(sender, t.getName(), amount, "added");
+                    net.gravijet.fastbuilder.util.Messages.send(sender, "coins-added",
+                            "player", t.getName(), "amount", String.valueOf(amount));
                     break;
                 case "remove":
                     if (!data.removeCoins(amount)) {
-                        String msg = plugin.getConfigManager().getMessage("coins-not-enough");
-                        if (msg == null || msg.isEmpty()) msg = prefix + "&cNot enough coins to remove from &f" + t.getName() + "&c.";
-                        sender.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)));
+                        net.gravijet.fastbuilder.util.Messages.send(sender, "coins-not-enough-other",
+                                "player", t.getName());
                     } else {
-                        notifyChange(sender, t.getName(), amount, "removed");
+                        net.gravijet.fastbuilder.util.Messages.send(sender, "coins-removed",
+                                "player", t.getName(), "amount", String.valueOf(amount));
                     }
                     break;
                 case "set":
                     data.setCoins(amount);
-                    String msg = plugin.getConfigManager().getMessage("coins-set");
-                    if (msg == null || msg.isEmpty()) msg = prefix + "&fCoins for &c%player% &fset to &c%amount%&f.";
-                    sender.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)
-                            .replace("%player%", t.getName()).replace("%amount%", String.valueOf(amount))));
+                    net.gravijet.fastbuilder.util.Messages.send(sender, "coins-set",
+                            "player", t.getName(), "amount", String.valueOf(amount));
                     break;
             }
             plugin.getPlayerManager().savePlayerData(t.getUniqueId());
         }
 
         if (wildcard) {
-            sender.sendMessage(ColorUtil.translate(prefix + "&7Applied to &f" + targets.size() + " &7online players."));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "coins-applied-all",
+                    "count", String.valueOf(targets.size()));
         }
 
         return true;
-    }
-
-    private void notifyChange(CommandSender sender, String targetName, int amount, String type) {
-        String prefix = plugin.getConfigManager().getPrefix();
-        if (type.equals("added")) {
-            String msg = plugin.getConfigManager().getMessage("coins-added");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&a+%amount% coins &fadded to &c%player%&f.";
-            sender.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)
-                    .replace("%player%", targetName).replace("%amount%", String.valueOf(amount))));
-        } else {
-            String msg = plugin.getConfigManager().getMessage("coins-removed");
-            if (msg == null || msg.isEmpty()) msg = prefix + "&c-%amount% coins &fremoved from &c%player%&f.";
-            sender.sendMessage(ColorUtil.translate(msg.replace("%prefix%", prefix)
-                    .replace("%player%", targetName).replace("%amount%", String.valueOf(amount))));
-        }
     }
 
     @Override

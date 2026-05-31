@@ -34,10 +34,8 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
 
         if (args.length < 1) {
             if (!(sender instanceof Player)) {
-                String raw = plugin.getConfigManager().getMessage("usage");
-                raw = raw.replace("%command%", "/stats [player]")
-                        .replace("%prefix%", plugin.getConfigManager().getPrefix());
-                sender.sendMessage(ColorUtil.translate(raw));
+                net.gravijet.fastbuilder.util.Messages.send(sender, "usage",
+                        "command", "/stats [player]");
                 return true;
             }
             targetName = sender.getName();
@@ -62,10 +60,8 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
         }
 
         if (data == null) {
-            String raw = plugin.getConfigManager().getMessage("player-not-found");
-            raw = raw.replace("%player%", targetName)
-                    .replace("%prefix%", plugin.getConfigManager().getPrefix());
-            sender.sendMessage(ColorUtil.translate(raw));
+            net.gravijet.fastbuilder.util.Messages.send(sender, "player-not-found",
+                    "player", targetName);
             return true;
         }
 
