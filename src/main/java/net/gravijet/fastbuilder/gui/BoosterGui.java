@@ -149,14 +149,14 @@ public class BoosterGui {
             int owned = data != null ? data.getBoosterCount(type.id) : 0;
 
             String affordLine = canAfford
-                    ? "&fClick to purchase &7(&c" + type.price + " coins&7)"
-                    : "&cNeed &f" + type.price + " coins &7(have &f" + coins + "&7)";
+                    ? "&aClick to purchase"
+                    : "&cNeed &6" + type.price + " coins &8(&7have &6" + coins + "&8)";
 
             List<String> lore = new ArrayList<>();
             lore.add("&7" + type.description);
             lore.add("");
-            lore.add("&7Price: &c" + type.price + " coins");
-            if (owned > 0) lore.add("&7Owned: &f" + owned);
+            lore.add("&7Price &8» &6" + type.price + " coins");
+            if (owned > 0) lore.add("&7Owned &8» &f" + owned);
             lore.add("");
             lore.add(affordLine);
 
@@ -260,8 +260,8 @@ public class BoosterGui {
                           "&cWait for this booster to expire", "&cbefore activating another.")
                     .hideFlags().build());
         } else {
-            inv.setItem(statSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 10)
-                    .name("&fNo active booster")
+            inv.setItem(statSlot, new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
+                    .name("&cNo active booster")
                     .lore("&7Click a booster below to activate it.")
                     .build());
         }

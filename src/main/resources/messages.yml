@@ -193,7 +193,7 @@ booster:
   only-players: "%prefix%&cOnly players can open the booster menu."
   types-header: "%prefix%&fBooster types"
   types-empty: "%prefix%&7No booster types configured."
-  type-entry: "  &c%id% &8» &f%multiplier%x &7| &f%duration%m &7| &6%price% coins"
+  type-entry: "  &c%id% &8» &f%multiplier%x &8| &f%duration%m &8| &6%price% coins"
   info-header: "%prefix%&fBoosters &7&ofor &f%player%"
   info-active: "  &7Active &8» &a%multiplier%x &7(%remaining% left)"
   info-none: "  &7Active &8» &7none"

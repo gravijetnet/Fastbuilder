@@ -50,6 +50,13 @@ public class LengthCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // Mirror the permission gate used by the Settings menu and the in-world
+        // end-island click control so /length can't bypass it.
+        if (!player.hasPermission("fastbuilder.feature.custom_length")) {
+            Messages.send(player, "custom-length-no-permission");
+            return true;
+        }
+
         PlayerData pData = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (pData == null) return true;
 

@@ -2,18 +2,18 @@
 
 # Booster Menus
 booster-hub:
-  name: "&cBooster Menu"
+  name: "&c&lBooster Menu"
   shop-slot: 11
   status-slot: 13
   inventory-slot: 15
   back-slot: 22
 booster-shop:
-  name: "&cBooster Shop"
+  name: "&c&lBooster Shop"
   status-slot: 4
   inventory-btn-slot: 45
   back-slot: 49
 booster-inventory:
-  name: "&cBooster Inventory"
+  name: "&c&lBooster Inventory"
   status-slot: 4
   shop-btn-slot: 45
   back-slot: 49
@@ -21,7 +21,7 @@ booster-inventory:
 # Block Selector GUI
 # Placeholder: %page% - Current page number
 block-selector:
-  name: "Block Selector - %page%/%max_page%"
+  name: "&c&lBlock Selector &7- &f%page%&8/&f%max_page%"
   max-slots: 45
 
 # Mode Changer GUI
@@ -31,15 +31,15 @@ mode-changer:
 
 # Settings GUI
 settings:
-  name: "Settings"
+  name: "&c&lSettings"
   max-slots: 27
 
 # Confirm Reset Stats GUI
-confirm-stats-reset: "Confirm"
+confirm-stats-reset: "&c&lConfirm"
 
 # Map Selector GUI
 map-selector:
-  name: "Map Selector"
+  name: "&c&lMap Selector"
   max-slots: 54
   # Filler items fill all empty slots
   filler:
@@ -50,58 +50,59 @@ map-selector:
   slots: {}
 
 # Island Selector GUI
-island-selector: "Island Selector"
+island-selector: "&c&lIsland Selector"
 
 # Replays GUI
 # Placeholders: %page%, %max_page%
-replays: "Replays - Page %page%/%max_page%"
+replays: "&c&lReplays &7- &f%page%&8/&f%max_page%"
 
-# Block status messages
+# Block status messages (shown as the %block_status% lore line in the Block Selector)
 block-status:
-  purchased: "&aYou already own this block!"
-  not-purchased: "&cYou don't own this block yet!"
+  purchased: "&aOwned &8» &7Click to select"
+  not-purchased: "&cClick to unlock"
 
-# Pickaxe/tool status messages
+# Pickaxe/tool status messages (shown as the %block_status% lore line in the Pickaxe Shop)
 pickaxe-status:
-  purchased: "&aYou already own this pickaxe!"
-  not-purchased: "&cYou don't own this pickaxe yet!"
+  purchased: "&aOwned &8» &7Click to select"
+  not-purchased: "&cClick to unlock"
 
 # Settings GUI slot layout (3×9 = 27 slots, items centered in second row)
 # Available GUIs: infinite_blocks, reset_stats, practice_mode, custom_length
 # Placeholders: %practice_mode_enabled%, %infinite_blocks_status%, %infinite_blocks_unlocked%, %price%, %custom_length%
 settings-gui-slots:
   10:
-    name: "&bInfinite Blocks"
+    name: "&c&lInfinite Blocks"
     material: BEDROCK:0
     gui: "infinite_blocks"
     lore:
-      - "&7Status: %infinite_blocks_status%"
-      - "&7Unlock: %infinite_blocks_unlocked%"
+      - "&7Status &8» %infinite_blocks_status%"
+      - "&7Unlock &8» %infinite_blocks_unlocked%"
       - ""
-      - "&7Blocks never run out"
-      - "&eUnlock cost: &c1000 coins"
+      - "&7Your blocks never run out."
+      - "&7Unlock cost &8» &61000 coins"
   12:
-    name: "&cReset Stats"
+    name: "&c&lReset Stats"
     material: DIAMOND_PICKAXE:0
     gui: "reset_stats"
     lore:
-      - "&7Reset stats on all modes!"
-      - "&ePrice: &c%price% coins"
+      - "&7Wipe your stats on every mode."
+      - "&7Cost &8» &6%price% coins"
   14:
-    name: "&aPractice Mode"
+    name: "&c&lPractice Mode"
     material: STAINED_CLAY:0
     gui: "practice_mode"
     lore:
-      - "&7Status: %practice_mode_enabled%"
+      - "&7Status &8» %practice_mode_enabled%"
       - ""
-      - "&7Blocks stay on fall"
-      - "&7Time is not recorded"
+      - "&7Blocks stay when you fall."
+      - "&7Your time is not recorded."
   16:
-    name: "&6Custom Length"
+    name: "&c&lCustom Length"
     material: STICK:0
     gui: "custom_length"
     lore:
-      - "&7Click to configure the distance and height."
+      - "&7Adjust the distance and height"
+      - "&7of your run."
 
 # Mode Changer GUI slot layout
 mode-changer-slots:
@@ -122,252 +123,252 @@ block-selector-slots:
       material: SANDSTONE:0
       price: 0
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     2:
       name: "Red Sandstone"
       material: RED_SANDSTONE:0
       price: 0
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     3:
       name: "White Wool"
       material: WOOL:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     4:
       name: "Orange Wool"
       material: WOOL:1
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     5:
       name: "Magenta Wool"
       material: WOOL:2
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     6:
       name: "Light Blue Wool"
       material: WOOL:3
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     7:
       name: "Yellow Wool"
       material: WOOL:4
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     8:
       name: "Lime Wool"
       material: WOOL:5
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     9:
       name: "Pink Wool"
       material: WOOL:6
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     10:
       name: "Gray Wool"
       material: WOOL:7
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     11:
       name: "Light Gray Wool"
       material: WOOL:8
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     12:
       name: "Cyan Wool"
       material: WOOL:9
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     13:
       name: "Purple Wool"
       material: WOOL:10
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     14:
       name: "Blue Wool"
       material: WOOL:11
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     15:
       name: "Brown Wool"
       material: WOOL:12
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     16:
       name: "Green Wool"
       material: WOOL:13
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     17:
       name: "Red Wool"
       material: WOOL:14
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     18:
       name: "Black Wool"
       material: WOOL:15
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     19:
       name: "Stone"
       material: STONE:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     20:
       name: "Granite"
       material: STONE:1
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     21:
       name: "Polished Granite"
       material: STONE:2
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     22:
       name: "Diorite"
       material: STONE:3
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     23:
       name: "Polished Diorite"
       material: STONE:4
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     24:
       name: "Andesite"
       material: STONE:5
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     25:
       name: "Polished Andesite"
       material: STONE:6
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     26:
       name: "Cobblestone"
       material: COBBLESTONE:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     27:
       name: "Oak Planks"
       material: WOOD:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     28:
       name: "Spruce Planks"
       material: WOOD:1
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     29:
       name: "Birch Planks"
       material: WOOD:2
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     30:
       name: "Jungle Planks"
       material: WOOD:3
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     31:
       name: "Acacia Planks"
       material: WOOD:4
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     32:
       name: "Dark Oak Planks"
       material: WOOD:5
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     33:
       name: "Quartz Block"
       material: QUARTZ_BLOCK:0
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     34:
       name: "Chiseled Quartz"
       material: QUARTZ_BLOCK:1
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     35:
       name: "Quartz Pillar"
       material: QUARTZ_BLOCK:2
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     36:
       name: "Clay"
       material: CLAY:0
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
   2:
     1:
@@ -375,252 +376,252 @@ block-selector-slots:
       material: STAINED_CLAY:0
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     2:
       name: "Orange Stained Clay"
       material: STAINED_CLAY:1
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     3:
       name: "Magenta Stained Clay"
       material: STAINED_CLAY:2
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     4:
       name: "Light Blue Stained Clay"
       material: STAINED_CLAY:3
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     5:
       name: "Yellow Stained Clay"
       material: STAINED_CLAY:4
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     6:
       name: "Lime Stained Clay"
       material: STAINED_CLAY:5
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     7:
       name: "Pink Stained Clay"
       material: STAINED_CLAY:6
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     8:
       name: "Gray Stained Clay"
       material: STAINED_CLAY:7
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     9:
       name: "Light Gray Stained Clay"
       material: STAINED_CLAY:8
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     10:
       name: "Cyan Stained Clay"
       material: STAINED_CLAY:9
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     11:
       name: "Purple Stained Clay"
       material: STAINED_CLAY:10
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     12:
       name: "Blue Stained Clay"
       material: STAINED_CLAY:11
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     13:
       name: "Brown Stained Clay"
       material: STAINED_CLAY:12
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     14:
       name: "Green Stained Clay"
       material: STAINED_CLAY:13
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     15:
       name: "Red Stained Clay"
       material: STAINED_CLAY:14
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     16:
       name: "Black Stained Clay"
       material: STAINED_CLAY:15
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     17:
       name: "Coal Block"
       material: COAL_BLOCK:0
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     18:
       name: "Snow Block"
       material: SNOW:0
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     19:
       name: "Iron Block"
       material: IRON_BLOCK:0
       price: 600
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     20:
       name: "Hay Block"
       material: HAY_BLOCK:0
       price: 700
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     21:
       name: "End Stone"
       material: ENDER_STONE:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     22:
       name: "Nether Brick"
       material: NETHER_BRICK:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     23:
       name: "Oak Leaves"
       material: LEAVES:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     24:
       name: "Spruce Leaves"
       material: LEAVES:1
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     25:
       name: "Birch Leaves"
       material: LEAVES:2
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     26:
       name: "Jungle Leaves"
       material: LEAVES:3
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     27:
       name: "Acacia Leaves"
       material: LEAVES_2:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     28:
       name: "Dark Oak Leaves"
       material: LEAVES_2:1
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     29:
       name: "Melon Block"
       material: MELON_BLOCK:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     30:
       name: "Prismarine"
       material: PRISMARINE:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     31:
       name: "Prismarine Bricks"
       material: PRISMARINE:1
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     32:
       name: "Dark Prismarine"
       material: PRISMARINE:2
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     33:
       name: "Stone Bricks"
       material: SMOOTH_BRICK:0
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     34:
       name: "Mossy Stone Bricks"
       material: SMOOTH_BRICK:1
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     35:
       name: "Cracked Stone Bricks"
       material: SMOOTH_BRICK:2
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     36:
       name: "Chiseled Stone Bricks"
       material: SMOOTH_BRICK:3
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
   3:
     1:
@@ -628,252 +629,252 @@ block-selector-slots:
       material: STAINED_GLASS:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     2:
       name: "Orange Stained Glass"
       material: STAINED_GLASS:1
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     3:
       name: "Magenta Stained Glass"
       material: STAINED_GLASS:2
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     4:
       name: "Light Blue Stained Glass"
       material: STAINED_GLASS:3
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     5:
       name: "Yellow Stained Glass"
       material: STAINED_GLASS:4
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     6:
       name: "Lime Stained Glass"
       material: STAINED_GLASS:5
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     7:
       name: "Pink Stained Glass"
       material: STAINED_GLASS:6
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     8:
       name: "Gray Stained Glass"
       material: STAINED_GLASS:7
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     9:
       name: "Light Gray Stained Glass"
       material: STAINED_GLASS:8
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     10:
       name: "Cyan Stained Glass"
       material: STAINED_GLASS:9
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     11:
       name: "Purple Stained Glass"
       material: STAINED_GLASS:10
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     12:
       name: "Blue Stained Glass"
       material: STAINED_GLASS:11
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     13:
       name: "Brown Stained Glass"
       material: STAINED_GLASS:12
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     14:
       name: "Green Stained Glass"
       material: STAINED_GLASS:13
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     15:
       name: "Red Stained Glass"
       material: STAINED_GLASS:14
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     16:
       name: "Black Stained Glass"
       material: STAINED_GLASS:15
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     17:
       name: "Redstone Block"
       material: REDSTONE_BLOCK:0
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     18:
       name: "Obsidian"
       material: OBSIDIAN:0
       price: 900
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     19:
       name: "Emerald Block"
       material: EMERALD_BLOCK:0
       price: 1000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     20:
       name: "Gold Block"
       material: GOLD_BLOCK:0
       price: 1000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     21:
       name: "Gold Ore"
       material: GOLD_ORE:0
       price: 1000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     22:
       name: "Barrier"
       material: BARRIER:0
       price: 5000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     23:
       name: "Diamond Block"
       material: DIAMOND_BLOCK:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     24:
       name: "Glass"
       material: GLASS:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     25:
       name: "Glowstone"
       material: GLOWSTONE:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     26:
       name: "Sea Lantern"
       material: SEA_LANTERN:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     27:
       name: "Packed Ice"
       material: PACKED_ICE:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     28:
       name: "Slime Block"
       material: SLIME_BLOCK:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     29:
       name: "Brick Block"
       material: BRICK:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     30:
       name: "Mossy Cobblestone"
       material: MOSSY_COBBLESTONE:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     31:
       name: "Oak Log"
       material: LOG:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     32:
       name: "Spruce Log"
       material: LOG:1
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     33:
       name: "Birch Log"
       material: LOG:2
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     34:
       name: "Jungle Log"
       material: LOG:3
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     35:
       name: "Acacia Log"
       material: LOG_2:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     36:
       name: "Dark Oak Log"
       material: LOG_2:1
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
   4:
     1:
@@ -881,252 +882,252 @@ block-selector-slots:
       material: SAND:0
       price: 50
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     2:
       name: "Red Sand"
       material: SAND:1
       price: 50
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     3:
       name: "Gravel"
       material: GRAVEL:0
       price: 50
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     4:
       name: "Dirt"
       material: DIRT:0
       price: 50
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     5:
       name: "Coarse Dirt"
       material: DIRT:1
       price: 50
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     6:
       name: "Podzol"
       material: DIRT:2
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     7:
       name: "Grass Block"
       material: GRASS:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     8:
       name: "Mycelium"
       material: MYCEL:0
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     9:
       name: "Soul Sand"
       material: SOUL_SAND:0
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     10:
       name: "Netherrack"
       material: NETHERRACK:0
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     11:
       name: "Sponge"
       material: SPONGE:0
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     12:
       name: "Wet Sponge"
       material: SPONGE:1
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     13:
       name: "Bookshelf"
       material: BOOKSHELF:0
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     14:
       name: "Hardened Clay"
       material: HARD_CLAY:0
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     15:
       name: "Pumpkin"
       material: PUMPKIN:0
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     16:
       name: "Jack o'Lantern"
       material: JACK_O_LANTERN:0
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     17:
       name: "Ice"
       material: ICE:0
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     18:
       name: "Lapis Block"
       material: LAPIS_BLOCK:0
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     19:
       name: "Brown Mushroom Block"
       material: HUGE_MUSHROOM_1:0
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     20:
       name: "Red Mushroom Block"
       material: HUGE_MUSHROOM_2:0
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     21:
       name: "Command Block"
       material: COMMAND:0
       price: 50000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     22:
-      name: "Barrier"
-      material: BARRIER:0
-      price: 100000
+      name: "Coal Ore"
+      material: COAL_ORE:0
+      price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     23:
       name: "Bedrock"
       material: BEDROCK:0
       price: 75000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     24:
       name: "End Portal Frame"
       material: ENDER_PORTAL_FRAME:0
       price: 75000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     25:
-      name: "End Stone"
-      material: ENDER_STONE:0
-      price: 1500
+      name: "Iron Ore"
+      material: IRON_ORE:0
+      price: 600
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     26:
-      name: "Soul Sand"
-      material: SOUL_SAND:0
+      name: "Diamond Ore"
+      material: DIAMOND_ORE:0
       price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     27:
-      name: "Netherrack"
-      material: NETHERRACK:0
-      price: 1000
+      name: "Emerald Ore"
+      material: EMERALD_ORE:0
+      price: 1500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     28:
       name: "Dragon Egg"
       material: DRAGON_EGG:0
       price: 200000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     29:
       name: "Mob Spawner"
       material: MOB_SPAWNER:0
       price: 150000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     30:
       name: "Chiseled Sandstone"
       material: SANDSTONE:1
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     31:
       name: "Smooth Sandstone"
       material: SANDSTONE:2
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     32:
       name: "Chiseled Red Sandstone"
       material: RED_SANDSTONE:1
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     33:
       name: "Smooth Red Sandstone"
       material: RED_SANDSTONE:2
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     34:
       name: "Stone Slab"
       material: STEP:0
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     35:
       name: "Sandstone Slab"
       material: STEP:1
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     36:
       name: "TNT"
       material: TNT:0
       price: 2000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
 
 # Island Selector GUI (dynamic auto-sizing)
@@ -1136,7 +1137,7 @@ island-selector-gui:
 
 # Shop GUI
 shop:
-  name: "Shop"
+  name: "&c&lShop"
   # GUI size — any valid inventory size (9/18/27/36/45/54). Auto-scales; remove the old 27 cap.
   max-slots: 45
   # Row 2 (slots 9–17): three category buttons centered with spacing
@@ -1153,57 +1154,64 @@ shop:
   items:
     blocks:
       material: "SANDSTONE:0"
-      name: "&eBlocks"
+      name: "&c&lBlocks"
       lore:
-        - "&7Click to browse building blocks"
+        - "&7Browse and select building blocks."
         - ""
-        - "&aClick to browse"
+        - "&aClick to open"
     pickaxes:
       material: "DIAMOND_PICKAXE:0"
-      name: "&bPickaxe Shop"
+      name: "&c&lTools"
       lore:
-        - "&7Click to browse pickaxes and tools"
+        - "&7Browse pickaxes, axes and shovels."
         - ""
-        - "&aClick to browse"
+        - "&aClick to open"
     # Island Designs icon when the current map HAS alternative designs
     designs-active:
       material: "EMERALD_BLOCK:0"
-      name: "&aIsland Designs"
+      name: "&c&lIsland Designs"
       lore:
-        - "&7Choose a design for your island"
+        - "&7Choose a design for your island."
         - ""
-        - "&aClick to browse"
+        - "&aClick to open"
     # Island Designs icon when the current map has NO alternative designs
     designs-inactive:
       material: "EMERALD_BLOCK:0"
-      name: "&7Island Designs"
+      name: "&7&lIsland Designs"
       lore:
-        - "&7No designs available for this map"
+        - "&7No designs available on this map."
     animations:
       material: "FIREWORK:0"
-      name: "&dReset Animations"
+      name: "&c&lReset Animations"
       lore:
-        - "&7Click to browse reset animations"
+        - "&7Choose how your blocks clear on reset."
         - ""
-        - "&aClick to browse"
+        - "&aClick to open"
     sounds:
       material: "NOTE_BLOCK:0"
-      name: "&6Death Sounds"
+      name: "&c&lDeath Sounds"
       lore:
-        - "&7Click to browse death sounds"
+        - "&7Choose the sound played when you fall."
         - ""
-        - "&aClick to browse"
+        - "&aClick to open"
+    boosters:
+      material: "NETHER_STAR:0"
+      name: "&c&lBoosters"
+      lore:
+        - "&7Multiply the coins you earn."
+        - ""
+        - "&aClick to open"
 
 # Death Sound Selector GUI
 death-sound-selector:
-  name: "Death Sounds"
+  name: "&c&lDeath Sounds"
   max-slots: 27
 
 # Pickaxe Shop GUI
 # Mirrors the Block Selector style: paginated, gray filler, prev/next/back nav in bottom row.
 # name supports %page% and %max_page% placeholders.
 pickaxe-selector:
-  name: "Pickaxe Shop - %page%"
+  name: "&c&lPickaxe Shop &7- &f%page%"
   max-slots: 45
 
 # Paginated tool entries: pickaxe-selector-slots.<page>.<1-based slot>
@@ -1216,35 +1224,35 @@ pickaxe-selector-slots:
       material: "STONE_PICKAXE:0"
       price: 0
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     2:
       name: "Iron Pickaxe"
       material: "IRON_PICKAXE:0"
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     3:
       name: "Gold Pickaxe"
       material: "GOLD_PICKAXE:0"
       price: 1000
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     4:
       name: "Diamond Pickaxe"
       material: "DIAMOND_PICKAXE:0"
       price: 0
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     5:
       name: "Wooden Pickaxe"
       material: "WOOD_PICKAXE:0"
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     # ── Axes ──────────────────────────────────────────────────────
     6:
@@ -1252,35 +1260,35 @@ pickaxe-selector-slots:
       material: "WOOD_AXE:0"
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     7:
       name: "Stone Axe"
       material: "STONE_AXE:0"
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     8:
       name: "Iron Axe"
       material: "IRON_AXE:0"
       price: 600
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     9:
       name: "Gold Axe"
       material: "GOLD_AXE:0"
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     10:
       name: "Diamond Axe"
       material: "DIAMOND_AXE:0"
       price: 1200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     # ── Shovels ───────────────────────────────────────────────────
     11:
@@ -1288,35 +1296,35 @@ pickaxe-selector-slots:
       material: "WOOD_SPADE:0"
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     12:
       name: "Stone Shovel"
       material: "STONE_SPADE:0"
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     13:
       name: "Iron Shovel"
       material: "IRON_SPADE:0"
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     14:
       name: "Gold Shovel"
       material: "GOLD_SPADE:0"
       price: 600
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     15:
       name: "Diamond Shovel"
       material: "DIAMOND_SPADE:0"
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     # ── Hoes ──────────────────────────────────────────────────────
     16:
@@ -1324,35 +1332,35 @@ pickaxe-selector-slots:
       material: "WOOD_HOE:0"
       price: 100
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     17:
       name: "Stone Hoe"
       material: "STONE_HOE:0"
       price: 200
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     18:
       name: "Iron Hoe"
       material: "IRON_HOE:0"
       price: 300
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     19:
       name: "Gold Hoe"
       material: "GOLD_HOE:0"
       price: 500
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     20:
       name: "Diamond Hoe"
       material: "DIAMOND_HOE:0"
       price: 800
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     # ── Shears ────────────────────────────────────────────────────
     21:
@@ -1360,13 +1368,13 @@ pickaxe-selector-slots:
       material: "SHEARS:0"
       price: 400
       lore:
-        - "&ePrice: %price%"
+        - "&7Price &8» &6%price%"
         - "%block_status%"
     # One-Click Pick occupies slot 23 on this page (see one-click-pick section below)
 
 # Animation Selector GUI
 animation-selector:
-  name: "Reset Animations"
+  name: "&c&lReset Animations"
   max-slots: 27
 
 animation-selector-slots:
@@ -1377,7 +1385,7 @@ animation-selector-slots:
     price: 0
     lore:
       - "&7Standard instant reset"
-      - "&ePrice: Free"
+      - "&7Price &8» &6Free"
   2:
     name: "&aFall Down"
     material: "SLIME_BALL:0"
@@ -1385,7 +1393,7 @@ animation-selector-slots:
     price: 1000
     lore:
       - "&7Blocks fall downward on reset"
-      - "&ePrice: 1000"
+      - "&7Price &8» &61000"
   3:
     name: "&cExplode"
     material: "TNT:0"
@@ -1393,7 +1401,7 @@ animation-selector-slots:
     price: 2000
     lore:
       - "&7Blocks explode outward on reset"
-      - "&ePrice: 2000"
+      - "&7Price &8» &62000"
   4:
     name: "&bItem Drop"
     material: "CHEST:0"
@@ -1401,7 +1409,7 @@ animation-selector-slots:
     price: 1500
     lore:
       - "&7Blocks turn into items and fall"
-      - "&ePrice: 1500"
+      - "&7Price &8» &61500"
   5:
     name: "&6Creative NPC"
     material: "DIAMOND_PICKAXE:0"
@@ -1409,7 +1417,7 @@ animation-selector-slots:
     price: 3000
     lore:
       - "&7A builder NPC rapidly mines your blocks"
-      - "&ePrice: 3000"
+      - "&7Price &8» &63000"
   6:
     name: "&3Ice Melt"
     material: "ICE:0"
@@ -1417,7 +1425,7 @@ animation-selector-slots:
     price: 1000
     lore:
       - "&7Blocks freeze then instantly melt"
-      - "&ePrice: 1000"
+      - "&7Price &8» &61000"
 
 # Death Sound Selector GUI
 # Follows the same pattern as animation-selector-slots.
@@ -1429,7 +1437,7 @@ death-sound-selector-slots:
     price: 0
     lore:
       - "&7No sound on death/reset"
-      - "&ePrice: Free"
+      - "&7Price &8» &6Free"
   2:
     name: "&aCreeper"
     material: "SULPHUR:0"
@@ -1437,7 +1445,7 @@ death-sound-selector-slots:
     price: 500
     lore:
       - "&7Classic creeper explosion sound"
-      - "&ePrice: 500"
+      - "&7Price &8» &6500"
   3:
     name: "&cAnvil"
     material: "ANVIL:0"
@@ -1445,7 +1453,7 @@ death-sound-selector-slots:
     price: 500
     lore:
       - "&7Anvil falling sound"
-      - "&ePrice: 500"
+      - "&7Price &8» &6500"
   4:
     name: "&9Ghast"
     material: "GHAST_TEAR:0"
@@ -1453,15 +1461,15 @@ death-sound-selector-slots:
     price: 750
     lore:
       - "&7Ghast death scream"
-      - "&ePrice: 750"
+      - "&7Price &8» &6750"
   5:
-    name: "&0Wither"
+    name: "&8Wither"
     material: "SKULL_ITEM:1"
     sound: "Wither"
     price: 1000
     lore:
       - "&7Wither death sound"
-      - "&ePrice: 1000"
+      - "&7Price &8» &61000"
   6:
     name: "&7Iron Golem"
     material: "IRON_INGOT:0"
@@ -1469,7 +1477,7 @@ death-sound-selector-slots:
     price: 750
     lore:
       - "&7Iron Golem death sound"
-      - "&ePrice: 750"
+      - "&7Price &8» &6750"
   7:
     name: "&dEnderman"
     material: "ENDER_PEARL:0"
@@ -1477,7 +1485,7 @@ death-sound-selector-slots:
     price: 750
     lore:
       - "&7Enderman scream"
-      - "&ePrice: 750"
+      - "&7Price &8» &6750"
   8:
     name: "&2Zombie"
     material: "ROTTEN_FLESH:0"
@@ -1485,7 +1493,7 @@ death-sound-selector-slots:
     price: 500
     lore:
       - "&7Zombie hurt sound"
-      - "&ePrice: 500"
+      - "&7Price &8» &6500"
   9:
     name: "&6Piglin"
     material: "GOLD_INGOT:0"
@@ -1493,7 +1501,7 @@ death-sound-selector-slots:
     price: 500
     lore:
       - "&7Angry zombie pigman"
-      - "&ePrice: 500"
+      - "&7Price &8» &6500"
   10:
     name: "&cBlaze"
     material: "BLAZE_ROD:0"
@@ -1501,7 +1509,7 @@ death-sound-selector-slots:
     price: 750
     lore:
       - "&7Blaze death sound"
-      - "&ePrice: 750"
+      - "&7Price &8» &6750"
   11:
     name: "&eWolf"
     material: "STRING:0"
@@ -1509,7 +1517,7 @@ death-sound-selector-slots:
     price: 500
     lore:
       - "&7Wolf death sound"
-      - "&ePrice: 500"
+      - "&7Price &8» &6500"
   12:
     name: "&aFirework"
     material: "FIREWORK:0"
@@ -1517,7 +1525,7 @@ death-sound-selector-slots:
     price: 300
     lore:
       - "&7Firework blast"
-      - "&ePrice: 300"
+      - "&7Price &8» &6300"
   13:
     name: "&dVillager"
     material: "EMERALD:0"
@@ -1525,7 +1533,7 @@ death-sound-selector-slots:
     price: 300
     lore:
       - "&7Villager idle sound"
-      - "&ePrice: 300"
+      - "&7Price &8» &6300"
   14:
     name: "&eSplash"
     material: "WATER_BUCKET:0"
@@ -1533,7 +1541,7 @@ death-sound-selector-slots:
     price: 200
     lore:
       - "&7Splash sound"
-      - "&ePrice: 200"
+      - "&7Price &8» &6200"
   15:
     name: "&bChicken"
     material: "EGG:0"
@@ -1541,7 +1549,7 @@ death-sound-selector-slots:
     price: 150
     lore:
       - "&7Chicken idle sound"
-      - "&ePrice: 150"
+      - "&7Price &8» &6150"
   16:
     name: "&cDragon"
     material: "DRAGON_EGG:0"
@@ -1549,7 +1557,7 @@ death-sound-selector-slots:
     price: 2000
     lore:
       - "&7Ender Dragon growl"
-      - "&ePrice: 2000"
+      - "&7Price &8» &62000"
   17:
     name: "&8Bat"
     material: "IRON_INGOT:0"
@@ -1557,7 +1565,7 @@ death-sound-selector-slots:
     price: 200
     lore:
       - "&7Bat death sound"
-      - "&ePrice: 200"
+      - "&7Price &8» &6200"
   18:
     name: "&bArrow Hit"
     material: "ARROW:0"
@@ -1565,7 +1573,7 @@ death-sound-selector-slots:
     price: 200
     lore:
       - "&7Arrow hit sound"
-      - "&ePrice: 200"
+      - "&7Price &8» &6200"
   19:
     name: "&eNote"
     material: "NOTE_BLOCK:0"
@@ -1573,7 +1581,7 @@ death-sound-selector-slots:
     price: 100
     lore:
       - "&7Note block pling"
-      - "&ePrice: 100"
+      - "&7Price &8» &6100"
   20:
     name: "&cWitherSpawn"
     material: "COAL_BLOCK:0"
@@ -1581,7 +1589,7 @@ death-sound-selector-slots:
     price: 1500
     lore:
       - "&7Wither spawn sound"
-      - "&ePrice: 1500"
+      - "&7Price &8» &61500"
   21:
     name: "&fClick"
     material: "LEVER:0"
@@ -1589,7 +1597,7 @@ death-sound-selector-slots:
     price: 100
     lore:
       - "&7Lever click sound"
-      - "&ePrice: 100"
+      - "&7Price &8» &6100"
   22:
     name: "&6WoodClick"
     material: "WOOD_BUTTON:0"
@@ -1597,7 +1605,7 @@ death-sound-selector-slots:
     price: 100
     lore:
       - "&7Wooden button click"
-      - "&ePrice: 100"
+      - "&7Price &8» &6100"
   23:
     name: "&dBassDrum"
     material: "CLAY:0"
@@ -1605,7 +1613,7 @@ death-sound-selector-slots:
     price: 100
     lore:
       - "&7Bass drum hit"
-      - "&ePrice: 100"
+      - "&7Price &8» &6100"
   24:
     name: "&bSnareDrum"
     material: "GRAVEL:0"
@@ -1613,7 +1621,7 @@ death-sound-selector-slots:
     price: 100
     lore:
       - "&7Snare drum hit"
-      - "&ePrice: 100"
+      - "&7Price &8» &6100"
   25:
     name: "&aExpPickup"
     material: "EXP_BOTTLE:0"
@@ -1621,7 +1629,7 @@ death-sound-selector-slots:
     price: 150
     lore:
       - "&7XP orb pickup pop"
-      - "&ePrice: 150"
+      - "&7Price &8» &6150"
   26:
     name: "&2SlimeHit"
     material: "SLIME_BALL:0"
@@ -1629,7 +1637,7 @@ death-sound-selector-slots:
     price: 250
     lore:
       - "&7Slime attack sound"
-      - "&ePrice: 250"
+      - "&7Price &8» &6250"
 
 # One-Click Pick cosmetic (toggle-style entry injected into the Pickaxe Shop)
 # page: which pickaxe-selector page to render it on (1-based)
@@ -1645,14 +1653,14 @@ one-click-pick:
   lore:
     - "&7Insta-breaks your placed blocks on left-click"
     - "&7Equip any tool — no dig time required"
-    - "&ePrice: %price%"
+    - "&7Price &8» &6%price%"
 
 # Island Design selector settings
 island-designs:
   # Coin cost to unlock each alternative (non-default) design. 0 = free for everyone.
   default-price: 2500
-  lore-selected: "&a&l» Currently selected"
-  lore-owned: "&aAlready owned &8- &7Click to select"
-  lore-unlocked: "&eClick to select this design"
-  lore-locked: "&cLocked &8- &e%price% coins to unlock"
-  lore-cannot-afford: "&cNot enough coins &7(&f%coins% / %price%&7)"
+  lore-selected: "&a&lCurrently selected"
+  lore-owned: "&aAlready owned &8» &7Click to select"
+  lore-unlocked: "&aClick to select this design"
+  lore-locked: "&cLocked &8» &6%price% coins to unlock"
+  lore-cannot-afford: "&cNot enough coins &8(&f%coins%&7/&f%price%&8)"

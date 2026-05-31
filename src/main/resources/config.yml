@@ -145,14 +145,15 @@ finish-height-tolerance: 5
 min-valid-time: 500
 
 # Holograms (requires DecentHolograms)
-# Placeholders: %player%, %pb%, %successful_attempts%, %total_attempts%
+# Placeholders: %player%, %pb%, %top_percent%, %successful_attempts%, %total_attempts%
 holograms:
   enabled: true
   lines:
-    - "&c%player%'s Stats"
-    - "&fPersonal best: &c%pb% &7%top_percent%"
-    - "&fSuccessful Runs: &c%successful_attempts%"
-    - "&fTotal Attempts: &c%total_attempts%"
+    - "&c&l%player%"
+    - "&8&m                    "
+    - "&7Best &8» &f%pb% &8%top_percent%"
+    - "&7Wins &8» &f%successful_attempts%"
+    - "&7Tries &8» &f%total_attempts%"
 
 # NPCs
 npcs:
@@ -243,6 +244,15 @@ map-spacing: 2000
 # Default Y level for new map origins
 default-y: 20
 
+# Maximum schematic volume (in blocks) the paster will accept — a safety bound
+# against pasting an accidentally huge schematic. Raise only for very large templates.
+max-schematic-volume: 16000000
+
+# Admin workflow
+admin:
+  # Show clickable command hints in chat after map setup / creation steps.
+  hints: true
+
 # Auto-refill perk cost (coins)
 auto-refill-cost: 1000
 
@@ -310,3 +320,5 @@ custom-length:
 # ──────────────────────────────────────────────────────────────────────────────
 cps-hologram:
   visibility: "global"
+  # Seconds the CPS hologram stays visible after the player stops clicking.
+  zero-cps-display-duration: 1.0

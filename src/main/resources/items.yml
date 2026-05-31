@@ -1,25 +1,24 @@
 # FastBuilder Hotbar Items
 
-# Leave item (BungeeCord transfer)
+# Leave item — its action and lobby server are configured in config.yml (leave-item.*)
 leave-item: "&cLeave &7(Right-Click to use)"
 leave-item-material: EYE_OF_ENDER:0
 leave-item-toggled: false
-backend-server: lobby
 
 # Replay viewer item
-replay-item: "&5Replay View &7(Right-Click to use)"
+replay-item: "&cReplay Viewer &7(Right-Click to use)"
 replay-item-material: BOOK:0
 
 # Island selector item
-islandselector-item: "&6Island Selector &7(Right-Click to use)"
+islandselector-item: "&cIsland Selector &7(Right-Click to use)"
 islandselector-item-material: NETHER_STAR:0
 
 # Settings item
-settings-item: "&2Settings &7(Right-Click to use)"
+settings-item: "&cSettings &7(Right-Click to use)"
 settings-item-material: EMERALD:0
 
 # Shop item
-shop-item: "&6Shop &7(Right-Click to use)"
+shop-item: "&cShop &7(Right-Click to use)"
 shop-item-material: "GOLD_NUGGET:0"
 
 # Page navigation items

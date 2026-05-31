@@ -101,7 +101,7 @@ public class IslandSelectorGui {
                 item.setItemMeta(skullMeta);
             } else if (mapScaling) {
                 item = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 14)
-                        .name("&c#" + displayNumber + " &7— Not ready")
+                        .name("&c#" + displayNumber + " &7- &fNot ready")
                         .lore("&7This island is still being prepared.",
                               "&7Please try again in a moment.")
                         .build();

@@ -141,7 +141,7 @@ public class ReplayGui {
 
             String status = replay.isSuccessful() ? "&aSuccessful" : "&cFailed";
             String time = replay.getRunTimeMillis() > 0 ? TimeUtil.formatTime(replay.getRunTimeMillis()) : "N/A";
-            String favLine = isFav ? "&6Favorited &e(Right-click to remove)" : "&7Right-click to favorite";
+            String favLine = isFav ? "&6Favorited &8(&7Right-click to remove&8)" : "&7Right-click to favorite";
             String pbLine  = isPb  ? "&6&lPersonal Best" : "";
 
             net.gravijet.fastbuilder.map.MapData replayMap =
@@ -165,7 +165,7 @@ public class ReplayGui {
             loreList.add(ColorUtil.translate("&7Map: &f" + replay.getMapName()));
             if (!pbLine.isEmpty()) loreList.add(ColorUtil.translate(pbLine));
             loreList.add("");
-            loreList.add(ColorUtil.translate("&eLeft-click to watch"));
+            loreList.add(ColorUtil.translate("&aLeft-click to watch"));
             loreList.add(ColorUtil.translate(favLine));
 
             String namePrefix = replay.isPractice() ? "&a[Practice] &f" : "&f";
@@ -177,8 +177,8 @@ public class ReplayGui {
             inv.setItem(slot, item);
         }
 
-        if (page > 1) inv.setItem(45, new ItemBuilder(Material.ARROW).name("&c<< Previous Page").build());
-        if (page < maxPage) inv.setItem(53, new ItemBuilder(Material.ARROW).name("&a» Next Page").build());
+        if (page > 1) inv.setItem(45, new ItemBuilder(Material.ARROW).name("&c« Previous Page").build());
+        if (page < maxPage) inv.setItem(53, new ItemBuilder(Material.ARROW).name("&aNext Page »").build());
         inv.setItem(49, new ItemBuilder(Material.PAPER)
                 .name("&7Page &f" + page + " &7/ &f" + maxPage).build());
 

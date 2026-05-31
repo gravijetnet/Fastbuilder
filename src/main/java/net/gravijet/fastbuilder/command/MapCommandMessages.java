@@ -92,7 +92,7 @@ class MapCommandMessages {
         net.md_5.bungee.api.chat.TextComponent line =
                 new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("  &7» " + label));
         net.md_5.bungee.api.chat.TextComponent cmd =
-                new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&e&n" + command));
+                new net.md_5.bungee.api.chat.TextComponent(ColorUtil.translate("&a&n" + command));
         cmd.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                 net.md_5.bungee.api.chat.ClickEvent.Action.SUGGEST_COMMAND, command));
         cmd.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(

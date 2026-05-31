@@ -657,6 +657,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(ColorUtil.translate("  &7/fb join &f<map>   &8— &7switch to a map"));
         player.sendMessage(ColorUtil.translate("  &7/fb leave          &8— &7back to lobby"));
         player.sendMessage(ColorUtil.translate("  &7/fb reset          &8— &7restart your island"));
+        player.sendMessage(ColorUtil.translate("  &7/fb leavemap       &8— &7leave to free build mode"));
         if (player.hasPermission("fastbuilder.command.fb.reload")) {
             player.sendMessage(ColorUtil.translate("  &7/fb reload         &8— &7reload config"));
         }

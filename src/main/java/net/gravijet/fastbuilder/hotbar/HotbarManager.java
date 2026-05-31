@@ -79,7 +79,7 @@ public class HotbarManager implements Listener {
         }
         ItemBuilder pickaxeBuilder = ItemBuilder.fromString(pickaxeMat);
         if (isOneClickPick) {
-            pickaxeBuilder = pickaxeBuilder.name("&6One Click Pick");
+            pickaxeBuilder = pickaxeBuilder.name("&bOne-Click Pick");
         }
         ItemStack pickaxe = pickaxeBuilder.build();
         org.bukkit.inventory.meta.ItemMeta picMeta = pickaxe.getItemMeta();
@@ -109,7 +109,7 @@ public class HotbarManager implements Listener {
         player.getInventory().setItem(SLOT_SHOP, ItemBuilder.fromString(shopMat).name(shopName).build());
 
         // Slot 6: Replay item
-        String replayName = items.getString("replay-item", "&5Replay View &7(Right-Click to use)");
+        String replayName = items.getString("replay-item", "&cReplay Viewer &7(Right-Click to use)");
         String replayMat = items.getString("replay-item-material", "BOOK:0");
         player.getInventory().setItem(SLOT_REPLAY, ItemBuilder.fromString(replayMat).name(replayName).build());
 
@@ -278,12 +278,12 @@ public class HotbarManager implements Listener {
                     player.sendPluginMessage(plugin, "BungeeCord", b.toByteArray());
                 } catch (IOException e) {
                     // BungeeCord failed — kick so the proxy can route to a fallback server
-                    player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
+                    player.kickPlayer(ColorUtil.translate("&7You left &cFastbuilder&7."));
                 }
                 break;
             }
             case "KICK": {
-                player.kickPlayer(ColorUtil.translate("&fYou left FastBuilder."));
+                player.kickPlayer(ColorUtil.translate("&7You left &cFastbuilder&7."));
                 break;
             }
             case "COMMAND": {

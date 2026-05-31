@@ -495,7 +495,7 @@ public class MapManager {
                     org.bukkit.entity.Player p = Bukkit.getPlayer(island.getOccupantUuid());
                     if (p != null && p.isOnline()) {
                         p.sendMessage(ColorUtil.translate(plugin.getConfigManager().getPrefix()
-                                + "&eIsland layout is being updated, please wait..."));
+                                + "&7Island layout is being updated &8— &7please wait."));
                         if (!Bukkit.getWorlds().isEmpty()) p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                         // Remove stale session so death-check doesn't fire at spawn
                         if (plugin.getGameplayManager() != null) {

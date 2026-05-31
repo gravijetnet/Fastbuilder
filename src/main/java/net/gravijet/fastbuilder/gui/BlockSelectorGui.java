@@ -87,7 +87,7 @@ public class BlockSelectorGui {
                             .replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
                 }
 
-                ItemStack item = ItemBuilder.fromString(mat).name("&c" + name).lore(lore).build();
+                ItemStack item = ItemBuilder.fromString(mat).name("&f" + name).lore(lore).build();
                 inv.setItem(slotIndex, item);
             } catch (NumberFormatException ignored) {}
         }

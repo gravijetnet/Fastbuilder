@@ -105,7 +105,7 @@ public class SettingsGui {
         int menuSize = guisCfg.getInt("custom-length-menu.max-slots", 27);
         menuSize = Math.max(27, Math.min(54, ((menuSize + 8) / 9) * 9));
 
-        String title = ColorUtil.translate("&cCustom Length &7- &f" + map.getName());
+        String title = ColorUtil.translate("&c&lCustom Length &7- &f" + map.getName());
         Inventory inv = Bukkit.createInventory(null, menuSize, title);
 
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();

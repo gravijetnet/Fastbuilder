@@ -176,6 +176,15 @@ permissions:
   fastbuilder.sound.*:
     description: Per-item death sound permission (e.g. fastbuilder.sound.creeper)
     default: false
+  fastbuilder.cosmetic.animations.*:
+    description: Unlock all reset animations without purchasing
+    default: false
+  fastbuilder.cosmetic.sounds.*:
+    description: Unlock all death sounds without purchasing
+    default: false
+  fastbuilder.design.*:
+    description: Unlock all island designs without purchasing
+    default: false
   fastbuilder.cosmetic.autofill:
     description: Purchase and use the auto-refill perk
     default: true

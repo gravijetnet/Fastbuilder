@@ -619,27 +619,27 @@ public class ReplaySession {
 
         player.getInventory().setItem(SLOT_TIMELINE,
                 new ItemBuilder(Material.STICK)
-                        .name("&e← Rewind  &8|  &aFast-Forward →")
-                        .lore("&7Left-Click:  &eRewind 0.5s",
-                              "&7Right-Click: &aFast-Forward 0.5s")
+                        .name("&c← Rewind  &8|  &aFast-Forward →")
+                        .lore("&7Left-Click &8» &cRewind 0.5s",
+                              "&7Right-Click &8» &aFast-Forward 0.5s")
                         .build());
 
         boolean playing = !paused;
         player.getInventory().setItem(SLOT_PAUSE_RESUME,
                 new ItemBuilder(Material.INK_SACK, playing ? (byte) 8 : (byte) 10)
                         .name(playing
-                                ? "&7► Playing  &7— Click to Pause"
-                                : "&a■ Paused  &7— Click to Play")
+                                ? "&a► Playing &8» &7Click to pause"
+                                : "&c■ Paused &8» &7Click to play")
                         .lore("&7Click to toggle playback")
                         .build());
 
         String speedStr = formatSpeed(playbackSpeed);
         player.getInventory().setItem(SLOT_SPEED,
                 new ItemBuilder(Material.BLAZE_ROD)
-                        .name("&c- Slower  &8|  &a+ Faster  &7(&e" + speedStr + "x&7)")
-                        .lore("&7Left-Click:  &cDecrease Speed",
-                              "&7Right-Click: &aIncrease Speed",
-                              "&7Current:     &e" + speedStr + "x")
+                        .name("&c- Slower  &8|  &a+ Faster  &8(&f" + speedStr + "x&8)")
+                        .lore("&7Left-Click &8» &cDecrease speed",
+                              "&7Right-Click &8» &aIncrease speed",
+                              "&7Current &8» &f" + speedStr + "x")
                         .build());
 
         player.getInventory().setItem(SLOT_STOP,

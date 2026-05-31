@@ -52,7 +52,7 @@ public class ShopGui {
             String status = player.hasPermission("fastbuilder.blocks.*")
                     ? "&aAll unlocked" : (ownedBlocks > 0 ? "&a" + ownedBlocks + " unlocked" : "&7None unlocked");
             inv.setItem(guis.getInt("shop.blocks-slot", 9),
-                    buildCategoryItem(guis, "shop.items.blocks", "SANDSTONE:0", "&eBlocks",
+                    buildCategoryItem(guis, "shop.items.blocks", "SANDSTONE:0", "&c&lBlocks",
                             new String[]{"&7Click to browse building blocks", status, "", "&aClick to browse"}));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "boosters")) {
@@ -83,7 +83,7 @@ public class ShopGui {
             String animStatus = player.hasPermission("fastbuilder.cosmetic.animations.*")
                     ? "&aAll unlocked" : (ownedAnims > 0 ? "&a" + ownedAnims + " unlocked" : "&7None unlocked");
             inv.setItem(guis.getInt("shop.animations-slot", 15),
-                    buildCategoryItem(guis, "shop.items.animations", "FIREWORK:0", "&dReset Animations",
+                    buildCategoryItem(guis, "shop.items.animations", "FIREWORK:0", "&c&lReset Animations",
                             new String[]{"&7Click to browse reset animations", animStatus, "", "&aClick to browse"}));
         }
         if (plugin.getConfigManager().isShopCategoryVisible(player, "sounds")) {
@@ -196,7 +196,7 @@ public class ShopGui {
                             .replace("%price%", price == 0 ? "Free" : String.valueOf(price))
                             .replace("%block_status%", owned ? purchasedStatus : notPurchasedStatus);
                 }
-                inv.setItem(slotIndex, ItemBuilder.fromString(mat).name("&r" + name).lore(lore).build());
+                inv.setItem(slotIndex, ItemBuilder.fromString(mat).name("&f" + name).lore(lore).build());
             } catch (NumberFormatException ignored) {}
         }
 
@@ -210,8 +210,8 @@ public class ShopGui {
             int    ocpSlot  = guis.getInt("one-click-pick.slot",   23) - 1;
             String ocpName  = guis.getString("one-click-pick.name", "&bOne-Click Pick");
             String ocpStatus = ocpPurchased
-                    ? (hasOcp ? "&a&lACTIVE" : "&7Owned &8- &eClick to enable")
-                    : "&cNot owned &8- &eClick to buy";
+                    ? (hasOcp ? "&a&lACTIVE" : "&7Owned &8» &aClick to enable")
+                    : "&cNot owned &8» &aClick to buy";
 
             List<String> ocpLoreTemplate = guis.getStringList("one-click-pick.lore");
             List<String> ocpLore = new ArrayList<>();
@@ -398,7 +398,7 @@ public class ShopGui {
                 if (selected) {
                     lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 } else if (owned && price > 0) {
-                    lore.add(ColorUtil.translate("&aAlready owned &8- &7Click to select"));
+                    lore.add(ColorUtil.translate("&aAlready owned &8» &7Click to select"));
                 } else if (!owned) {
                     lore.add(ColorUtil.translate("&cNot purchased"));
                 }
@@ -511,7 +511,7 @@ public class ShopGui {
                 if (selected) {
                     lore.add(ColorUtil.translate("&a&lCurrently selected"));
                 } else if (owned && price > 0) {
-                    lore.add(ColorUtil.translate("&aAlready owned &8- &7Click to select"));
+                    lore.add(ColorUtil.translate("&aAlready owned &8» &7Click to select"));
                 } else if (!owned) {
                     lore.add(ColorUtil.translate("&cNot purchased"));
                 }
@@ -592,7 +592,7 @@ public class ShopGui {
         if (map == null) return;
 
         List<String> templates = map.getTemplatesForMode();
-        String title = ColorUtil.translate("&aIsland Designs &7- &f" + map.getName());
+        String title = ColorUtil.translate("&c&lIsland Designs &7- &f" + map.getName());
         Inventory inv = Bukkit.createInventory(null, 27, title);
 
         String selectedDesign = pData.getSelectedDesign(mapName);
@@ -603,7 +603,7 @@ public class ShopGui {
         int designPrice = guis.getInt("island-designs.default-price", 0);
         String loreSelected = guis.getString("island-designs.lore-selected", "&a&l» Currently selected");
         String loreOwned    = guis.getString("island-designs.lore-owned",    "&aAlready owned &8- &7Click to select");
-        String loreUnlocked = guis.getString("island-designs.lore-unlocked", "&eClick to select this design");
+        String loreUnlocked = guis.getString("island-designs.lore-unlocked", "&aClick to select this design");
         String loreLocked   = guis.getString("island-designs.lore-locked",   "&cLocked &8- &e%price% coins to unlock");
         String loreNoCoins  = guis.getString("island-designs.lore-cannot-afford", "&cNot enough coins &7(&f%coins% / %price%&7)");
 

@@ -142,12 +142,6 @@ public class LeaderboardCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private static String repeat(String s, int n) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < n; i++) sb.append(s);
-        return sb.toString();
-    }
-
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
         if (!sender.hasPermission("fastbuilder.command.leaderboard")) return Collections.emptyList();

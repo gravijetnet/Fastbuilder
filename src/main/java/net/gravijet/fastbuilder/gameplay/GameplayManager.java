@@ -343,14 +343,11 @@ public class GameplayManager {
 
             int coins = plugin.getCoinManager().awardCompletionCoins(player, time, session.getMapName());
 
-            // Resolve booster state so we can display it in title
+            // Resolve booster state so we can display it in the title.
             double boostMult = plugin.getBoosterManager().getMultiplier(player);
             boolean hasBoost = boostMult > 1.01;
-            // boostLabel used in %booster% placeholder: e.g. "3xx Booster"
+            // boostLabel feeds the %booster% placeholder, e.g. "3x Booster".
             String boostLabel = hasBoost ? formatMult(boostMult) + " Booster" : "";
-            int baseCoins = hasBoost
-                    ? plugin.getCoinManager().computeBaseCoins(player.getUniqueId(), time, session.getMapName())
-                    : coins;
 
             String prefix = plugin.getConfigManager().getPrefix();
             if (isNewPB) {

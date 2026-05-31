@@ -226,7 +226,7 @@ public class StatsGui {
                         meta.setDisplayName(ColorUtil.translate(rankColor + "&l#" + pos + " &f" + entry.getKey()));
                         List<String> lore = new ArrayList<>();
                         lore.add(ColorUtil.translate("&7Time: &f" + TimeUtil.formatTime(entry.getValue())));
-                        lore.add(ColorUtil.translate("&eClick to watch replay"));
+                        lore.add(ColorUtil.translate("&aClick to watch replay"));
                         meta.setLore(lore);
                         skull.setItemMeta(meta);
                         inv.setItem(entrySlots[i], skull);
