@@ -207,13 +207,12 @@ public class BoosterGui {
         PlayerData data = plugin.getPlayerManager().getCachedData(player.getUniqueId());
         if (data == null) return;
 
-        if (data.getCoins() < type.price) {
+        if (!data.removeCoins(type.price)) {
             net.gravijet.fastbuilder.util.Messages.send(player, "shop-not-enough-coins",
                     "price", String.valueOf(type.price));
             return;
         }
 
-        data.removeCoins(type.price);
         data.addBooster(type.id, 1);
         plugin.getPlayerManager().savePlayerData(player.getUniqueId());
         net.gravijet.fastbuilder.util.Messages.send(player, "booster-purchased",

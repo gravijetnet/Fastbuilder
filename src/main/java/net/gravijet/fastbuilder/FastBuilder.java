@@ -47,6 +47,7 @@ public class FastBuilder extends JavaPlugin {
     private CpsListener cpsListener;
     private SkinManager skinManager;
     private ProtectionListener protectionListener;
+    private Object papiExpansion; // FastBuilderExpansion — Object so the class only loads when PAPI is present
 
     @Override
     public void onEnable() {
@@ -88,6 +89,17 @@ public class FastBuilder extends JavaPlugin {
                 && configManager.isNpcsEnabled()) {
             npcManager = new NpcManager(this);
             getLogger().info("Citizens integration enabled.");
+        }
+        if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            try {
+                net.gravijet.fastbuilder.papi.FastBuilderExpansion expansion =
+                        new net.gravijet.fastbuilder.papi.FastBuilderExpansion(this);
+                expansion.register();
+                papiExpansion = expansion;
+                getLogger().info("PlaceholderAPI expansion registered (%fastbuilder_...%).");
+            } catch (Throwable t) {
+                getLogger().warning("Could not register PlaceholderAPI expansion: " + t.getMessage());
+            }
         }
 
         // Register commands
@@ -180,6 +192,12 @@ public class FastBuilder extends JavaPlugin {
         if (cpsListener != null) cpsListener.cleanup();
         if (npcManager != null) npcManager.despawnAll();
         if (hologramManager != null) hologramManager.removeAll();
+        if (papiExpansion != null) {
+            try {
+                ((net.gravijet.fastbuilder.papi.FastBuilderExpansion) papiExpansion).unregister();
+            } catch (Throwable ignored) {}
+            papiExpansion = null;
+        }
 
         // Unregister BungeeCord channel
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);

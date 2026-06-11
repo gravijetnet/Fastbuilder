@@ -74,7 +74,7 @@ All `/map` subcommands require `fastbuilder.admin` or their specific permission 
 | `/map setup --infinite` | Set up an infinite (endless) map | `fastbuilder.command.map.setup` |
 | `/map setup --customlength` | Set up a map with adjustable finish distance | `fastbuilder.command.map.setup` |
 | `/map setup continue` | Resume a paused setup session | `fastbuilder.command.map.setup` |
-| `/map setup finish <name>` | Complete setup and save the map as `<name>` | `fastbuilder.command.map.setup` |
+| `/map setup finish <name>` | Complete setup and save the map as `<name>` (1–32 chars: letters, numbers, `-`, `_`) | `fastbuilder.command.map.setup` |
 | `/map setup cancel` | Abort the current setup session | `fastbuilder.command.map.setup` |
 | `/map edit <map>` | Edit an existing map's spawn, zones, or template | `fastbuilder.command.map.setup` |
 
@@ -276,6 +276,26 @@ Maps can define a **death Y level**. Falling below it counts as a failed run and
 
 ### Scoreboards & Action Bar
 Every player sees a **sidebar scoreboard** with their personal best, current session top-3 times, block count, and coin balance. The **action bar** displays a live run timer while a run is active. Both support PlaceholderAPI.
+
+### PlaceholderAPI Placeholders (requires PlaceholderAPI)
+FastBuilder registers its own expansion so other plugins (tab lists, chat, holograms, scoreboards) can display FastBuilder data:
+
+| Placeholder | Value |
+|---|---|
+| `%fastbuilder_coins%` | Coin balance |
+| `%fastbuilder_multiplier%` | Effective coin multiplier (e.g. `1`, `1.5`, `2`) |
+| `%fastbuilder_booster_remaining%` | Remaining temporary-booster time (`4m 32s`) or `Inactive` |
+| `%fastbuilder_map%` | Current map name (empty when not playing) |
+| `%fastbuilder_island%` | Current island slot, 1-based (empty when not playing) |
+| `%fastbuilder_session_best%` | Best time of the current session |
+| `%fastbuilder_best%` / `%fastbuilder_best_<map>%` | Personal best, formatted (`12,350`) |
+| `%fastbuilder_best_ms%` / `%fastbuilder_best_ms_<map>%` | Personal best in raw milliseconds (`-1` if none) |
+| `%fastbuilder_attempts%` / `%fastbuilder_attempts_<map>%` | Total attempts |
+| `%fastbuilder_successes%` / `%fastbuilder_successes_<map>%` | Successful attempts |
+| `%fastbuilder_winrate%` / `%fastbuilder_winrate_<map>%` | Success rate in percent (`87.5`) |
+| `%fastbuilder_average%` / `%fastbuilder_average_<map>%` | Average successful run time, formatted |
+
+Variants without a `_<map>` suffix use the map the player is currently on.
 
 ### Holograms (requires DecentHolograms)
 A floating hologram above each occupied island shows the player's name, personal best, and attempt statistics. Hologram content and position are configurable per map and per design variant.

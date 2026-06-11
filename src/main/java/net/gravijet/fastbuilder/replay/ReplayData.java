@@ -113,9 +113,18 @@ public class ReplayData {
     }
 
     /**
+     * Lowercased map name reduced to filesystem-safe characters. Map names are
+     * validated on creation, but replays of maps from older versions may still
+     * contain characters that are unsafe in file names.
+     */
+    public static String fileKey(String mapName) {
+        return mapName.toLowerCase().replaceAll("[^a-z0-9_-]", "_");
+    }
+
+    /**
      * Generate a unique filename for this replay.
      */
     public String getFileName() {
-        return playerUuid.toString() + "_" + mapName.toLowerCase() + "_" + timestamp + ".replay";
+        return playerUuid.toString() + "_" + fileKey(mapName) + "_" + timestamp + ".replay";
     }
 }

@@ -260,7 +260,7 @@ public class ReplayManager {
         File playerDir = new File(replaysDir, playerUuid.toString());
         if (!playerDir.exists()) return null;
         File[] files = playerDir.listFiles((dir, name) ->
-                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + ReplayData.fileKey(mapName) + "_") && name.endsWith(".replay"));
         if (files == null || files.length == 0) return null;
 
         ReplayData best = null;
@@ -299,7 +299,7 @@ public class ReplayManager {
         if (!playerDir.exists()) return replays;
 
         File[] files = playerDir.listFiles((dir, name) ->
-                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + ReplayData.fileKey(mapName) + "_") && name.endsWith(".replay"));
         if (files == null) return replays;
 
         for (File file : files) {
@@ -411,11 +411,11 @@ public class ReplayManager {
         // Detect GZIP vs. raw: check first two bytes for the GZIP magic (0x1f 0x8b)
         // rawStream is owned by DataInputStream (or GZIPInputStream) and closed via try-with-resources.
         BufferedInputStream rawStream = new BufferedInputStream(new FileInputStream(file));
-        rawStream.mark(2);
-        int b1 = rawStream.read(), b2 = rawStream.read();
-        rawStream.reset();
         InputStream decompressed;
         try {
+            rawStream.mark(2);
+            int b1 = rawStream.read(), b2 = rawStream.read();
+            rawStream.reset();
             if (b1 == 0x1f && b2 == 0x8b) {
                 decompressed = new GZIPInputStream(rawStream);
             } else {
@@ -564,7 +564,7 @@ public class ReplayManager {
         if (limit == Integer.MAX_VALUE) return;
 
         File[] files = playerDir.listFiles((dir, name) ->
-                name.toLowerCase().contains("_" + mapName.toLowerCase() + "_") && name.endsWith(".replay"));
+                name.toLowerCase().contains("_" + ReplayData.fileKey(mapName) + "_") && name.endsWith(".replay"));
         if (files == null || files.length <= limit) return;
 
         // Use header-only reads to find the PB — avoids full GZIP decompression of every file.

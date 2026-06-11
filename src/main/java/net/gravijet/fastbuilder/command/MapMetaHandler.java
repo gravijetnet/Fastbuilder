@@ -127,6 +127,10 @@ class MapMetaHandler {
         String oldName = args[1], newName = args[2];
         if (!mm.mapExists(oldName)) { msg.msgMap(player, "map-not-found", oldName); return; }
         if (mm.mapExists(newName)) { msg.msgAdmin(player, "map-already-exists"); return; }
+        if (!MapManager.isValidMapName(newName)) {
+            msg.msg(player, "&cInvalid map name. Use 1-32 letters, numbers, '-' or '_'.");
+            return;
+        }
 
         mm.renameMap(oldName, newName);
         String raw = plugin.getConfigManager().getAdminMessage("map-renamed");

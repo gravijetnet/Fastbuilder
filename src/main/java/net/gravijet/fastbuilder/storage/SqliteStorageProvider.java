@@ -439,23 +439,26 @@ public class SqliteStorageProvider implements StorageProvider {
 
         if (expired && refreshing.add(mapName)) {
             org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                List<Long> times = new ArrayList<Long>();
-                synchronized (SqliteStorageProvider.this) {
-                    try (PreparedStatement ps = connection.prepareStatement(
-                            "SELECT best_time FROM player_map_stats WHERE map_name = ? AND best_time > 0")) {
-                        ps.setString(1, mapName);
-                        try (ResultSet rs = ps.executeQuery()) {
-                            while (rs.next()) times.add(rs.getLong("best_time"));
+                try {
+                    List<Long> times = new ArrayList<Long>();
+                    synchronized (SqliteStorageProvider.this) {
+                        try (PreparedStatement ps = connection.prepareStatement(
+                                "SELECT best_time FROM player_map_stats WHERE map_name = ? AND best_time > 0")) {
+                            ps.setString(1, mapName);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                while (rs.next()) times.add(rs.getLong("best_time"));
+                            }
+                        } catch (SQLException e) {
+                            plugin.getLogger().log(Level.WARNING, "[SQLite] Failed to query best times.", e);
                         }
-                    } catch (SQLException e) {
-                        plugin.getLogger().log(Level.WARNING, "[SQLite] Failed to query best times.", e);
                     }
+                    long[] result = new long[times.size()];
+                    for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
+                    bestTimesCache.put(mapName, result);
+                    bestTimesCacheTime.put(mapName, System.currentTimeMillis());
+                } finally {
+                    refreshing.remove(mapName);
                 }
-                refreshing.remove(mapName);
-                long[] result = new long[times.size()];
-                for (int i = 0; i < times.size(); i++) result[i] = times.get(i);
-                bestTimesCache.put(mapName, result);
-                bestTimesCacheTime.put(mapName, System.currentTimeMillis());
             });
         }
         return cached != null ? cached : new long[0];

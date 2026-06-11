@@ -299,8 +299,7 @@ public class ShopGui {
                 || player.hasPermission(pickPerm);
 
         if (!owned) {
-            if (data.getCoins() >= price) {
-                data.removeCoins(price);
+            if (data.removeCoins(price)) {
                 data.purchaseBlock("pickaxe:" + mat);
                 data.setSelectedPickaxe(mat);
                 if (data.hasOneClickPick()) {
@@ -337,8 +336,7 @@ public class ShopGui {
         boolean purchased = data.hasPurchasedBlock("cosmetic:one_click_pick")
                 || player.hasPermission("fastbuilder.cosmetic.oneclickpick");
         if (!purchased) {
-            if (data.getCoins() >= price) {
-                data.removeCoins(price);
+            if (data.removeCoins(price)) {
                 data.purchaseBlock("cosmetic:one_click_pick");
                 data.setOneClickPick(true);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
@@ -443,8 +441,7 @@ public class ShopGui {
                 || player.hasPermission("fastbuilder.cosmetic.animations.*")
                 || player.hasPermission("fastbuilder.animation." + animId.toLowerCase());
         if (!owned) {
-            if (data.getCoins() >= price) {
-                data.removeCoins(price);
+            if (data.removeCoins(price)) {
                 data.purchaseBlock("anim:" + animId);
                 data.setSelectedAnimation(animId);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
@@ -556,8 +553,7 @@ public class ShopGui {
                 || player.hasPermission("fastbuilder.cosmetic.sounds.*")
                 || player.hasPermission("fastbuilder.sound." + soundId.toLowerCase());
         if (!owned) {
-            if (data.getCoins() >= price) {
-                data.removeCoins(price);
+            if (data.removeCoins(price)) {
                 data.purchaseBlock("sound:" + soundId);
                 data.setSelectedDeathSound(soundId);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
@@ -679,8 +675,7 @@ public class ShopGui {
                 || player.hasPermission("fastbuilder.design." + templateKey.toLowerCase());
 
         if (!unlocked) {
-            if (pData.getCoins() >= designPrice) {
-                pData.removeCoins(designPrice);
+            if (pData.removeCoins(designPrice)) {
                 pData.purchaseDesign(templateKey);
                 plugin.getPlayerManager().savePlayerData(player.getUniqueId());
                 net.gravijet.fastbuilder.util.Messages.send(player, "design-unlocked",

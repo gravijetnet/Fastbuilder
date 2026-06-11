@@ -376,6 +376,11 @@ class MapSetupHandler {
             return;
         }
 
+        if (!MapManager.isValidMapName(name)) {
+            sendSetupError(player, "Invalid map name. Use 1-32 letters, numbers, '-' or '_'.");
+            return;
+        }
+
         if (session.getState() == SetupSession.State.SELECTING_FINISH) {
             if (!session.canFinalize()) {
                 msg.msgAdmin(player, "setup-not-ready");

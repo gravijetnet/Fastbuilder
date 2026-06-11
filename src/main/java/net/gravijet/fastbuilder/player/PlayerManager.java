@@ -133,7 +133,12 @@ public class PlayerManager {
 
     /** Save all cached player data synchronously (called on plugin disable). */
     public void saveAll() {
-        for (PlayerData data : cache.values()) {
+        // Snapshot under the map lock — async unload saves may still mutate the cache
+        java.util.List<PlayerData> snapshot;
+        synchronized (cache) {
+            snapshot = new java.util.ArrayList<>(cache.values());
+        }
+        for (PlayerData data : snapshot) {
             provider.savePlayerData(data);
         }
     }
@@ -212,9 +217,11 @@ public class PlayerManager {
         for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
             if (p.getName().equalsIgnoreCase(name)) return p.getUniqueId();
         }
-        // Scan cache by name
-        for (Map.Entry<UUID, PlayerData> entry : cache.entrySet()) {
-            if (name.equalsIgnoreCase(entry.getValue().getName())) return entry.getKey();
+        // Scan cache by name (iteration over a synchronizedMap needs the map lock)
+        synchronized (cache) {
+            for (Map.Entry<UUID, PlayerData> entry : cache.entrySet()) {
+                if (name.equalsIgnoreCase(entry.getValue().getName())) return entry.getKey();
+            }
         }
         // Fall back to Bukkit's offline-player registry — only reliable on online-mode servers.
         // On offline-mode servers getOfflinePlayer(name) generates a fake UUID that may not match

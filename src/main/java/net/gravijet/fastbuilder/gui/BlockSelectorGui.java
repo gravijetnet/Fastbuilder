@@ -172,8 +172,7 @@ public class BlockSelectorGui {
                 || player.hasPermission(blockPerm);
 
         if (!owned) {
-            if (data.getCoins() >= price) {
-                data.removeCoins(price);
+            if (data.removeCoins(price)) {
                 data.purchaseBlock(mat);
                 String oldBlockOnPurchase = data.getSelectedBlock();
                 data.setSelectedBlock(mat);

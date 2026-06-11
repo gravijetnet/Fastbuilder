@@ -38,6 +38,15 @@ public class MapManager {
         if (!mapsDir.exists()) mapsDir.mkdirs();
     }
 
+    /**
+     * Map names become file names ({@code maps/<name>.yml}, template schematics) and
+     * storage keys, so they are restricted to a safe character set. Rejects path
+     * separators and traversal sequences outright.
+     */
+    public static boolean isValidMapName(String name) {
+        return name != null && name.matches("[a-zA-Z0-9_-]{1,32}");
+    }
+
     // --- Load/Save ---
 
     public void loadMaps() {
@@ -351,7 +360,7 @@ public class MapManager {
         return -1;
     }
 
-    public boolean assignIsland(String mapName, int index, UUID playerUuid, String playerName) {
+    public synchronized boolean assignIsland(String mapName, int index, UUID playerUuid, String playerName) {
         List<IslandInstance> list = islands.get(mapName.toLowerCase());
         if (list == null || index < 0 || index >= list.size()) return false;
 
