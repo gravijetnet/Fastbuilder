@@ -166,6 +166,14 @@ public class MySqlStorageProvider implements StorageProvider {
                     "PRIMARY KEY (uuid, design_key)" +
                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_custom_length_bests (" +
+                    "uuid      VARCHAR(36) NOT NULL," +
+                    "map_name  VARCHAR(64) NOT NULL," +
+                    "distance  INT NOT NULL," +
+                    "best_time BIGINT NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name, distance)" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
             // Schema migrations — catch duplicate-column errors for existing deployments
             try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_expiry BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
             try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_multiplier DOUBLE DEFAULT 1.0"); } catch (SQLException ignored) {}
@@ -308,6 +316,14 @@ public class MySqlStorageProvider implements StorageProvider {
                 ps.setString(1, uuidStr);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) data.purchaseDesign(rs.getString("design_key"));
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT map_name, distance, best_time FROM player_custom_length_bests WHERE uuid = ?")) {
+                ps.setString(1, uuidStr);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next())
+                        data.updateCustomLengthBest(rs.getString("map_name"), rs.getInt("distance"), rs.getLong("best_time"));
                 }
             }
         } catch (SQLException e) {
@@ -453,12 +469,29 @@ public class MySqlStorageProvider implements StorageProvider {
                     ins.executeBatch();
                 }
 
+                // Custom-length all-time bests upsert
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO player_custom_length_bests (uuid, map_name, distance, best_time) VALUES (?,?,?,?) " +
+                        "ON DUPLICATE KEY UPDATE best_time=VALUES(best_time)")) {
+                    for (Map.Entry<String, Map<Integer, Long>> mapEntry : data.getCustomLengthAllTimeBests().entrySet()) {
+                        for (Map.Entry<Integer, Long> distEntry : mapEntry.getValue().entrySet()) {
+                            if (distEntry.getValue() > 0) {
+                                ps.setString(1, uuidStr); ps.setString(2, mapEntry.getKey());
+                                ps.setInt(3, distEntry.getKey()); ps.setLong(4, distEntry.getValue());
+                                ps.addBatch();
+                            }
+                        }
+                    }
+                    ps.executeBatch();
+                }
+
                 c.commit();
             } catch (SQLException e) {
-                c.rollback();
+                try { c.rollback(); } catch (SQLException ignored) {}
                 throw e;
             } finally {
-                c.setAutoCommit(true);
+                // Never let a failed reset leak a transaction-mode connection back to the pool
+                try { c.setAutoCommit(true); } catch (SQLException ignored) {}
             }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[MySQL] Failed to save player: " + data.getUuid(), e);

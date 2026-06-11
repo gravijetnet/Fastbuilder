@@ -261,7 +261,7 @@ public class ShopGui {
         Integer currentPage = pickaxePages.get(player.getUniqueId());
         if (currentPage == null) currentPage = 1;
 
-        if (slot == maxSlots - 5) { openPickaxeSelector(player, 1); open(player); return; }
+        if (slot == maxSlots - 5) { open(player); return; }
         if (slot == maxSlots - 9 && currentPage > 1) { openPickaxeSelector(player, currentPage - 1); return; }
 
         int maxPage = 1;

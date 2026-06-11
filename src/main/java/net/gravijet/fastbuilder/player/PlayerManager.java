@@ -158,7 +158,9 @@ public class PlayerManager {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             provider.savePlayerData(data);
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (Bukkit.getPlayer(uuid) == null) {
+                // Only evict the exact object this save belongs to — if the player
+                // rejoined and a newer PlayerData replaced it, leave that one alone.
+                if (Bukkit.getPlayer(uuid) == null && cache.get(uuid) == data) {
                     cache.remove(uuid);
                 }
             });

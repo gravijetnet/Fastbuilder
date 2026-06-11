@@ -541,12 +541,10 @@ public class ReplayManager {
                 in.readLong(); // timestamp
                 boolean success = in.readBoolean();
                 long runTime = in.readLong();
-                boolean practice = false;
-                if (version >= 8) {
-                    if (version >= 6) in.readInt();   // customLength
-                    if (version >= 7) { in.readUTF(); in.readUTF(); } // skinValue, skinSig
-                    practice = in.readBoolean();
-                }
+                // Skip per-version header fields in stream order to reach the practice flag
+                if (version >= 6) in.readInt();                   // customLength
+                if (version >= 7) { in.readUTF(); in.readUTF(); } // skinValue, skinSig
+                boolean practice = version >= 8 && in.readBoolean();
                 return new long[]{success ? 1 : 0, runTime, practice ? 1 : 0};
             }
         } catch (Exception ignored) {

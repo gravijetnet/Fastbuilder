@@ -37,12 +37,32 @@ import java.util.UUID;
  *   <li>{@code %fastbuilder_average%} / {@code %fastbuilder_average_<map>%}      — average successful time, formatted</li>
  * </ul>
  *
- * Placeholders resolve from the live cache only, so values are available for
- * online players (and recently disconnected ones still pending unload).
+ * <h3>Leaderboard placeholders</h3>
+ * <ul>
+ *   <li>{@code %fastbuilder_top_name_<map>_<n>%} — name of the n-th fastest player (1-10)</li>
+ *   <li>{@code %fastbuilder_top_time_<map>_<n>%} — formatted best time of the n-th fastest player</li>
+ * </ul>
+ * Leaderboard data refreshes asynchronously every 30 seconds, so requests never
+ * block the main thread; until the first refresh completes an empty value is returned.
+ *
+ * Player placeholders resolve from the live cache only, so values are available
+ * for online players (and recently disconnected ones still pending unload).
  */
 public class FastBuilderExpansion extends PlaceholderExpansion {
 
+    private static final long TOP_CACHE_TTL_MS = 30_000L;
+    private static final int  TOP_LIMIT        = 10;
+
     private final FastBuilder plugin;
+
+    // Async-refreshed leaderboard cache: map name (lower-case) -> top entries.
+    // PAPI requests run on the main thread; provider queries may hit disk/DB,
+    // so they are always dispatched async and the last known result is served.
+    private final java.util.Map<String, java.util.List<java.util.Map.Entry<String, Long>>> topCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, Long> topCacheTime = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Set<String> topRefreshing =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<String, Boolean>());
 
     public FastBuilderExpansion(FastBuilder plugin) {
         this.plugin = plugin;
@@ -115,6 +135,10 @@ public class FastBuilderExpansion extends PlaceholderExpansion {
                 break;
         }
 
+        // Leaderboard: top_name_<map>_<n> / top_time_<map>_<n>
+        if (p.startsWith("top_name_")) return topPlaceholder(p.substring("top_name_".length()), true);
+        if (p.startsWith("top_time_")) return topPlaceholder(p.substring("top_time_".length()), false);
+
         // Per-map statistics: <stat> uses the current map, <stat>_<map> a specific one.
         if (p.startsWith("best_ms")) return statPlaceholder(uuid, data, p, "best_ms", StatKind.BEST_MS);
         if (p.startsWith("best"))    return statPlaceholder(uuid, data, p, "best", StatKind.BEST);
@@ -170,6 +194,50 @@ public class FastBuilderExpansion extends PlaceholderExpansion {
             case WINRATE:  return "0";
             default:       return "0";
         }
+    }
+
+    /**
+     * Resolves {@code <map>_<n>} into the n-th leaderboard entry's name or time.
+     * Map names may contain underscores, so the rank is parsed from the last segment.
+     */
+    private String topPlaceholder(String suffix, boolean wantName) {
+        int sep = suffix.lastIndexOf('_');
+        if (sep <= 0 || sep == suffix.length() - 1) return null;
+
+        String mapName = suffix.substring(0, sep);
+        int rank;
+        try {
+            rank = Integer.parseInt(suffix.substring(sep + 1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (rank < 1 || rank > TOP_LIMIT) return "";
+
+        java.util.List<java.util.Map.Entry<String, Long>> top = getTopCached(mapName);
+        if (top == null || top.size() < rank) return "";
+
+        java.util.Map.Entry<String, Long> entry = top.get(rank - 1);
+        return wantName ? entry.getKey() : TimeUtil.formatTimeFull(entry.getValue());
+    }
+
+    private java.util.List<java.util.Map.Entry<String, Long>> getTopCached(String mapName) {
+        String key = mapName.toLowerCase(Locale.ROOT);
+        Long fetched = topCacheTime.get(key);
+        boolean expired = fetched == null || System.currentTimeMillis() - fetched >= TOP_CACHE_TTL_MS;
+
+        if (expired && topRefreshing.add(key)) {
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    java.util.List<java.util.Map.Entry<String, Long>> result =
+                            plugin.getPlayerManager().getTopPlayerTimesForMap(mapName, TOP_LIMIT);
+                    topCache.put(key, result);
+                    topCacheTime.put(key, System.currentTimeMillis());
+                } finally {
+                    topRefreshing.remove(key);
+                }
+            });
+        }
+        return topCache.get(key);
     }
 
     private RunSession getSession(UUID uuid) {

@@ -371,7 +371,8 @@ public class ConfigManager {
     }
 
     public int getScoreboardUpdateInterval() {
-        return mainConfig.getInt("scoreboard.update-interval", 20);
+        // Clamp to >= 1: a 0/negative period is rejected by the Bukkit scheduler
+        return Math.max(1, mainConfig.getInt("scoreboard.update-interval", 20));
     }
 
     public boolean isFinishTouchMode() {
@@ -409,12 +410,12 @@ public class ConfigManager {
 
     /** Blocks processed per tick in sequential block-clear animations. */
     public int getAnimationBlocksPerTick() {
-        return mainConfig.getInt("animation.blocks-per-tick", 3);
+        return Math.max(1, mainConfig.getInt("animation.blocks-per-tick", 3));
     }
 
     /** Ticks between batches in sequential block-clear animations. */
     public int getAnimationTickInterval() {
-        return mainConfig.getInt("animation.tick-interval", 1);
+        return Math.max(1, mainConfig.getInt("animation.tick-interval", 1));
     }
 
     // -------------------------------------------------------------------------
@@ -443,9 +444,11 @@ public class ConfigManager {
             if (entry == null) continue;
             String name       = entry.getString("name", "&7" + id);
             String desc       = entry.getString("description", "");
-            double mult       = entry.getDouble("multiplier", 1.5);
-            int    dur        = entry.getInt("duration-minutes", 30);
-            int    price      = entry.getInt("price", 200);
+            // Clamp misconfigured values: multiplier < 1 would shrink rewards,
+            // duration/price <= 0 would create free or instantly-expired boosters.
+            double mult       = Math.max(1.0, entry.getDouble("multiplier", 1.5));
+            int    dur        = Math.max(1, entry.getInt("duration-minutes", 30));
+            int    price      = Math.max(0, entry.getInt("price", 200));
             short  potionData = (short) entry.getInt("potion-data", 0);
             list.add(new BoosterType(id, name, desc, mult, dur, price, potionData));
         }

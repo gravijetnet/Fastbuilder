@@ -637,6 +637,14 @@ public class PlayerData {
     }
 
     /**
+     * Read-only view of all persisted custom-length bests:
+     * mapName (lower-case) -> (distance -> bestTimeMs). Used by storage providers.
+     */
+    public Map<String, Map<Integer, Long>> getCustomLengthAllTimeBests() {
+        return Collections.unmodifiableMap(customLengthAllTimeBests);
+    }
+
+    /**
      * Returns the session best time for the given map and distance, or -1 if none.
      */
     public long getCustomLengthSessionBest(String mapName, int distance) {

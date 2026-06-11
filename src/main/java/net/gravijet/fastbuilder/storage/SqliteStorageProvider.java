@@ -47,6 +47,20 @@ public class SqliteStorageProvider implements StorageProvider {
         String url  = "jdbc:sqlite:" + dbFile.getAbsolutePath();
         connection  = DriverManager.getConnection(url);
 
+        try {
+            createSchema();
+        } catch (Exception e) {
+            // Don't leak the connection if schema creation fails — the caller
+            // falls back to the YAML provider and never calls shutdown() on us.
+            try { connection.close(); } catch (SQLException ignored) {}
+            connection = null;
+            throw e;
+        }
+
+        plugin.getLogger().info("[SQLite] Database initialised: " + dbFile.getName());
+    }
+
+    private void createSchema() throws SQLException {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("PRAGMA journal_mode=WAL");
             stmt.execute("PRAGMA synchronous=NORMAL");
@@ -136,13 +150,19 @@ public class SqliteStorageProvider implements StorageProvider {
                     "PRIMARY KEY (uuid, design_key)" +
                     ")");
 
+            stmt.execute("CREATE TABLE IF NOT EXISTS player_custom_length_bests (" +
+                    "uuid      TEXT NOT NULL," +
+                    "map_name  TEXT NOT NULL," +
+                    "distance  INTEGER NOT NULL," +
+                    "best_time INTEGER NOT NULL," +
+                    "PRIMARY KEY (uuid, map_name, distance)" +
+                    ")");
+
             // Schema migrations for existing databases
             try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_expiry INTEGER DEFAULT 0"); } catch (SQLException ignored) {}
             try { stmt.execute("ALTER TABLE player_data ADD COLUMN booster_multiplier REAL DEFAULT 1.0"); } catch (SQLException ignored) {}
             try { stmt.execute("ALTER TABLE player_data ADD COLUMN experience INTEGER DEFAULT 0"); } catch (SQLException ignored) {}
         }
-
-        plugin.getLogger().info("[SQLite] Database initialised: " + dbFile.getName());
     }
 
     @Override
@@ -258,6 +278,14 @@ public class SqliteStorageProvider implements StorageProvider {
             ps.setString(1, uuidStr);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) data.purchaseDesign(rs.getString("design_key"));
+            }
+        }
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT map_name, distance, best_time FROM player_custom_length_bests WHERE uuid = ?")) {
+            ps.setString(1, uuidStr);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next())
+                    data.updateCustomLengthBest(rs.getString("map_name"), rs.getInt("distance"), rs.getLong("best_time"));
             }
         }
     }
@@ -397,6 +425,22 @@ public class SqliteStorageProvider implements StorageProvider {
 
             // Purchased designs
             syncTable(uuidStr, "player_purchased_designs", "design_key", data.getPurchasedDesigns());
+
+            // Custom-length all-time bests upsert
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO player_custom_length_bests (uuid, map_name, distance, best_time) VALUES (?,?,?,?) " +
+                    "ON CONFLICT(uuid, map_name, distance) DO UPDATE SET best_time=excluded.best_time")) {
+                for (Map.Entry<String, Map<Integer, Long>> mapEntry : data.getCustomLengthAllTimeBests().entrySet()) {
+                    for (Map.Entry<Integer, Long> distEntry : mapEntry.getValue().entrySet()) {
+                        if (distEntry.getValue() > 0) {
+                            ps.setString(1, uuidStr); ps.setString(2, mapEntry.getKey());
+                            ps.setInt(3, distEntry.getKey()); ps.setLong(4, distEntry.getValue());
+                            ps.addBatch();
+                        }
+                    }
+                }
+                ps.executeBatch();
+            }
 
             connection.commit();
         } catch (SQLException e) {

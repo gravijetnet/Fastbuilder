@@ -195,6 +195,10 @@ class EndPlatformManager {
 
     @SuppressWarnings("deprecation")
     void clearEndPlatform(UUID uuid) {
+        // Stop any chunk-load task still running for this player (e.g. quit mid-switch)
+        Integer chunkTask = chunkLoadTasks.remove(uuid);
+        if (chunkTask != null) org.bukkit.Bukkit.getScheduler().cancelTask(chunkTask);
+
         int[] region = endIslandRegions.remove(uuid);
         if (region != null) {
             RunSession sess = activeSessions.get(uuid);

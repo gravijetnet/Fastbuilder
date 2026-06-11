@@ -180,28 +180,30 @@ public class HotbarManager implements Listener {
         String displayName = item.getItemMeta().getDisplayName();
         FileConfiguration items = plugin.getConfigManager().getItemsConfig();
 
-        String leaveName = ColorUtil.translate(items.getString("leave-item", ""));
+        // Fallbacks must match the defaults used in giveItems() — otherwise a
+        // missing items.yml key produces an item whose click is never recognised.
+        String leaveName = ColorUtil.translate(items.getString("leave-item", "&cLeave &7(Right-Click to use)"));
         if (!leaveName.isEmpty() && displayName.equals(leaveName)) {
             event.setCancelled(true);
             handleLeave(player);
             return;
         }
 
-        String replayName = ColorUtil.translate(items.getString("replay-item", ""));
+        String replayName = ColorUtil.translate(items.getString("replay-item", "&cReplay Viewer &7(Right-Click to use)"));
         if (displayName.equals(replayName)) {
             event.setCancelled(true);
             handleReplayOpen(player);
             return;
         }
 
-        String islandName = ColorUtil.translate(items.getString("islandselector-item", ""));
+        String islandName = ColorUtil.translate(items.getString("islandselector-item", "&6Island Selector &7(Right-Click to use)"));
         if (displayName.equals(islandName)) {
             event.setCancelled(true);
             handleIslandSelector(player);
             return;
         }
 
-        String settingsName = ColorUtil.translate(items.getString("settings-item", ""));
+        String settingsName = ColorUtil.translate(items.getString("settings-item", "&2Settings &7(Right-Click to use)"));
         if (displayName.equals(settingsName)) {
             event.setCancelled(true);
             plugin.getGuiManager().openSettings(player);

@@ -56,6 +56,7 @@ Each **map** is a bridging course. Players join and are assigned a private **isl
 | `/leaderboard <map> <limit>` | View top N times for a map | `fastbuilder.command.leaderboard` |
 | `/coins` | View your coin balance | `fastbuilder.command.coins` |
 | `/coins <player>` | View another player's balance | `fastbuilder.command.coins` |
+| `/coins pay <player> <amount>` | Send your own coins to another player | `fastbuilder.coins.pay` |
 | `/booster` | Open the booster menu | `fastbuilder.play` |
 
 **Aliases:** `/lb` → `/leaderboard`
@@ -160,6 +161,7 @@ All `/map` subcommands require `fastbuilder.admin` or their specific permission 
 | `fastbuilder.command.stats` | true | View statistics |
 | `fastbuilder.command.leaderboard` | true | View leaderboards |
 | `fastbuilder.command.coins` | true | View coin balance |
+| `fastbuilder.coins.pay` | true | Send coins to other players with `/coins pay` |
 | `fastbuilder.command.build` | op | Toggle creative build mode |
 | `fastbuilder.stats.reset` | true | Reset personal statistics |
 | `fastbuilder.feature.practice_mode` | true | Access practice mode in settings |
@@ -294,6 +296,8 @@ FastBuilder registers its own expansion so other plugins (tab lists, chat, holog
 | `%fastbuilder_successes%` / `%fastbuilder_successes_<map>%` | Successful attempts |
 | `%fastbuilder_winrate%` / `%fastbuilder_winrate_<map>%` | Success rate in percent (`87.5`) |
 | `%fastbuilder_average%` / `%fastbuilder_average_<map>%` | Average successful run time, formatted |
+| `%fastbuilder_top_name_<map>_<n>%` | Name of the n-th fastest player on a map (1–10) |
+| `%fastbuilder_top_time_<map>_<n>%` | Best time of the n-th fastest player on a map |
 
 Variants without a `_<map>` suffix use the map the player is currently on.
 

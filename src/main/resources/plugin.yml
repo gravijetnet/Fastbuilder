@@ -1,5 +1,5 @@
 name: FastBuilder
-version: 2.2.0
+version: ${project.version}
 main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
@@ -19,7 +19,7 @@ commands:
     aliases: [fastbuilder]
   coins:
     description: Manage player coins
-    usage: /<command> [player] | add/remove/set <player|*> <amount>
+    usage: /<command> [player] | pay <player> <amount> | add/remove/set <player|*> <amount>
     aliases: [coin]
   build:
     description: Toggle creative build mode on your island
@@ -74,6 +74,7 @@ permissions:
       fastbuilder.command.stats: true
       fastbuilder.command.build: true
       fastbuilder.command.leaderboard: true
+      fastbuilder.coins.pay: true
   fastbuilder.command.map:
     description: Access to /map command
     default: op
@@ -161,6 +162,9 @@ permissions:
   fastbuilder.coins.admin:
     description: Modify other players' coins
     default: op
+  fastbuilder.coins.pay:
+    description: Transfer own coins to other players with /coins pay
+    default: true
   fastbuilder.blocks.*:
     description: Access to all building blocks without purchasing
     default: false

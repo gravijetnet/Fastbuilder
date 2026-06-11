@@ -30,6 +30,11 @@ public class StatsCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (!sender.hasPermission("fastbuilder.command.stats")) {
+            net.gravijet.fastbuilder.util.Messages.send(sender, "no-permission");
+            return true;
+        }
+
         String targetName;
 
         if (args.length < 1) {

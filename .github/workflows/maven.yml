@@ -3,6 +3,8 @@ name: Build and Permanent Release Fastbuilder
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -14,27 +16,11 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up JDK 8 (for BuildTools)
-        uses: actions/setup-java@v4
-        with:
-          java-version: '8'
-          distribution: 'temurin'
-
-      - name: Run BuildTools
-        run: |
-          mkdir buildtools && cd buildtools
-          wget -q https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar
-          java -jar BuildTools.jar --rev 1.8.8
-          
-          # BuildTools installiert automatisch alle Abhängigkeiten (inkl. bungeecord-chat) nach ~/.m2/repository.
-          # Das manuelle 'mvn install:install-file' wurde entfernt, da es zu einem Abbruch führte,
-          # wenn das Artefakt bereits existierte.
-          echo "BuildTools erfolgreich abgeschlossen. Abhängigkeiten sind im lokalen Maven-Repo vorhanden."
-
-      - name: Set up JDK 21 (for Plugin Compilation)
+      # All dependencies (including spigot-api 1.8.8) resolve from the public
+      # SpigotMC/JitPack/CodeMC repositories declared in pom.xml — no BuildTools
+      # run is needed, which keeps CI at ~1 minute instead of ~15.
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -45,13 +31,15 @@ jobs:
         run: mvn -B package --file pom.xml
 
       - name: Prepare Artifacts
+        if: github.event_name != 'pull_request'
         run: |
-          JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+          JAR_PATH=$(find target/ -name "Fastbuilder-*.jar" ! -name "original-*" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
           if [ -z "$JAR_PATH" ]; then echo "Error: JAR not found"; exit 1; fi
           cp "$JAR_PATH" ./fastbuilder-build-${{ github.run_number }}.jar
           cp "$JAR_PATH" ./fastbuilder-latest.jar
 
       - name: Create Archive Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -62,6 +50,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Latest Release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
