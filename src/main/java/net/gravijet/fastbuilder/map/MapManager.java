@@ -347,13 +347,23 @@ public class MapManager {
         return scalingMaps.contains(mapName.toLowerCase());
     }
 
+    /**
+     * The name to store as an island's occupant. Nicked players occupy their island under the
+     * nick — the island selector shows it, as does the "island already occupied" message.
+     * Resolved centrally here so every caller gets it right.
+     */
+    private String occupantNameFor(UUID playerUuid, String playerName) {
+        if (plugin.getNickManager() == null) return playerName;
+        return plugin.getNickManager().getDisplayName(playerUuid, playerName);
+    }
+
     public synchronized int assignFreeIsland(String mapName, UUID playerUuid, String playerName) {
         List<IslandInstance> list = islands.get(mapName.toLowerCase());
         if (list == null) return -1;
 
         for (IslandInstance island : list) {
             if (!island.isOccupied()) {
-                island.setOccupant(playerUuid, playerName);
+                island.setOccupant(playerUuid, occupantNameFor(playerUuid, playerName));
                 return island.getIndex();
             }
         }
@@ -367,7 +377,7 @@ public class MapManager {
         IslandInstance island = list.get(index);
         if (island.isOccupied()) return false;
 
-        island.setOccupant(playerUuid, playerName);
+        island.setOccupant(playerUuid, occupantNameFor(playerUuid, playerName));
         return true;
     }
 

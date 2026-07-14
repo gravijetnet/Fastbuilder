@@ -263,9 +263,25 @@ public class ProtectionListener implements Listener {
             if (handleCustomLengthClick(player, event)) return;
         }
 
-        if (!isOnOwnIsland(player, event.getClickedBlock().getLocation())) {
+        // The end island lies outside the island's own X/Y box, so isOnOwnIsland() rejects it.
+        // Allow it explicitly — otherwise every interaction with the finish platform (including
+        // placing a block against it) is cancelled here.
+        if (!isOnOwnIsland(player, event.getClickedBlock().getLocation())
+                && !isInOwnEndIsland(player, event.getClickedBlock().getLocation())) {
             event.setCancelled(true);
         }
+    }
+
+    /** True when the location is inside the end-island region currently placed for this player. */
+    private boolean isInOwnEndIsland(Player player, Location loc) {
+        if (plugin.getGameplayManager() == null) return false;
+        int[] region = plugin.getGameplayManager().getEndIslandRegion(player.getUniqueId());
+        if (region == null) return false;
+
+        int bx = loc.getBlockX(), by = loc.getBlockY(), bz = loc.getBlockZ();
+        return bx >= region[0] && bx <= region[0] + region[3] - 1
+                && by >= region[1] && by <= region[1] + region[4] - 1
+                && bz >= region[2] && bz <= region[2] + region[5] - 1;
     }
 
     @SuppressWarnings("deprecation")
@@ -294,9 +310,15 @@ public class ProtectionListener implements Listener {
     }
 
     /**
-     * If the player clicks on a block inside their end-island region, adjust the custom length.
+     * If the player clicks on a block inside their end-island region <em>with an empty hand or a
+     * non-block item</em>, adjust the custom length.
      * Left-click = closer (-1 / -10 with shift), right-click = further (+1 / +10 with shift).
      * Returns true if the click was consumed (event should not continue to other handlers).
+     *
+     * <p>Clicks made while holding a block are NOT consumed: the player is building, not adjusting.
+     * Players bridge with a block in hand and usually while sneaking, so consuming those clicks
+     * both cancelled every placement onto the end island and silently shifted the distance by
+     * ±1 (±10 sneaking) on each attempt — the distance appeared to change on its own mid-run.</p>
      */
     private boolean handleCustomLengthClick(Player player, PlayerInteractEvent event) {
         net.gravijet.fastbuilder.gameplay.RunSession session =
@@ -314,6 +336,12 @@ public class ProtectionListener implements Listener {
         if (bx < region[0] || bx > region[0] + region[3] - 1) return false;
         if (by < region[1] || by > region[1] + region[4] - 1) return false;
         if (bz < region[2] || bz > region[2] + region[5] - 1) return false;
+
+        // Holding a block = building. Leave the click alone so the placement goes through.
+        ItemStack held = player.getItemInHand();
+        if (held != null && held.getType() != org.bukkit.Material.AIR && held.getType().isBlock()) {
+            return false;
+        }
 
         if (!player.hasPermission("fastbuilder.feature.custom_length")) return false;
 
@@ -487,10 +515,23 @@ public class ProtectionListener implements Listener {
         boolean inVoid;
         MapData mapForVoid = plugin.getMapManager().getMap(session.getMapName());
         if (mapForVoid != null && mapForVoid.hasDeathY()) {
-            // Detect at deathY+1.8 so the player is reset before visually falling below deathY
-            inVoid = to.getY() < mapForVoid.getDeathY() + 1.8;
+            // Detect at deathY+1.8 so the player is reset before visually falling below deathY.
+            // Effective deathY drops with a lowered end island so the player isn't failed on the
+            // way down to a finish platform they set below the island floor.
+            int effectiveDeathY = plugin.getGameplayManager()
+                    .getEffectiveDeathY(player.getUniqueId(), mapForVoid);
+            inVoid = to.getY() < effectiveDeathY + 1.8;
         } else {
-            inVoid = to.getBlockY() < bounds[1] - maxDist;
+            // Same rule as the deathY branch: a lowered end island drops the void floor with it.
+            int yFloorDrop = 0;
+            if (mapForVoid != null && mapForVoid.hasCustomLength()) {
+                net.gravijet.fastbuilder.player.PlayerData voidData =
+                        plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                if (voidData != null) {
+                    yFloorDrop = Math.min(0, voidData.getCustomLengthY(mapForVoid.getName()));
+                }
+            }
+            inVoid = to.getBlockY() < bounds[1] - maxDist + yFloorDrop;
         }
 
         if (outOfBounds || inVoid) {
@@ -563,6 +604,22 @@ public class ProtectionListener implements Listener {
             return true;
         }
 
+        // Building on and against the player's own end island is always allowed. Its region can sit
+        // outside the island's X/Y/Z box (custom distance, custom Y offset, its own footprint), so
+        // the corridor check below would reject it and the finish platform would be unbuildable.
+        // The region is padded by 1 so blocks can be placed against its faces, not just on top.
+        if (plugin.getGameplayManager() != null) {
+            int[] end = plugin.getGameplayManager().getEndIslandRegion(player.getUniqueId());
+            if (end != null) {
+                int bx = blockLoc.getBlockX(), by = blockLoc.getBlockY(), bz = blockLoc.getBlockZ();
+                if (bx >= end[0] - 1 && bx <= end[0] + end[3]
+                        && by >= end[1] - 1 && by <= end[1] + end[4] + 64
+                        && bz >= end[2] - 1 && bz <= end[2] + end[5]) {
+                    return true;
+                }
+            }
+        }
+
         MapManager mm = plugin.getMapManager();
 
         for (MapData map : mm.getAllMaps()) {
@@ -582,8 +639,19 @@ public class ProtectionListener implements Listener {
             // Z strictly identifies the player's island slot (not affected by distance setting)
             boolean zInBounds = bz >= islandMin.getBlockZ() && bz <= islandMax.getBlockZ();
 
-            // Y: 2 blocks below the schematic base to 64 blocks above the schematic top
-            boolean yInBounds = by >= islandMin.getBlockY() - 2
+            // Y: 2 blocks below the schematic base to 64 blocks above the schematic top.
+            // On custom-length maps the player can drop the end island below the island floor
+            // with the Y offset; the buildable band has to follow it down, or the whole approach
+            // to a lowered finish platform (and the platform itself) is unbuildable.
+            int yFloorDrop = 0;
+            if (map.hasCustomLength()) {
+                net.gravijet.fastbuilder.player.PlayerData pData =
+                        plugin.getPlayerManager().getCachedData(player.getUniqueId());
+                if (pData != null) {
+                    yFloorDrop = Math.min(0, pData.getCustomLengthY(map.getName()));
+                }
+            }
+            boolean yInBounds = by >= islandMin.getBlockY() - 2 + yFloorDrop
                     && by <= islandMax.getBlockY() + 64;
 
             // X (build direction): the block must be within 30 blocks of the furthest

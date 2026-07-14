@@ -23,6 +23,7 @@ import net.gravijet.fastbuilder.paste.FawePaster;
 import net.gravijet.fastbuilder.player.PlayerManager;
 import net.gravijet.fastbuilder.replay.ReplayManager;
 import net.gravijet.fastbuilder.scoreboard.FastScoreboard;
+import net.gravijet.fastbuilder.nick.NickManager;
 import net.gravijet.fastbuilder.skin.SkinManager;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -46,6 +47,7 @@ public class FastBuilder extends JavaPlugin {
     private HotbarManager hotbarManager;
     private CpsListener cpsListener;
     private SkinManager skinManager;
+    private NickManager nickManager;
     private ProtectionListener protectionListener;
     private Object papiExpansion; // FastBuilderExpansion — Object so the class only loads when PAPI is present
 
@@ -69,6 +71,8 @@ public class FastBuilder extends JavaPlugin {
 
         // Initialize managers
         skinManager = new SkinManager(this);
+        // NickManager reads SkinManager's cache as the fallback skin, so it must come after it.
+        nickManager = new NickManager(this);
         mapManager = new MapManager(this);
         playerManager = new PlayerManager(this);
         boosterManager = new BoosterManager(this);
@@ -223,5 +227,6 @@ public class FastBuilder extends JavaPlugin {
     public HotbarManager getHotbarManager() { return hotbarManager; }
     public CpsListener getCpsListener() { return cpsListener; }
     public SkinManager getSkinManager() { return skinManager; }
+    public NickManager getNickManager() { return nickManager; }
     public ProtectionListener getProtectionListener() { return protectionListener; }
 }

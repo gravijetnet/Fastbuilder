@@ -87,7 +87,10 @@ public class GameplayManager {
     private final java.util.LinkedHashMap<UUID, Long> globalSessionBests = new java.util.LinkedHashMap<>();
     // Kept for backward compat
     private long globalSessionBestTime = -1;
+    // Real name — identity bookkeeping only. Public reads go through getGlobalSessionBestPlayer(),
+    // which resolves the nick from globalSessionBestUuid.
     private String globalSessionBestPlayer = null;
+    private UUID globalSessionBestUuid = null;
 
     // Infinite session bests: per-player best {distance, timeMs} this session
     private final java.util.LinkedHashMap<UUID, long[]> infiniteSessionBests = new java.util.LinkedHashMap<>();
@@ -135,7 +138,7 @@ public class GameplayManager {
                     MapData map = plugin.getMapManager().getMap(sess.getMapName());
                     if (map == null || !map.hasDeathY()) continue;
                     // Detect at deathY+1.8 so the player is reset before visually falling below deathY
-                    if (pl.getLocation().getY() < map.getDeathY() + 1.8) {
+                    if (pl.getLocation().getY() < getEffectiveDeathY(uuid, map) + 1.8) {
                         onFall(pl);
                     }
                 }
@@ -327,6 +330,7 @@ public class GameplayManager {
             if (globalSessionBestTime < 0 || time < globalSessionBestTime) {
                 globalSessionBestTime = time;
                 globalSessionBestPlayer = player.getName();
+                globalSessionBestUuid = uuid;
             }
         }
 
@@ -1012,19 +1016,21 @@ public class GameplayManager {
                 plugin.getNpcManager().spawnNpc(player, npcLoc);
             }
 
-            // For custom-length maps: if this design has a different island width,
-            // shift the end-island so the physical gap stays the same.
+            // For custom-length maps: a design whose island is wider/narrower than the default
+            // shifts where the end island sits (see getEffectiveIslandWidth), so re-place it at
+            // the player's UNCHANGED distance — the island moves, the number stays put.
+            //
+            // The distance must never be written back here. This runs on join, island switch, map
+            // switch, /fb reset and every design pick, so folding the width difference into the
+            // stored preference compounded on each call and drifted the distance until it pinned
+            // itself to the min or max — the distance appeared to reset and change on its own.
             if (map.hasEndIsland() && profile.islandWidth > 0
                     && profile.islandWidth != map.getIslandWidth()) {
                 RunSession session = activeSessions.get(player.getUniqueId());
                 if (session != null) {
-                    int widthDiff = profile.islandWidth - map.getIslandWidth();
-                    int curLen = pData.getCustomLength(map.getName());
-                    if (curLen <= 0) curLen = map.getBaseCustomLength();
-                    int adjusted = Math.max(map.getEffectiveMinCustomLength(),
-                            Math.min(map.getEffectiveMaxCustomLength(), curLen + widthDiff));
-                    pData.setCustomLength(map.getName(), adjusted);
-                    placeEndPlatform(player, map, session, adjusted);
+                    int length = pData.getCustomLength(map.getName());
+                    if (length <= 0) length = map.getBaseCustomLength();
+                    if (length > 0) placeEndPlatform(player, map, session, length);
                 }
             }
         } else {
@@ -1090,6 +1096,50 @@ public class GameplayManager {
             }
         }
         return map.getIslandHologramLocation(islandIndex);
+    }
+
+    /**
+     * Returns the island width that the player's currently selected design actually occupies.
+     *
+     * <p>The end island sits at {@code originX + islandWidth + customLength}, so a design that is
+     * wider or narrower than the default template must feed its own width into that formula —
+     * otherwise the physical gap the player bridges would silently change with the design.
+     * Resolving the width here (at paste and finish-detection time) keeps the player's chosen
+     * distance meaning the same thing for every design.</p>
+     */
+    public int getEffectiveIslandWidth(UUID uuid, net.gravijet.fastbuilder.map.MapData map) {
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        if (pData != null) {
+            String design = pData.getSelectedDesign(map.getName());
+            if (design != null && !design.equals(map.getTemplateFile())) {
+                net.gravijet.fastbuilder.map.MapData.DesignProfile profile = map.getDesignProfile(design);
+                if (profile != null && profile.islandWidth > 0) return profile.islandWidth;
+            }
+        }
+        return map.getIslandWidth();
+    }
+
+    /**
+     * Returns the Y level below which this player fails the run.
+     *
+     * <p>On custom-length maps the player can lower the end island with the Y offset from the
+     * Custom Length menu. The map's configured {@code deathY} sits just below the island's spawn
+     * floor, so a lowered target would otherwise put the finish platform *underneath* the death
+     * plane — the player is failed on the way down and can never reach it. Dropping the death
+     * plane by the same offset keeps the target reachable. A raised end island (positive offset)
+     * leaves deathY where it is.</p>
+     */
+    public int getEffectiveDeathY(UUID uuid, net.gravijet.fastbuilder.map.MapData map) {
+        int deathY = map.getDeathY();
+        if (!map.hasCustomLength()) return deathY;
+
+        net.gravijet.fastbuilder.player.PlayerData pData =
+                plugin.getPlayerManager().getCachedData(uuid);
+        if (pData == null) return deathY;
+
+        int yAdjust = pData.getCustomLengthY(map.getName());
+        return deathY + Math.min(0, yAdjust);
     }
 
     /**
@@ -1337,7 +1387,12 @@ public class GameplayManager {
     public boolean isInBuildMode(UUID uuid) { return buildModePlayers.contains(uuid); }
 
     public long getGlobalSessionBestTime() { return globalSessionBestTime; }
-    public String getGlobalSessionBestPlayer() { return globalSessionBestPlayer; }
+
+    /** Session-scoped display, so a nicked holder shows under their nick. */
+    public String getGlobalSessionBestPlayer() {
+        if (globalSessionBestUuid == null) return globalSessionBestPlayer;
+        return displayNameOf(globalSessionBestUuid);
+    }
 
     /**
      * Returns the top N unique-player session bests as [playerName, timeMillisStr] pairs, sorted best first.
@@ -1348,11 +1403,22 @@ public class GameplayManager {
         List<String[]> result = new ArrayList<>();
         for (int i = 0; i < Math.min(n, sorted.size()); i++) {
             Map.Entry<UUID, Long> entry = sorted.get(i);
-            Player onlinePlayer = Bukkit.getPlayer(entry.getKey());
-            String name = onlinePlayer != null ? onlinePlayer.getName() : entry.getKey().toString();
-            result.add(new String[]{name, String.valueOf(entry.getValue())});
+            result.add(new String[]{displayNameOf(entry.getKey()), String.valueOf(entry.getValue())});
         }
         return result;
+    }
+
+    /**
+     * The name to show for a player in session-scoped displays (Session Top, holograms, …):
+     * their nick when they are disguised, otherwise their real name.
+     *
+     * <p>Leaderboards deliberately do NOT go through this — records stay under the real name.</p>
+     */
+    private String displayNameOf(UUID uuid) {
+        Player online = Bukkit.getPlayer(uuid);
+        String realName = online != null ? online.getName() : uuid.toString();
+        if (plugin.getNickManager() == null) return realName;
+        return plugin.getNickManager().getDisplayName(uuid, realName);
     }
 
     /** Convenience overload — returns top 3 (backward compat). */
@@ -1374,9 +1440,7 @@ public class GameplayManager {
         List<String[]> result = new ArrayList<>();
         for (int i = 0; i < Math.min(n, sorted.size()); i++) {
             Map.Entry<UUID, long[]> entry = sorted.get(i);
-            Player onlinePlayer = Bukkit.getPlayer(entry.getKey());
-            String name = onlinePlayer != null ? onlinePlayer.getName() : entry.getKey().toString();
-            result.add(new String[]{name,
+            result.add(new String[]{displayNameOf(entry.getKey()),
                     String.valueOf(entry.getValue()[0]),
                     String.valueOf(entry.getValue()[1])});
         }
@@ -1386,17 +1450,18 @@ public class GameplayManager {
     public void removeGlobalSessionBest(UUID playerUuid) {
         globalSessionBests.remove(playerUuid);
         infiniteSessionBests.remove(playerUuid);
-        // Rebuild the legacy scalar best if this player held it
-        Player wasPlayer = Bukkit.getPlayer(playerUuid);
-        String removedName = wasPlayer != null ? wasPlayer.getName() : null;
-        if (removedName != null && removedName.equals(globalSessionBestPlayer)) {
+        // Rebuild the legacy scalar best if this player held it. Matched by UUID: the player is
+        // quitting, so their name (and nick) may already be gone from the caches.
+        if (playerUuid.equals(globalSessionBestUuid)) {
             globalSessionBestTime = -1;
             globalSessionBestPlayer = null;
+            globalSessionBestUuid = null;
             for (Map.Entry<UUID, Long> e : globalSessionBests.entrySet()) {
                 if (globalSessionBestTime < 0 || e.getValue() < globalSessionBestTime) {
                     globalSessionBestTime = e.getValue();
                     Player p = Bukkit.getPlayer(e.getKey());
                     globalSessionBestPlayer = p != null ? p.getName() : e.getKey().toString();
+                    globalSessionBestUuid = e.getKey();
                 }
             }
         }

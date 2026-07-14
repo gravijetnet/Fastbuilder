@@ -88,7 +88,14 @@ public class IslandSelectorGui {
             if (island.isOccupied()) {
                 item = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
                 SkullMeta skullMeta = (SkullMeta) item.getItemMeta();
-                if (plugin.getSkinManager() != null) {
+                // A nicked occupant must show the disguise head, or the skull would give away
+                // the real player next to their nick name.
+                String[] headSkin = plugin.getNickManager() != null
+                        ? plugin.getNickManager().getEffectiveSkin(island.getOccupantUuid())
+                        : null;
+                if (headSkin != null && plugin.getSkinManager() != null) {
+                    plugin.getSkinManager().applyTextureToSkullMeta(skullMeta, headSkin[0], headSkin[1]);
+                } else if (plugin.getSkinManager() != null) {
                     plugin.getSkinManager().applyCachedSkin(skullMeta,
                             island.getOccupantUuid(), island.getOccupantName());
                 } else {

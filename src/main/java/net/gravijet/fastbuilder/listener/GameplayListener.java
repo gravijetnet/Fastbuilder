@@ -160,8 +160,11 @@ public class GameplayListener implements Listener {
             int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
 
             // End island min-X must match EndPlatformManager exactly:
-            // endMin.X = originX + islandWidth + customLength (mirrors the setup measurement).
-            int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength;
+            // endMin.X = originX + islandWidth + customLength (mirrors the setup measurement),
+            // using the selected design's width so the zone tracks the island that was pasted.
+            int islandWidth = plugin.getGameplayManager()
+                    .getEffectiveIslandWidth(player.getUniqueId(), map);
+            int endX = map.getOriginX() + diagX + islandWidth + customLength;
             int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
             int endZ = (int) (map.getOriginZ() + (long) islandIndex * map.getActualZStep()
                     + map.getEndIslandZOffset());

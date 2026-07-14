@@ -34,7 +34,12 @@ public class StatsGui {
     // ===== Stats GUI =====
 
     public void openStatsGui(Player viewer, PlayerData data) {
-        String title = ColorUtil.translate("&c&lStats &7- &f" + data.getName());
+        // Nicked players are shown under their nick here too — only leaderboards keep real names.
+        String shownName = plugin.getNickManager() != null
+                ? plugin.getNickManager().getDisplayName(data.getUuid(), data.getName())
+                : data.getName();
+
+        String title = ColorUtil.translate("&c&lStats &7- &f" + shownName);
         Inventory inv = Bukkit.createInventory(null, 54, title);
 
         ItemStack filler = new ItemBuilder(Material.STAINED_GLASS_PANE, (byte) 7).name(" ").build();
@@ -50,10 +55,15 @@ public class StatsGui {
 
         ItemStack head = new ItemStack(Material.SKULL_ITEM, 1, (short) 3);
         SkullMeta skullMeta = (SkullMeta) head.getItemMeta();
-        if (plugin.getSkinManager() != null) {
+        String[] headSkin = plugin.getNickManager() != null
+                ? plugin.getNickManager().getNickSkin(data.getUuid())
+                : null;
+        if (headSkin != null && plugin.getSkinManager() != null) {
+            plugin.getSkinManager().applyTextureToSkullMeta(skullMeta, headSkin[0], headSkin[1]);
+        } else if (plugin.getSkinManager() != null) {
             plugin.getSkinManager().applyCachedSkin(skullMeta, data.getUuid(), data.getName());
         }
-        skullMeta.setDisplayName(ColorUtil.translate("&c&l" + data.getName()));
+        skullMeta.setDisplayName(ColorUtil.translate("&c&l" + shownName));
         List<String> headLore = new ArrayList<>();
         headLore.add(ColorUtil.translate("&7Coins: &f" + data.getCoins()));
         headLore.add(ColorUtil.translate("&7Total Runs: &f" + totalAttempts));

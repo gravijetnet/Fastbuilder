@@ -83,14 +83,15 @@ public class NpcManager implements Listener {
             npc.spawn(adjusted);
             npc.setProtected(true);
 
-            // Apply cached skin texture directly via NMS
-            if (plugin.getSkinManager() != null) {
-                String skinValue = plugin.getSkinManager().getSkinValue(player.getUniqueId());
-                String skinSig   = plugin.getSkinManager().getSkinSignature(player.getUniqueId());
-                if (skinValue != null && !skinValue.isEmpty()) {
+            // Apply the skin texture directly via NMS. A nicked player's NPC wears the disguise
+            // skin, not their real one — otherwise the NPC standing on their island gives the
+            // nick away instantly.
+            if (plugin.getSkinManager() != null && plugin.getNickManager() != null) {
+                String[] skin = plugin.getNickManager().getEffectiveSkin(player.getUniqueId());
+                if (skin != null) {
                     java.util.List<org.bukkit.entity.Player> viewers =
                             adjusted.getWorld().getPlayers();
-                    plugin.getSkinManager().applySkinToNpc(npc, skinValue, skinSig, viewers);
+                    plugin.getSkinManager().applySkinToNpc(npc, skin[0], skin[1], viewers);
                 }
             }
 

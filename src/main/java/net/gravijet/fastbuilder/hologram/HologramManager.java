@@ -95,8 +95,14 @@ public class HologramManager {
             String topPercent = calculateTopPercent(map.getName(),
                     stats != null && stats.hasBestTime() ? stats.bestTime : -1);
 
+            // The hologram floats above the island in full view of everyone — a nicked player
+            // must appear under their nick here.
+            String holoName = plugin.getNickManager() != null
+                    ? plugin.getNickManager().getDisplayName(playerData.getUuid(), playerData.getName())
+                    : playerData.getName();
+
             for (String line : configLines) {
-                line = line.replace("%player%", playerData.getName())
+                line = line.replace("%player%", holoName)
                         .replace("%pb%", pb)
                         .replace("%successful_attempts%", String.valueOf(successful))
                         .replace("%total_attempts%", String.valueOf(total))

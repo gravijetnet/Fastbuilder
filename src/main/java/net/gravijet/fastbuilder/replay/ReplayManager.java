@@ -61,6 +61,11 @@ public class ReplayManager {
     public String getReplayDisplayName(ReplayData data) {
         String mode = plugin.getConfigManager().getReplayPlayerNameMode();
         if ("current".equalsIgnoreCase(mode)) {
+            // A currently-nicked player keeps their nick here — resolving to the real account name
+            // would unmask them. Falls back to the real name when they aren't nicked.
+            if (plugin.getNickManager() != null && plugin.getNickManager().isNicked(data.getPlayerUuid())) {
+                return plugin.getNickManager().getDisplayName(data.getPlayerUuid(), data.getPlayerName());
+            }
             // Try to resolve the current name from the online player list or Bukkit offline player
             org.bukkit.OfflinePlayer op = org.bukkit.Bukkit.getOfflinePlayer(data.getPlayerUuid());
             if (op.getName() != null && !op.getName().isEmpty()) {
@@ -96,22 +101,30 @@ public class ReplayManager {
             }
         }
 
+        // A run recorded while nicked is stored under the nick — name, tag and skin — so replaying
+        // it later never reveals who was really behind the disguise.
+        boolean nicked = plugin.getNickManager() != null
+                && plugin.getNickManager().isNicked(player.getUniqueId());
+        String recordedName = nicked
+                ? plugin.getNickManager().getDisplayName(player)
+                : player.getName();
+
         // Capture the player's display tag (rank prefix + name) at the moment of recording.
         // player.getDisplayName() is set by rank plugins (LuckPerms, GroupManager, etc.) and
         // contains §-codes already — Citizens accepts §-codes directly for NPC names.
-        String displayTag = player.getDisplayName();
+        // While nicked the rank prefix is dropped: it belongs to the real account.
+        String displayTag = nicked ? recordedName : player.getDisplayName();
 
         // Capture skin texture at recording time for cracked-server-safe replay skins.
         String skinValue = "";
         String skinSignature = "";
-        if (plugin.getSkinManager() != null) {
-            String sv = plugin.getSkinManager().getSkinValue(player.getUniqueId());
-            String ss = plugin.getSkinManager().getSkinSignature(player.getUniqueId());
-            if (sv != null) { skinValue = sv; skinSignature = ss != null ? ss : ""; }
+        if (plugin.getNickManager() != null) {
+            String[] skin = plugin.getNickManager().getEffectiveSkin(player.getUniqueId());
+            if (skin != null) { skinValue = skin[0]; skinSignature = skin[1]; }
         }
 
         activeRecorders.put(player.getUniqueId(),
-                new ReplayRecorder(player.getUniqueId(), player.getName(), displayTag,
+                new ReplayRecorder(player.getUniqueId(), recordedName, displayTag,
                         mapName, islandIndex, initialBlocks, skinValue, skinSignature));
     }
 

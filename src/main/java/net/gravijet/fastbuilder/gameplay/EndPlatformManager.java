@@ -71,7 +71,12 @@ class EndPlatformManager {
         // baseCustomLength = endMin.X - (originX + islandWidth - 1) - 1
         //   ⇒ endMin.X = originX + islandWidth + customLength
         // so the live position reproduces exactly where the admin placed the end island.
-        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength;
+        // islandWidth is the *selected design's* width, so customLength always means the same
+        // physical gap no matter which design the player is on.
+        int islandWidth = plugin.getGameplayManager() != null
+                ? plugin.getGameplayManager().getEffectiveIslandWidth(uuid, map)
+                : map.getIslandWidth();
+        int endX = map.getOriginX() + diagX + islandWidth + customLength;
         int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
         int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
 
@@ -105,38 +110,6 @@ class EndPlatformManager {
         } else {
             pasteNew.run();
         }
-    }
-
-    private void placeEndIslandTemplate(UUID uuid, MapData map, int islandIndex, int customLength) {
-        org.bukkit.World world = map.getWorld();
-        if (world == null) return;
-
-        net.gravijet.fastbuilder.player.PlayerData pData =
-                plugin.getPlayerManager().getCachedData(uuid);
-        int yAdjust = pData != null ? pData.getCustomLengthY(map.getName()) : 0;
-
-        // Diagonal maps shift each slot in +X by diagonalStepX (0 for straight maps).
-        int diagX = (int) ((long) islandIndex * map.getDiagonalStepX());
-        // See placeEndIslandTemplateAfterClear: endMin.X = originX + islandWidth + customLength.
-        int endX = map.getOriginX() + diagX + map.getIslandWidth() + customLength;
-        int endY = map.getOriginY() + map.getEndIslandYOffset() + yAdjust;
-        int endZ = map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()) + map.getEndIslandZOffset();
-
-        endIslandRegions.put(uuid, new int[]{
-            endX, endY, endZ,
-            map.getEndIslandWidth(), map.getEndIslandHeight(), map.getEndIslandLength()
-        });
-
-        int clearMaxX = endX + map.getEndIslandWidth()  - 1;
-        int clearMaxY = endY + map.getEndIslandHeight() - 1;
-        int clearMaxZ = endZ + map.getEndIslandLength()  - 1;
-        forceLoadChunkCorridor(uuid, world,
-                map.getOriginX() + diagX, endY,
-                map.getOriginZ() + (int) ((long) islandIndex * map.getActualZStep()),
-                clearMaxX, clearMaxY, clearMaxZ);
-        plugin.getFawePaster().clearRegion(world, endX, endY, endZ, clearMaxX, clearMaxY, clearMaxZ, () ->
-            plugin.getFawePaster().pasteTemplate(world, map.getEndIslandTemplateFile(), endX, endY, endZ, null)
-        );
     }
 
     @SuppressWarnings("deprecation")

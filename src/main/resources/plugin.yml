@@ -4,7 +4,7 @@ main: net.gravijet.fastbuilder.FastBuilder
 author: gravijet
 description: FastBuilder - Competitive bridging plugin
 depend: [WorldEdit, Citizens, PlaceholderAPI]
-softdepend: [FastAsyncWorldEdit, DecentHolograms]
+softdepend: [FastAsyncWorldEdit, DecentHolograms, Phoenix]
 commands:
   map:
     description: Map administration commands
