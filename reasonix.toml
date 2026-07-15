@@ -1,0 +1,2 @@
+[permissions]
+allow = ["explore", "Edit", "Bash(& \"C:\\Users\\benja\\.m2\\wrapper\\dists\\apache-maven-3.9.6-bin\\3311e1d4\\apache-maven-3.9.6\\bin\\mvn.cmd\" clean compile -q 2>&1)", "Bash(cd \"D:\\Sources\\Plugins\\Fastbuilder\" && \"C:\\Users\\benja\\.m2\\wrapper\\dists\\apache-maven-3.9.6-bin\\3311e1d4\\apache-maven-3.9.6\\bin\\mvn.cmd\" clean compile -q 2>&1)"]

@@ -39,6 +39,8 @@ public class MySqlStorageProvider implements StorageProvider {
     private final Connection[] pool    = new Connection[POOL_SIZE];
     private final boolean[]    in_use  = new boolean[POOL_SIZE];
     private String jdbcUrl;
+    private java.util.Properties connectionProps;
+    private java.sql.Driver mysqlDriver;
 
     private final Map<String, long[]> bestTimesCache     = new java.util.concurrent.ConcurrentHashMap<String, long[]>();
     private final Map<String, Long>   bestTimesCacheTime = new java.util.concurrent.ConcurrentHashMap<String, Long>();
@@ -55,24 +57,42 @@ public class MySqlStorageProvider implements StorageProvider {
 
     @Override
     public void init() throws Exception {
+        // Try loading the MySQL JDBC driver — prefer the modern one first.
         boolean driverLoaded = false;
-        try { Class.forName(DRIVER);     driverLoaded = true; } catch (ClassNotFoundException ignored) {}
+        try { Class.forName(DRIVER_NEW); driverLoaded = true; } catch (ClassNotFoundException ignored) {}
         if (!driverLoaded) {
-            try { Class.forName(DRIVER_NEW); driverLoaded = true; } catch (ClassNotFoundException ignored) {}
+            try { Class.forName(DRIVER); driverLoaded = true; } catch (ClassNotFoundException ignored) {}
         }
         if (!driverLoaded) {
             throw new Exception("MySQL JDBC driver not found. Add mysql-connector-j or mysql-connector-java to the classpath.");
         }
 
+        // Obtain the driver instance directly via DriverManager to bypass its
+        // URL-type‑detection, which can reject valid URLs under certain
+        // driver / JDK combinations.
+        this.mysqlDriver = DriverManager.getDriver("jdbc:mysql://");
+
+        // Build the base JDBC URL (host:port/database) and pass all parameters
+        // via Properties to avoid URL‑parsing issues with modern JDBC drivers.
         boolean useSSL = plugin.getConfigManager().getStorageMySQL("use-ssl", "false").equalsIgnoreCase("true");
-        String url = "jdbc:mysql://" + host + ":" + port + "/" + database
-                + "?useSSL=" + useSSL + "&autoReconnect=true&characterEncoding=utf8"
-                + "&serverTimezone=UTC";
+        String url = "jdbc:mysql://" + host + ":" + port + "/" + database;
         this.jdbcUrl = url;
+
+        java.util.Properties props = new java.util.Properties();
+        props.setProperty("user", user);
+        props.setProperty("password", password);
+        props.setProperty("useSSL", String.valueOf(useSSL));
+        props.setProperty("characterEncoding", "utf8");
+        props.setProperty("serverTimezone", "UTC");
+        this.connectionProps = props;
 
         synchronized (pool) {
             for (int i = 0; i < POOL_SIZE; i++) {
-                pool[i]   = DriverManager.getConnection(url, user, password);
+                Connection c = mysqlDriver.connect(url, props);
+                if (c == null) {
+                    throw new SQLException("MySQL driver refused the URL (returned null): " + url);
+                }
+                pool[i]   = c;
                 in_use[i] = false;
             }
         }
@@ -200,7 +220,10 @@ public class MySqlStorageProvider implements StorageProvider {
                                     url = null;
                                 }
                                 if (url == null) url = this.jdbcUrl;
-                                pool[i] = DriverManager.getConnection(url, user, password);
+                                pool[i] = mysqlDriver.connect(url, connectionProps);
+                                if (pool[i] == null) {
+                                    throw new SQLException("MySQL driver refused the URL (returned null): " + url);
+                                }
                             }
                         } catch (SQLException e) {
                             // Connection is dead and reconnect failed — skip this slot
