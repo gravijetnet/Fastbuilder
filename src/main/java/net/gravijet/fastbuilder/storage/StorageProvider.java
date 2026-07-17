@@ -37,9 +37,24 @@ public interface StorageProvider {
      * Persist a player's data to the backend.
      * Must be safe to call from an async thread.
      *
+     * <p>Implementations log and absorb their own I/O errors rather than throwing, so a
+     * failed write never interrupts gameplay. The return value is how a caller that cares
+     * (the migrator) can still tell a real write from a swallowed failure.
+     *
      * @param data the player data to persist
+     * @return true if the record was written, false if the write failed
      */
-    void savePlayerData(PlayerData data);
+    boolean savePlayerData(PlayerData data);
+
+    /**
+     * Return the UUID of every player this backend holds a record for.
+     *
+     * <p>Used by {@link StorageMigrator} to walk a backend end-to-end. This reads the whole
+     * dataset, so it may be slow on a large server — never call it from the main thread.
+     *
+     * @return every stored player UUID (may be empty, never null)
+     */
+    java.util.List<UUID> getAllPlayerUuids();
 
     /**
      * Return all recorded personal-best times (in milliseconds) for a given map,

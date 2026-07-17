@@ -60,6 +60,7 @@ permissions:
       fastbuilder.command.map.delete: true
       fastbuilder.command.fb.reload: true
       fastbuilder.command.fb.dump: true
+      fastbuilder.command.fb.migrate: true
       fastbuilder.coins.admin: true
       fastbuilder.booster.admin: true
       fastbuilder.bypass.border: true
@@ -146,6 +147,9 @@ permissions:
     default: op
   fastbuilder.command.fb.dump:
     description: Generate a diagnostic dump with /fb dump
+    default: op
+  fastbuilder.command.fb.migrate:
+    description: Convert player data between storage backends with /fb migrate
     default: op
   fastbuilder.command.stats:
     description: View statistics with /stats

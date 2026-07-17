@@ -96,6 +96,24 @@
             <version>2.0</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- MySQL Connector/J — bundled, NOT provided. Spigot 1.8.8 ships connector 5.1.14,
+             which cannot authenticate against MySQL 8 (caching_sha2_password). Shipping our
+             own guarantees a modern driver on every host. 8.0.33 is the last line that still
+             targets Java 8; 9.x requires Java 21. Lives in com.mysql.cj.* — a package the
+             server jar does not have — so parent-first delegation cannot shadow it.
+             protobuf is only needed for the X DevAPI, which we never touch. -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.0.33</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.protobuf</groupId>
+                    <artifactId>protobuf-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>

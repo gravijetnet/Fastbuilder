@@ -57,24 +57,11 @@ public class MySqlStorageProvider implements StorageProvider {
 
     @Override
     public void init() throws Exception {
-        // Try loading the MySQL JDBC driver — prefer the modern one first.
-        boolean driverLoaded = false;
-        try { Class.forName(DRIVER_NEW); driverLoaded = true; } catch (ClassNotFoundException ignored) {}
-        if (!driverLoaded) {
-            try { Class.forName(DRIVER); driverLoaded = true; } catch (ClassNotFoundException ignored) {}
-        }
-        if (!driverLoaded) {
-            throw new Exception("MySQL JDBC driver not found. Add mysql-connector-j or mysql-connector-java to the classpath.");
-        }
+        this.mysqlDriver = loadDriver();
 
-        // Obtain the driver instance directly via DriverManager to bypass its
-        // URL-type‑detection, which can reject valid URLs under certain
-        // driver / JDK combinations.
-        this.mysqlDriver = DriverManager.getDriver("jdbc:mysql://");
-
-        // Build the base JDBC URL (host:port/database) and pass all parameters
-        // via Properties to avoid URL‑parsing issues with modern JDBC drivers.
-        boolean useSSL = plugin.getConfigManager().getStorageMySQL("use-ssl", "false").equalsIgnoreCase("true");
+        // Base JDBC URL (host:port/database); every parameter travels in Properties
+        // instead of the query string, which avoids URL-parsing quirks across drivers.
+        boolean useSSL = plugin.getConfigManager().isStorageMySQLSSL();
         String url = "jdbc:mysql://" + host + ":" + port + "/" + database;
         this.jdbcUrl = url;
 
@@ -82,17 +69,19 @@ public class MySqlStorageProvider implements StorageProvider {
         props.setProperty("user", user);
         props.setProperty("password", password);
         props.setProperty("useSSL", String.valueOf(useSSL));
+        // MySQL 8 defaults to caching_sha2_password, which refuses to hand over its public
+        // key on an unencrypted link unless we ask. Without this an unencrypted connection
+        // to a stock MySQL 8 dies with "Public Key Retrieval is not allowed".
+        if (!useSSL) props.setProperty("allowPublicKeyRetrieval", "true");
         props.setProperty("characterEncoding", "utf8");
         props.setProperty("serverTimezone", "UTC");
+        props.setProperty("connectTimeout", "10000");
+        props.setProperty("socketTimeout", "60000");
         this.connectionProps = props;
 
         synchronized (pool) {
             for (int i = 0; i < POOL_SIZE; i++) {
-                Connection c = mysqlDriver.connect(url, props);
-                if (c == null) {
-                    throw new SQLException("MySQL driver refused the URL (returned null): " + url);
-                }
-                pool[i]   = c;
+                pool[i]   = openConnection();
                 in_use[i] = false;
             }
         }
@@ -203,6 +192,43 @@ public class MySqlStorageProvider implements StorageProvider {
         plugin.getLogger().info("[MySQL] Database initialised. Connected to " + host + ":" + port + "/" + database);
     }
 
+    /**
+     * Instantiate the JDBC driver directly rather than asking {@link DriverManager} for it.
+     * DriverManager hands back whichever registered driver claims "jdbc:mysql://" first — on
+     * Spigot 1.8.8 that is the connector 5.1.14 shaded into the server jar, which cannot talk
+     * to MySQL 8. Constructing the class we want by name pins us to the bundled 8.x driver.
+     */
+    private java.sql.Driver loadDriver() throws Exception {
+        for (String name : new String[]{DRIVER_NEW, DRIVER}) {
+            try {
+                java.sql.Driver d = (java.sql.Driver)
+                        Class.forName(name).getDeclaredConstructor().newInstance();
+                plugin.getLogger().info("[MySQL] Using JDBC driver: " + name);
+                return d;
+            } catch (ClassNotFoundException ignored) {
+                // try the next candidate
+            }
+        }
+        throw new Exception("No MySQL JDBC driver found on the classpath. The plugin normally "
+                + "bundles one — this build appears to have been shaded without it.");
+    }
+
+    /** Open one real connection, turning a null/failed handshake into a message that names the cause. */
+    private Connection openConnection() throws SQLException {
+        Connection c;
+        try {
+            c = mysqlDriver.connect(jdbcUrl, connectionProps);
+        } catch (SQLException e) {
+            throw new SQLException("Could not connect to " + jdbcUrl + " as user '" + user
+                    + "': " + e.getMessage(), e.getSQLState(), e.getErrorCode(), e);
+        }
+        if (c == null) {
+            // connect() returns null only when the driver does not recognise the URL scheme.
+            throw new SQLException("The JDBC driver did not accept the URL: " + jdbcUrl);
+        }
+        return c;
+    }
+
     private Connection borrowConnection() throws SQLException {
         long deadline = System.currentTimeMillis() + POOL_TIMEOUT;
         while (System.currentTimeMillis() < deadline) {
@@ -211,19 +237,7 @@ public class MySqlStorageProvider implements StorageProvider {
                     if (!in_use[i]) {
                         try {
                             if (pool[i] == null || pool[i].isClosed() || !pool[i].isValid(2)) {
-                                // Attempt to get the JDBC URL from the old connection; if that also fails,
-                                // fall back to the stored connection URL fields.
-                                String url;
-                                try {
-                                    url = pool[i] != null ? pool[i].getMetaData().getURL() : null;
-                                } catch (SQLException e) {
-                                    url = null;
-                                }
-                                if (url == null) url = this.jdbcUrl;
-                                pool[i] = mysqlDriver.connect(url, connectionProps);
-                                if (pool[i] == null) {
-                                    throw new SQLException("MySQL driver refused the URL (returned null): " + url);
-                                }
+                                pool[i] = openConnection();
                             }
                         } catch (SQLException e) {
                             // Connection is dead and reconnect failed — skip this slot
@@ -357,7 +371,7 @@ public class MySqlStorageProvider implements StorageProvider {
     }
 
     @Override
-    public void savePlayerData(PlayerData data) {
+    public boolean savePlayerData(PlayerData data) {
         String uuidStr = data.getUuid().toString();
         try (Connection c = borrowConnection()) {
             c.setAutoCommit(false);
@@ -516,9 +530,30 @@ public class MySqlStorageProvider implements StorageProvider {
                 // Never let a failed reset leak a transaction-mode connection back to the pool
                 try { c.setAutoCommit(true); } catch (SQLException ignored) {}
             }
+            return true;
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[MySQL] Failed to save player: " + data.getUuid(), e);
+            return false;
         }
+    }
+
+    @Override
+    public List<UUID> getAllPlayerUuids() {
+        List<UUID> out = new ArrayList<UUID>();
+        try (Connection c = borrowConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT uuid FROM player_data");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                try {
+                    out.add(UUID.fromString(rs.getString("uuid")));
+                } catch (IllegalArgumentException ignored) {
+                    // Malformed uuid column — skip rather than abort the whole scan
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "[MySQL] Failed to list player UUIDs", e);
+        }
+        return out;
     }
 
     private static final java.util.Set<String> ALLOWED_SYNC_TABLES = new java.util.HashSet<>(

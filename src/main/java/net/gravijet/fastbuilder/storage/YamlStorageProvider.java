@@ -59,16 +59,34 @@ public class YamlStorageProvider implements StorageProvider {
     }
 
     @Override
-    public synchronized void savePlayerData(PlayerData data) {
+    public synchronized boolean savePlayerData(PlayerData data) {
         File file = new File(dataDir, data.getUuid().toString() + ".yml");
         YamlConfiguration cfg = new YamlConfiguration();
         data.saveTo(cfg);
         try {
             cfg.save(file);
+            return true;
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE,
                     "[YAML] Failed to save player data: " + data.getUuid(), e);
+            return false;
         }
+    }
+
+    @Override
+    public List<UUID> getAllPlayerUuids() {
+        List<UUID> out = new ArrayList<>();
+        File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) return out;
+        for (File file : files) {
+            String base = file.getName().substring(0, file.getName().length() - 4);
+            try {
+                out.add(UUID.fromString(base));
+            } catch (IllegalArgumentException ignored) {
+                // Not a UUID-named file — not player data, skip
+            }
+        }
+        return out;
     }
 
     @Override

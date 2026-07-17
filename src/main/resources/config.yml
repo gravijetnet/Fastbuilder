@@ -7,14 +7,28 @@ storage:
   # yaml   → one .yml file per player (default, no extra setup)
   # sqlite → single fastbuilder.db file (faster reads, concurrent-safe)
   # mysql  → external database (best for multi-server / high player counts)
+  #
+  # NOTE: this must say "mysql" for the settings below to be used at all.
+  # If the database cannot be reached on startup the plugin logs a large SEVERE
+  # block in console and falls back to yaml — check there if data is not showing up.
   type: yaml
 
+  # How often ALL online players are written to storage, in seconds.
+  # This runs on top of the event-driven saves (quit, run finish, purchases) and caps
+  # how much progress a server crash can cost. 0 disables it; minimum is 5.
+  # Higher player counts + a remote database = prefer a larger value.
+  auto-save-interval-seconds: 30
+
+  # Used only when type is "mysql". Works with MySQL 5.7/8.x and MariaDB.
+  # The database itself must already exist; the plugin creates its own tables.
   mysql:
-    host: "localhost"
-    port: "3306"
+    host: "yaml"
+    port: 3306
     database: "fastbuilder"
     user: "root"
     password: ""
+    # Set to true only if your server requires an encrypted connection.
+    use-ssl: false
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Plugin prefix for messages (include trailing space)

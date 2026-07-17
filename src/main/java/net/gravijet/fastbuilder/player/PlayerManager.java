@@ -29,12 +29,32 @@ public class PlayerManager {
     private final FastBuilder plugin;
     private final StorageProvider provider;
 
+    /**
+     * The backend actually in use — not necessarily what config.yml asked for, since a
+     * failed init falls back to YAML. The migrator relies on this being the truth.
+     */
+    private String activeType;
+
+    /** Task id of the periodic autosave, or -1 when it is not running. */
+    private int autoSaveTask = -1;
+
     /** Live in-memory cache — main-thread access only for mutations. */
     private final Map<UUID, PlayerData> cache = Collections.synchronizedMap(new HashMap<>());
 
     public PlayerManager(FastBuilder plugin) {
         this.plugin = plugin;
         this.provider = buildProvider();
+        startAutoSave();
+    }
+
+    /** The storage backend currently in use: "yaml", "sqlite" or "mysql". */
+    public String getActiveStorageType() {
+        return activeType;
+    }
+
+    /** The live storage provider. Exposed for {@link StorageProvider}-level tooling (migration). */
+    public StorageProvider getProvider() {
+        return provider;
     }
 
     // -------------------------------------------------------------------------
@@ -59,15 +79,92 @@ public class PlayerManager {
 
         try {
             p.init();
-            plugin.getLogger().info("[PlayerManager] Storage backend: " + type.toUpperCase());
+            activeType = type.toLowerCase();
+            // Normalise anything unrecognised: the switch above already routed it to YAML.
+            if (!activeType.equals("sqlite") && !activeType.equals("mysql")) activeType = "yaml";
+            plugin.getLogger().info("[PlayerManager] Storage backend: " + activeType.toUpperCase());
+            return p;
         } catch (Exception e) {
-            plugin.getLogger().severe("[PlayerManager] Failed to init '" + type
-                    + "' backend — falling back to YAML. Cause: " + e.getMessage());
-            p = new YamlStorageProvider(plugin, cache);
-            try { p.init(); } catch (Exception ignored) {}
-        }
+            // A silent fallback here means the server keeps running happily while every write
+            // goes to YAML files and the configured database stays empty. Make it impossible
+            // to miss, and log the full cause rather than just getMessage().
+            java.util.logging.Logger log = plugin.getLogger();
+            log.severe("###############################################################");
+            log.severe("#  FastBuilder: the '" + type.toUpperCase() + "' storage backend FAILED to start.");
+            log.severe("#");
+            log.severe("#  Player data is now being written to YAML files instead —");
+            log.severe("#  your database will stay EMPTY until the error below is fixed.");
+            log.severe("#");
+            log.severe("#  Fix the cause, then restart the server.");
+            log.severe("###############################################################");
+            log.log(java.util.logging.Level.SEVERE, "[PlayerManager] Backend init failed:", e);
 
-        return p;
+            StorageProvider fallback = new YamlStorageProvider(plugin, cache);
+            try {
+                fallback.init();
+            } catch (Exception fatal) {
+                log.log(java.util.logging.Level.SEVERE,
+                        "[PlayerManager] YAML fallback also failed to init:", fatal);
+            }
+            activeType = "yaml";
+            return fallback;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Periodic autosave
+    // -------------------------------------------------------------------------
+
+    /**
+     * Flush every cached player to storage on a fixed interval, so a crash costs at most
+     * one interval of progress instead of a whole session. Event-driven saves (quit, run
+     * finish, purchases) still happen as before — this is a safety net underneath them.
+     *
+     * <p>The whole sweep runs on ONE async thread and saves players one after another.
+     * Firing a task per player would hand dozens of writes to the scheduler at once and
+     * exhaust the 5-connection MySQL pool for no benefit.
+     */
+    private void startAutoSave() {
+        int seconds = plugin.getConfigManager().getAutoSaveIntervalSeconds();
+        if (seconds <= 0) {
+            plugin.getLogger().info("[PlayerManager] Periodic autosave disabled (storage.auto-save-interval-seconds: 0)");
+            return;
+        }
+        long ticks = seconds * 20L;
+        autoSaveTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            java.util.List<PlayerData> snapshot;
+            synchronized (cache) {
+                if (cache.isEmpty()) return;
+                snapshot = new java.util.ArrayList<>(cache.values());
+            }
+            long start = System.currentTimeMillis();
+            int saved = 0;
+            for (PlayerData data : snapshot) {
+                try {
+                    provider.savePlayerData(data);
+                    saved++;
+                } catch (Exception e) {
+                    plugin.getLogger().log(java.util.logging.Level.WARNING,
+                            "[PlayerManager] Autosave failed for " + data.getUuid(), e);
+                }
+            }
+            long took = System.currentTimeMillis() - start;
+            // Only worth a line when it is slow enough to be worth knowing about.
+            if (took > 1000) {
+                plugin.getLogger().info("[PlayerManager] Autosave: " + saved
+                        + " players in " + took + " ms");
+            }
+        }, ticks, ticks).getTaskId();
+
+        plugin.getLogger().info("[PlayerManager] Periodic autosave every " + seconds + "s");
+    }
+
+    /** Stop the autosave sweep. Called on shutdown before the final saveAll(). */
+    private void stopAutoSave() {
+        if (autoSaveTask != -1) {
+            Bukkit.getScheduler().cancelTask(autoSaveTask);
+            autoSaveTask = -1;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -251,6 +348,7 @@ public class PlayerManager {
     // -------------------------------------------------------------------------
 
     public void shutdown() {
+        stopAutoSave();
         saveAll();
         provider.shutdown();
     }

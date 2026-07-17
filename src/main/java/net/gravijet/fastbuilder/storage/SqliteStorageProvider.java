@@ -291,7 +291,25 @@ public class SqliteStorageProvider implements StorageProvider {
     }
 
     @Override
-    public synchronized void savePlayerData(PlayerData data) {
+    public synchronized List<UUID> getAllPlayerUuids() {
+        List<UUID> out = new ArrayList<UUID>();
+        try (PreparedStatement ps = connection.prepareStatement("SELECT uuid FROM player_data");
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                try {
+                    out.add(UUID.fromString(rs.getString("uuid")));
+                } catch (IllegalArgumentException ignored) {
+                    // Malformed uuid column — skip rather than abort the whole scan
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "[SQLite] Failed to list player UUIDs", e);
+        }
+        return out;
+    }
+
+    @Override
+    public synchronized boolean savePlayerData(PlayerData data) {
         String uuidStr = data.getUuid().toString();
         try {
             connection.setAutoCommit(false);
@@ -443,9 +461,11 @@ public class SqliteStorageProvider implements StorageProvider {
             }
 
             connection.commit();
+            return true;
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "[SQLite] Failed to save player: " + data.getUuid(), e);
             try { connection.rollback(); } catch (SQLException ignored) {}
+            return false;
         } finally {
             try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
         }

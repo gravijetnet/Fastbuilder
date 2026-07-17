@@ -400,8 +400,58 @@ public class ConfigManager {
         return mainConfig.getString("storage.mysql." + key, def);
     }
 
+    /**
+     * How often every cached player is flushed to storage, in seconds. 0 disables the
+     * periodic sweep and leaves only the event-driven saves (quit, finish, purchase).
+     */
+    public int getAutoSaveIntervalSeconds() {
+        Object raw = mainConfig.get("storage.auto-save-interval-seconds");
+        int seconds;
+        if (raw instanceof Number)      seconds = ((Number) raw).intValue();
+        else if (raw instanceof String) {
+            try { seconds = Integer.parseInt(((String) raw).trim()); }
+            catch (NumberFormatException e) { seconds = 30; }
+        } else return 30;
+
+        if (seconds <= 0) return 0;
+        // A sweep rewrites every online player's rows; below ~5s that is pure churn.
+        if (seconds < 5) {
+            plugin.getLogger().warning("[Config] storage.auto-save-interval-seconds: "
+                    + seconds + " is too aggressive — clamped to 5");
+            return 5;
+        }
+        return seconds;
+    }
+
+    /**
+     * Whether to require an encrypted MySQL connection. Accepts a real boolean or a
+     * quoted string, so neither {@code use-ssl: true} nor {@code use-ssl: "true"} is
+     * silently read as false.
+     */
+    public boolean isStorageMySQLSSL() {
+        Object raw = mainConfig.get("storage.mysql.use-ssl");
+        if (raw instanceof Boolean) return (Boolean) raw;
+        if (raw instanceof String)  return Boolean.parseBoolean(((String) raw).trim());
+        return false;
+    }
+
+    /**
+     * MySQL port. Accepts a plain number or a quoted string — Bukkit's getInt() silently
+     * returns the default for a quoted value, which would send everyone to 3306 no matter
+     * what the file says.
+     */
     public int getStorageMySQLPort() {
-        return mainConfig.getInt("storage.mysql.port", 3306);
+        Object raw = mainConfig.get("storage.mysql.port");
+        if (raw instanceof Number) return ((Number) raw).intValue();
+        if (raw instanceof String) {
+            try {
+                return Integer.parseInt(((String) raw).trim());
+            } catch (NumberFormatException e) {
+                plugin.getLogger().warning("[Config] storage.mysql.port is not a number: '"
+                        + raw + "' — falling back to 3306");
+            }
+        }
+        return 3306;
     }
 
     // -------------------------------------------------------------------------

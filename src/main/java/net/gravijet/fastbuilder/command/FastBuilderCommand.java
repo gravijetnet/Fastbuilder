@@ -4,6 +4,7 @@ import net.gravijet.fastbuilder.FastBuilder;
 import net.gravijet.fastbuilder.map.MapData;
 import net.gravijet.fastbuilder.map.MapManager;
 import net.gravijet.fastbuilder.player.PlayerData;
+import net.gravijet.fastbuilder.storage.StorageMigrator;
 import net.gravijet.fastbuilder.util.ColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -40,7 +41,7 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
             "join", "leave", "leavemap", "reset"
     );
     private static final List<String> ALL_SUBS = Arrays.asList(
-            "join", "leave", "leavemap", "reset", "reload", "dump"
+            "join", "leave", "leavemap", "reset", "reload", "dump", "migrate"
     );
 
     private final FastBuilder plugin;
@@ -51,6 +52,13 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        // Handled before the player-only gate: a data migration is a console job, and
+        // running it from console is the only way to do it with nobody logged in.
+        if (args.length > 0 && args[0].equalsIgnoreCase("migrate")) {
+            handleMigrate(sender, args);
+            return true;
+        }
+
         if (!(sender instanceof Player)) {
             net.gravijet.fastbuilder.util.Messages.send(sender, "players-only");
             return true;
@@ -649,6 +657,116 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         return null;
     }
 
+    // --- /fb migrate <from> <to> [confirm] ---
+
+    /** Guards against a second migration starting while one is still running. */
+    private final java.util.concurrent.atomic.AtomicBoolean migrating =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    private void handleMigrate(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("fastbuilder.command.fb.migrate")) {
+            net.gravijet.fastbuilder.util.Messages.send(sender, "no-permission");
+            return;
+        }
+
+        String active = plugin.getPlayerManager().getActiveStorageType();
+
+        if (args.length < 3) {
+            msg(sender, "&c&lStorage Migration");
+            msg(sender, "&7Usage: &f/fb migrate <from> <to> confirm");
+            msg(sender, "&7Backends: &fyaml&7, &fsqlite&7, &fmysql");
+            msg(sender, "&7Currently active: &f" + active);
+            msg(sender, "&7Copies every player record from &f<from>&7 into &f<to>&7.");
+            msg(sender, "&7The active backend is not changed — set &fstorage.type&7 and restart afterwards.");
+            return;
+        }
+
+        String from = args[1].toLowerCase();
+        String to   = args[2].toLowerCase();
+
+        if (!net.gravijet.fastbuilder.storage.StorageMigrator.isValidType(from)) {
+            msg(sender, "&cUnknown backend: &f" + from + " &7(yaml, sqlite, mysql)");
+            return;
+        }
+        if (!net.gravijet.fastbuilder.storage.StorageMigrator.isValidType(to)) {
+            msg(sender, "&cUnknown backend: &f" + to + " &7(yaml, sqlite, mysql)");
+            return;
+        }
+        if (from.equals(to)) {
+            msg(sender, "&cSource and target are the same backend.");
+            return;
+        }
+
+        boolean confirmed = args.length >= 4 && args[3].equalsIgnoreCase("confirm");
+        if (!confirmed) {
+            msg(sender, "&c&lStorage Migration");
+            msg(sender, "&7About to copy &f" + from + " &8→ &f" + to + "&7.");
+            msg(sender, "&7Players that already exist in &f" + to + " &7will be &coverwritten&7.");
+            if (!Bukkit.getOnlinePlayers().isEmpty()) {
+                msg(sender, "&e&lWarning: &e" + Bukkit.getOnlinePlayers().size()
+                        + " player(s) online. Their live session keeps writing to &f" + active
+                        + "&e and can overwrite migrated records.");
+                msg(sender, "&eRun this with an empty server for a clean result.");
+            }
+            msg(sender, "&7Confirm: &f/fb migrate " + from + " " + to + " confirm");
+            return;
+        }
+
+        if (!migrating.compareAndSet(false, true)) {
+            msg(sender, "&cA migration is already running.");
+            return;
+        }
+
+        msg(sender, "&7Migrating &f" + from + " &8→ &f" + to + "&7, this may take a while&8...");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                net.gravijet.fastbuilder.storage.StorageMigrator.Result result =
+                        net.gravijet.fastbuilder.storage.StorageMigrator.migrate(
+                                plugin, from, to,
+                                (done, total) -> {
+                                    // Only report on the console for long runs; avoids chat spam.
+                                    if (total >= 100) {
+                                        plugin.getLogger().info("[Migrate] " + done + "/" + total);
+                                    }
+                                });
+
+                // Always record the outcome in console — this is a data operation, and the
+                // admin who started it may be gone by the time it finishes.
+                if (result.isAborted()) {
+                    plugin.getLogger().severe("[Migrate] " + from + " -> " + to
+                            + " ABORTED: " + result.error);
+                } else {
+                    plugin.getLogger().info("[Migrate] " + from + " -> " + to + ": "
+                            + result.migrated + "/" + result.total + " migrated, "
+                            + result.failed + " failed");
+                }
+
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (result.isAborted()) {
+                        msg(sender, "&cMigration failed: &f" + result.error);
+                        msg(sender, "&7See the console for the full stack trace.");
+                        return;
+                    }
+                    msg(sender, "&aMigration complete: &f" + result.migrated + "&a/&f"
+                            + result.total + " &aplayer(s) copied " + from + " → " + to + ".");
+                    if (result.failed > 0) {
+                        msg(sender, "&e" + result.failed + " record(s) failed — see console.");
+                    }
+                    if (result.total == 0) {
+                        msg(sender, "&7The source backend held no player records.");
+                    }
+                    if (!to.equals(active)) {
+                        msg(sender, "&7Now set &fstorage.type: " + to
+                                + " &7in config.yml and restart the server to use it.");
+                    }
+                });
+            } finally {
+                migrating.set(false);
+            }
+        });
+    }
+
     // --- Help ---
 
     private void sendHelp(Player player) {
@@ -664,6 +782,9 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
         if (player.hasPermission("fastbuilder.command.fb.dump")) {
             player.sendMessage(ColorUtil.translate("  &7/fb dump           &8— &7upload diagnostics"));
         }
+        if (player.hasPermission("fastbuilder.command.fb.migrate")) {
+            player.sendMessage(ColorUtil.translate("  &7/fb migrate        &8— &7convert storage backend"));
+        }
         player.sendMessage("");
     }
 
@@ -671,6 +792,15 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
+        // /fb migrate is console-friendly, so complete it before the player-only gate.
+        if (args.length >= 1 && args[0].equalsIgnoreCase("migrate")
+                && sender.hasPermission("fastbuilder.command.fb.migrate")) {
+            if (args.length == 2) return filter(StorageMigrator.TYPES, args[1]);
+            if (args.length == 3) return filter(StorageMigrator.TYPES, args[2]);
+            if (args.length == 4) return filter(Collections.singletonList("confirm"), args[3]);
+            return Collections.emptyList();
+        }
+
         if (!(sender instanceof Player) || !sender.hasPermission("fastbuilder.play")) {
             return Collections.emptyList();
         }
@@ -703,11 +833,14 @@ public class FastBuilderCommand implements CommandExecutor, TabCompleter {
 
     // --- Message Helper ---
 
-    private void msg(Player player, String text) {
+    private void msg(CommandSender target, String text) {
         if (text == null || text.isEmpty()) return;
+        // A long migration can outlive the admin who started it — don't push into a dead
+        // connection. The console log keeps the result either way.
+        if (target instanceof Player && !((Player) target).isOnline()) return;
         // Always resolve %prefix% here so callers that pass a raw messages.yml template
         // (e.g. getMessage("no-permission")) don't leak a literal "%prefix%" to the player.
-        player.sendMessage(ColorUtil.translate(
+        target.sendMessage(ColorUtil.translate(
                 text.replace("%prefix%", plugin.getConfigManager().getPrefix())));
     }
 }
